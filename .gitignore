@@ -1,0 +1,13 @@
+# Project place file
+/luau-locke-nes.rbxlx
+/luau-locke-nes.rbxl
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# Wally
+/Packages
+
+# Rojo
+/sourcemap.json

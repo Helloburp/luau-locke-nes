@@ -1,9 +1,17 @@
+--[[ References
+    https://www.nesdev.org/obelisk-6502-guide/reference.html
+    https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+]]
+
 local T = require(script.Parent._TYPES)
 type Regs = T.Registers
 type u8 = T.u8
+type IMemory = T.IMemory
+type OutputState = T.OutputAddressState
 
 
 local BAND, BXOR, BNOT = bit32.band, bit32.bxor, bit32.bnot
+local LSHIFT  = bit32.lshift
 
 local _getBit, _setBit 
 local _getFlag, _setFlag
@@ -18,40 +26,52 @@ end
 local m = {}
 
 
-function m.ADC(regs: Regs, val: u8)
-    local result = regs.A + val + if _getFlag("C", regs.STATUS) then 1 else 0
+function _add(regs: Regs, operand: u8)
+    local result = regs.A + operand + if _getFlag("C", regs.STATUS) then 1 else 0
 
-    local shouldCarry = result > 255
-
-    --[[
-        Most significant bit of A must be the same as Val and different from
-        Result to indicate an overflow (Result of a signed operation doesn't
-            fit into the byte.)
-        E.g, Positive + Positive = Negative -> Overflow
-
-        Source:
-        https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-        V = !((M^N) & 0x80) && ((M^result) & 0x80)
-    ]]
+    -- V = !((M^N) & 0x80) && ((M^result) & 0x80)
     local didSignedOverflow = _getBit(7, BAND(
-        BNOT(BXOR(regs.A, val)),    -- A has the same sign as val
+        BNOT(BXOR(regs.A, operand)),    -- A has the same sign as val
         BXOR(regs.A, result)        -- A has a different sign from result
     ))
 
     regs.A = _u8(result)
 
-    regs.STATUS = _setFlag("C", regs.STATUS, shouldCarry)
-    regs.STATUS = _setFlag("Z", regs.STATUS, regs.A == 0)
-    regs.STATUS = _setFlag("V", regs.STATUS, didSignedOverflow)
-    regs.STATUS = _setFlag("N", regs.STATUS, _getBit(7, result))
+    _setFlag("C", regs, BAND(result, 0xFF00) > 0)
+    _setFlag("Z", regs, regs.A == 0)
+    _setFlag("V", regs, didSignedOverflow)
+    _setFlag("N", regs, _getBit(7, result))
+end
 
 
-    return 0
+function m.ADC(regs: Regs, val: u8)
+    _add(regs, val)
 end
 
 
 function m.SBC(regs: Regs, val: u8)
+    _add(regs, BXOR(val, 0xFF))
+end
 
+
+--[[
+    The documentation says that Z is set if the accumulator is 0, but
+    it also says that Z is set if "the last operation resulted in 0",
+    and OLC's emulator also sees it that way. So, that's what I'm going with
+]]
+function m.ASL(regs: Regs, val: u8, memory: IMemory, outputState: OutputState)
+    local result = LSHIFT(val, 1)
+    local result_u8 = _u8(result)
+
+    if outputState._t == "Implied" then
+        regs.A = result_u8
+    elseif outputState._t == "Absolute" then
+        memory.Write(outputState.Address, result_u8)
+    end
+
+    _setFlag("C", regs, _getBit(8, result))
+    _setFlag("Z", regs, result_u8 == 0)
+    _setFlag("N", regs, _getBit(7, result))
 end
 
 

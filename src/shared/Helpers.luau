@@ -4,6 +4,7 @@ local T = require(script.Parent._TYPES)
 type Regs = T.Registers
 type u8 = T.u8
 type u16 = T.u16
+type IMemory = T.IMemory
 
 local BAND, BOR, BNOT, LSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift
@@ -30,8 +31,9 @@ function m.GetBit(bitIndex: number, word: number): boolean
     return BAND(word, LSHIFT(1, bitIndex)) > 0
 end
 
-function m.SetFlag(flag: T.EStatusFlag, status: u8, value: boolean): number
-    return m.SetBit(_flagToBitIndex(flag), status, value)
+function m.SetFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
+    regs.STATUS = m.SetBit(_flagToBitIndex(flag), regs.STATUS, value)
+    return regs
 end
 
 function m.GetFlag(flag: T.EStatusFlag, status: u8): boolean
@@ -48,6 +50,14 @@ end
 
 function m.NewRegisters(): Regs
     return { A = 0, X = 0, Y = 0, PC = 0, SP = 0, STATUS = 0 }
+end
+
+function m.NewMemory(): IMemory
+    local t = {}
+    return {
+        Read = function(i) return t[i] end,
+        Write = function(i, v) t[i] = v end
+    }
 end
 
 return m

@@ -10,9 +10,10 @@ return function()
 
     local function _newAccumulatorTest(instruction, op1, op2, result)
         return function()
-            local regs = c.Regs()
+            local regs, mem = c.Regs(), c.Mem()
             regs.A = op1
-            instruction(regs, op2)
+            mem.Write(0, op2)
+            instruction(regs, 0, mem)
             expect(regs.A).to.equal(result)
             c.TestZeroAndNegative(regs.A)
         end

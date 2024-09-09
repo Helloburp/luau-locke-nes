@@ -3,7 +3,8 @@
 
 local modules = {
     Arithmetic = require(script.Arithmetic),
-    Logic = require(script.Logic)
+    Logic = require(script.Logic),
+    Branch = require(script.Branch)
 }
 
 local _newCommon = require(script._COMMON)
@@ -15,4 +16,5 @@ return function()
 
     describe("Arithmetic", modules.Arithmetic)
     describe("Logic", modules.Logic)
+    describe("Branch", modules.Branch)
 end

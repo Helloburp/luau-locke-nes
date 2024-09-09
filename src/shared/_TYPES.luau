@@ -30,30 +30,25 @@ export type IMemory = {
 }
 
 --[[
-    In the actual CPU implementation, I may want to have 3 existing
-    tables made for these that can just be referenced with pointers.
-    Having to create these for every instruction would be ICK
-]]
-export type OutputAddressState = {
-    _t: "Relative",
-    Offset: u8
-} | {
-    _t: "Absolute",
-    Address: u16
-} | {
-    _t: "Implied"
-}
-
---[[
     Output: extra cycles. (May not be applicable)
     Implied operations are usually for setting the accumulator
 ]]
-export type Instruction = (
+
+-- May have a mode that does not require an address
+type ImplicitInstruction = (
     registers: Registers,
-    operand: u8,
-    memory: IMemory,
-    outputState: OutputAddressState
+    absAddr: u16?,   -- Address of operand as determined by addressing mode
+    memory: IMemory
 ) -> (number?)
+
+-- Always needs an address
+type NonimplicitInstruction = (
+    registers: Registers,
+    absAddr: u16,
+    memory: IMemory
+) -> (number?)
+
+export type Instruction = ImplicitInstruction | NonimplicitInstruction
 
 return {}
 

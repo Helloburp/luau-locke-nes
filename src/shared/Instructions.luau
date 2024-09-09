@@ -6,8 +6,8 @@
 local T = require(script.Parent._TYPES)
 type Regs = T.Registers
 type u8 = T.u8
+type u16 = T.u16
 type IMemory = T.IMemory
-type OutputState = T.OutputAddressState
 
 
 local BAND, BXOR, BNOT = bit32.band, bit32.bxor, bit32.bnot
@@ -15,18 +15,25 @@ local LSHIFT  = bit32.lshift
 
 local _getBit, _setBit 
 local _getFlag, _setFlag
-local _u8
+local _u8, _u16, _s8ToS16
  do
     local Helpers = require(script.Parent.Helpers)
     _getBit, _setBit = Helpers.GetBit, Helpers.SetBit
     _getFlag, _setFlag = Helpers.GetFlag, Helpers.SetFlag
-    _u8 = Helpers.WrapU8
+    _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
+    _s8ToS16 = Helpers.Signed8ToSigned16
 end
 
 local m = {}
 
 
-function _add(regs: Regs, operand: u8)
+function _setZeroAndNegative(regs: Regs, result: u8)
+    _setFlag("Z", regs, result == 0)
+    _setFlag("N", regs, _getBit(7, result))
+end
+
+
+function _adder(regs: Regs, operand: u8)
     local result = regs.A + operand + if _getFlag("C", regs.STATUS) then 1 else 0
 
     -- V = !((M^N) & 0x80) && ((M^result) & 0x80)
@@ -38,19 +45,18 @@ function _add(regs: Regs, operand: u8)
     regs.A = _u8(result)
 
     _setFlag("C", regs, BAND(result, 0xFF00) > 0)
-    _setFlag("Z", regs, regs.A == 0)
     _setFlag("V", regs, didSignedOverflow)
-    _setFlag("N", regs, _getBit(7, result))
+    _setZeroAndNegative(regs, regs.A)
 end
 
 
-function m.ADC(regs: Regs, val: u8)
-    _add(regs, val)
+function m.ADC(regs: Regs, addr: u16, mem: IMemory)
+    _adder(regs, mem.Read(addr))
 end
 
 
-function m.SBC(regs: Regs, val: u8)
-    _add(regs, BXOR(val, 0xFF))
+function m.SBC(regs: Regs, addr: u16, mem: IMemory)
+    _adder(regs, BXOR(mem.Read(addr), 0xFF))
 end
 
 
@@ -59,19 +65,81 @@ end
     it also says that Z is set if "the last operation resulted in 0",
     and OLC's emulator also sees it that way. So, that's what I'm going with
 ]]
-function m.ASL(regs: Regs, val: u8, memory: IMemory, outputState: OutputState)
+function m.ASL(regs: Regs, addr: u16?, mem: IMemory)
+    local val = if addr then mem.Read(addr) else regs.A
     local result = LSHIFT(val, 1)
     local result_u8 = _u8(result)
 
-    if outputState._t == "Implied" then
+    if not addr then
         regs.A = result_u8
-    elseif outputState._t == "Absolute" then
-        memory.Write(outputState.Address, result_u8)
+    else
+        mem.Write(addr, result_u8)
     end
 
     _setFlag("C", regs, _getBit(8, result))
-    _setFlag("Z", regs, result_u8 == 0)
-    _setFlag("N", regs, _getBit(7, result))
+    _setZeroAndNegative(regs, result_u8)
+end
+
+-- A,Z,N = A&M
+function m.AND(regs: Regs, addr: u16, mem: IMemory)
+    regs.A = BAND(regs.A, mem.Read(addr))
+    _setZeroAndNegative(regs, regs.A)
+end
+
+
+--[[
+    Branching
+]]
+
+function _branch(regs: Regs, addr: u16, mem: IMemory)
+    regs.PC = _u16(regs.PC + _s8ToS16(mem.Read(addr)))
+end
+
+
+-- Branch if carry clear
+function m.BCC(regs: Regs, addr: u16, mem: IMemory)
+    if _getFlag("C", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
+end
+
+
+-- Branch if carry set
+function m.BCS(regs: Regs, addr: u16, mem: IMemory)
+    if not _getFlag("C", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
+end
+
+
+-- Branch if equal
+function m.BEQ(regs: Regs, addr: u16, mem: IMemory)
+    if not _getFlag("Z", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
+end
+
+
+-- Branch if not equal
+function m.BNE(regs: Regs, addr: u16, mem: IMemory)
+    if _getFlag("Z", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
+end
+
+
+-- Branch if positive
+function m.BPL(regs: Regs, addr: u16, mem: IMemory)
+    if _getFlag("N", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
+end
+
+-- Branch if negative
+function m.BMI(regs: Regs, addr: u16, mem: IMemory)
+    if not _getFlag("N", regs.STATUS) then return 0 end
+    _branch(regs, addr, mem)
+    return 1
 end
 
 

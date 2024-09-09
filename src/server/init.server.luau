@@ -1,1 +1,3 @@
-print("Hello world, from server!")
+require(game.ReplicatedStorage.Packages.TestEZ).TestBootstrap:run(
+    {game.ReplicatedStorage.Shared.test}
+)

@@ -40,7 +40,12 @@ return function(expect: any)
     m.TestFlag = _testFlag
     m.TestZeroAndNegative = _testZeroAndNegative
     m.TestOverflow = _testOverflow
-    m.SetFlag = h.SetFlag
+    m.SetFlag = function(flag: T.EStatusFlag, value: boolean)
+        return h.SetFlag(flag, regs, value)
+    end
+    m.GetFlag = function(flag: T.EStatusFlag)
+        return h.GetFlag(flag, regs.STATUS)
+    end
     m.Reset = function() regs = h.NewRegisters(); mem = h.NewMemory() end
 
     return m

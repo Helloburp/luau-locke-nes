@@ -48,6 +48,10 @@ function m.WrapU16(word: number): u16
     return word%65536
 end
 
+function m.Signed8ToSigned16(val: u8): u16
+    return if val > 127 then BOR(val, 0xFF00) else val
+end
+
 function m.NewRegisters(): Regs
     return { A = 0, X = 0, Y = 0, PC = 0, SP = 0, STATUS = 0 }
 end

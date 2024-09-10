@@ -16,13 +16,26 @@ export type Registers = {
     STATUS: u8,
 }
 
+export type ExecutionState = {
+    Cycles: number,
+    Clock: number
+}
+
+export type CPU = {
+    ExecutionState: ExecutionState,
+    Registers: Registers,
+
+    Instructions: {[EInstruction]: Instruction},
+    AddressingModes: {[EAddressingMode]: AddressingMode},
+    Memory: IMemory,
+}
+
 -- In bitwise order
 export type EStatusFlag = "C" | "Z" | "I" | "D" | "B" | "U" | "V" | "N"
 
 export type InstructionData = {
     ContributesToPageCrossCycle: boolean,
 }
-
 
 export type IMemory = {
     Read: (u16) -> (u8),
@@ -33,31 +46,6 @@ export type IMemory = {
     Output: extra cycles. (May not be applicable)
     Implied operations are usually for setting the accumulator
 ]]
-
--- May have a mode that does not require an address
-type ImplicitInstruction = (
-    registers: Registers,
-    absAddr: u16?,   -- Address of operand as determined by addressing mode
-    memory: IMemory
-) -> (number?)
-
--- Always needs an address
-type NonImplicitInstruction = (
-    registers: Registers,
-    absAddr: u16,
-    memory: IMemory
-) -> (number?)
-
-export type Instruction = ImplicitInstruction | NonImplicitInstruction
-
-type NoArgAddressingMode = (regs: Registers) -> ()
-type U8AddressingMode = (regs: Registers, arg: u8, mem: IMemory) -> (u16)
-type U16AddressingMode = (regs: Registers, arg: u16, mem: IMemory) -> (u16)
-
-export type EAddressingMode =
-    "ZPX" | "ZPY" | "ABX" | "ABY" |
-    "INX" | "INY" | "IMP" | "ACC" |
-    "IMM" | "ZP0" | "REL" | "IND"
 
 type ELegalInstruction =
     "ADC" | "AND" | "ASL" | "BCC" | 
@@ -79,31 +67,35 @@ type ELegalInstruction =
 export type EInstruction = ELegalInstruction | "XXX"        -- Internal behavior
 export type EInstructionName = ELegalInstruction | "???"    -- Display/debug    
 
+
+-- May have a mode that does not require an address
+type ImplicitInstruction = (
+    registers: Registers, absAddr: u16?, memory: IMemory
+) -> (number?)
+
+-- Always needs an address
+type NonImplicitInstruction = (
+    registers: Registers, absAddr: u16, memory: IMemory
+) -> (number?)
+
+export type Instruction = ImplicitInstruction | NonImplicitInstruction
+export type GenericInstruction = NonImplicitInstruction
+
+
+export type EAddressingMode =
+    "ZPX" | "ZPY" | "ABX" | "ABY" |
+    "INX" | "INY" | "IMP" | "ACC" |
+    "IMM" | "ZP0" | "REL" | "IND"
+
+type NoArgAddressingMode = (regs: Registers) -> (nil, false)
+type U8AddressingMode = (regs: Registers, arg: u8, mem: IMemory) -> (u16, boolean)
+type U16AddressingMode = (regs: Registers, arg: u16, mem: IMemory) -> (u16, boolean)
+export type AddressingMode = NoArgAddressingMode | U8AddressingMode | U16AddressingMode
+export type GenericAddressingMode = U16AddressingMode
+
+
+
 return {}
-
-
-
---[[ Instruction arguments & return values
-    - Registers
-    - read/write calls (e.g BRK)
-    - An 8-bit value to operate on (calculated via addressing mode)
-    - Some instructions can cause additional cycles depending on
-        behavior & state; need to return amt of extra added cycles
-    
-    Generic might be:
-    (
-        regs: Registers,
-        value: u8,
-        memCallbacks: (read, write)
-    ) -> (addedCycles: number)
-]]
-
-
---[[ Instruction lookup info
-    - Some instructions have the potential to need an extra cycle
-        if a page of memory is crossed; each instruction can have a bool
-        for this.
-]]
 
 --[[ Address mode arguments & return values
     16 bit absolute address or 8 bit relative address

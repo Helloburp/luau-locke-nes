@@ -13,16 +13,11 @@ type IMemory = T.IMemory
 local BAND, BXOR, BNOT = bit32.band, bit32.bxor, bit32.bnot
 local LSHIFT  = bit32.lshift
 
-local _getBit, _setBit 
-local _getFlag, _setFlag
-local _u8, _u16, _s8ToS16
- do
-    local Helpers = require(script.Parent.Helpers)
-    _getBit, _setBit = Helpers.GetBit, Helpers.SetBit
-    _getFlag, _setFlag = Helpers.GetFlag, Helpers.SetFlag
-    _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
-    _s8ToS16 = Helpers.Signed8ToSigned16
-end
+local Helpers = require(script.Parent.Helpers)
+local _getBit, _setBit = Helpers.GetBit, Helpers.SetBit
+local _getFlag, _setFlag = Helpers.GetFlag, Helpers.SetFlag
+local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
+local _s8ToS16 = Helpers.Signed8ToSigned16
 
 local m = {}
 

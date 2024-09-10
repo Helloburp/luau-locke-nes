@@ -58,11 +58,15 @@ function _getOpcodeInfo()
 end
 
 function _printOpcodesDefinition()
+	local instructionsWithOopsCycle = {"ADC", "AND", "CMP", "EOR", "LDA", "LDX", "LDY", "ORA", "SBC"}
+	local opcodesWithOopsCycle = {0xFC}
 	local infoTable = _getOpcodeInfo()
 	local entries = {"{\n"}
 
 	for i, info in pairs(infoTable) do
-		local entry = `\{"{info[1]}","{info[2]}","{info[3]}",{info[4]}}, `
+		local hasOopsCycle = table.find(instructionsWithOopsCycle, info[1])
+			or table.find(opcodesWithOopsCycle, i - 1)
+		local entry = `\{"{info[1]}","{info[2]}","{info[3]}",{info[4]},{if hasOopsCycle then " true" else "false"}}, `
 		if (i - 1)%16 == 0 then entry = `\n{entry}` end
 		table.insert(entries, entry)
 	end

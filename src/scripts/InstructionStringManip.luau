@@ -57,5 +57,20 @@ function _getOpcodeInfo()
     return infoTable
 end
 
+function _printOpcodesDefinition()
+	local infoTable = _getOpcodeInfo()
+	local entries = {"{\n"}
 
-print(_getOpcodeInfo())
+	for i, info in pairs(infoTable) do
+		local entry = `\{"{info[1]}","{info[2]}","{info[3]}",{info[4]}}, `
+		if (i - 1)%16 == 0 then entry = `\n{entry}` end
+		table.insert(entries, entry)
+	end
+	table.insert(entries, "}")
+
+	print(table.concat(entries))
+end
+
+
+
+_printOpcodesDefinition()

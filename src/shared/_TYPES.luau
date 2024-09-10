@@ -42,13 +42,42 @@ type ImplicitInstruction = (
 ) -> (number?)
 
 -- Always needs an address
-type NonimplicitInstruction = (
+type NonImplicitInstruction = (
     registers: Registers,
     absAddr: u16,
     memory: IMemory
 ) -> (number?)
 
-export type Instruction = ImplicitInstruction | NonimplicitInstruction
+export type Instruction = ImplicitInstruction | NonImplicitInstruction
+
+type NoArgAddressingMode = (regs: Registers) -> ()
+type U8AddressingMode = (regs: Registers, arg: u8, mem: IMemory) -> (u16)
+type U16AddressingMode = (regs: Registers, arg: u16, mem: IMemory) -> (u16)
+
+export type EAddressingMode =
+    "ZPX" | "ZPY" | "ABX" | "ABY" |
+    "INX" | "INY" | "IMP" | "ACC" |
+    "IMM" | "ZP0" | "REL" | "IND"
+
+type ELegalInstruction =
+    "ADC" | "AND" | "ASL" | "BCC" | 
+    "BCS" | "BEQ" | "BIT" | "BMI" | 
+    "BNE" | "BPL" | "BRK" | "BVC" | 
+    "BVS" | "CLC" | "CLD" | "CLI" | 
+    "CLV" | "CMP" | "CPX" | "CPY" | 
+    "DEC" | "DEX" | "DEY" | "EOR" | 
+    "INC" | "INX" | "INY" | "JMP" | 
+    "JSR" | "LDA" | "LDX" | "LDY" | 
+    "LSR" | "NOP" | "ORA" | "PHA" | 
+    "PHP" | "PLA" | "PLP" | "ROL" | 
+    "ROR" | "RTI" | "RTS" | "SBC" | 
+    "SEC" | "SED" | "SEI" | "STA" | 
+    "STX" | "STY" | "TAX" | "TAY" | 
+    "TSX" | "TXA" | "TXS" | "TYA"
+
+
+export type EInstruction = ELegalInstruction | "XXX"        -- Internal behavior
+export type EInstructionName = ELegalInstruction | "???"    -- Display/debug    
 
 return {}
 

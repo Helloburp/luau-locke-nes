@@ -3,7 +3,7 @@
 
 local root = script.Parent.Parent.Parent.Parent.Shared
 local m = require(root.Instructions)
-local _newCommon = require(script.Parent._COMMON)
+local _newCommon = require(script.Parent.Parent._COMMON)
 
 return function()
     local c = _newCommon(expect)

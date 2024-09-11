@@ -7,7 +7,7 @@ local modules = {
     Branch = require(script.Branch)
 }
 
-local _newCommon = require(script._COMMON)
+local _newCommon = require(script.Parent._COMMON)
 
 return function()
     beforeEach(function()

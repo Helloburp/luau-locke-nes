@@ -59,7 +59,7 @@ end
 function m.NewMemory(): IMemory
     local t = {}
     return {
-        Read = function(i) return t[i] end,
+        Read = function(i) return t[i] or 0x00 end,
         Write = function(i, v) t[i] = v end
     }
 end

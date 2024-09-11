@@ -2,9 +2,9 @@
 --!nolint UnknownGlobal
 --!nocheck
 
+local m = require(script.Parent.Parent.Parent.Shared.Helpers)
 
 return function()
-    local m = require(script.Parent.Parent.Shared.Helpers)
     describe("Helpers", function()
         describe("SetBit", function()
             it("Arithmetic", function()

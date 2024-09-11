@@ -14,7 +14,7 @@ local Helpers = require(script.Parent.Helpers)
 local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
 local _s8ToS16 = Helpers.Signed8ToSigned16
 
-local LSHIFT = bit32.lshift
+local BAND, LSHIFT = bit32.band, bit32.lshift
 
 local m = {}
 
@@ -28,11 +28,11 @@ function m.ZPY(regs: Regs, arg: u8): u16
 end
 
 function m.ABX(regs: Regs, arg: u16): u16
-    return _u16(arg + regs.X)
+    return _u16(arg + regs.X), BAND(arg, 0xFF) + regs.X > 255
 end
 
 function m.ABY(regs: Regs, arg: u16): u16
-    return _u16(arg + regs.Y)
+    return _u16(arg + regs.Y), BAND(arg, 0xFF) + regs.Y > 255
 end
 
 function m.INX(regs: Regs, arg: u8, mem: Mem): u16
@@ -44,7 +44,7 @@ end
 function m.INY(regs: Regs, arg: u8, mem: Mem): u16
     local lo = mem.Read(arg)
     local hi = mem.Read(_u8(arg + 1))
-    return _u16(lo + LSHIFT(hi, 8) + regs.Y)
+    return _u16(lo + LSHIFT(hi, 8) + regs.Y), lo + regs.Y > 255
 end
 
 function m.IMP() return nil end

@@ -4,7 +4,7 @@
 
 
 return function()
-    local m = require(script.Parent.Parent.Helpers)
+    local m = require(script.Parent.Parent.Shared.Helpers)
     describe("Helpers", function()
         describe("SetBit", function()
             it("Arithmetic", function()

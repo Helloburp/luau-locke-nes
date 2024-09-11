@@ -8,8 +8,6 @@ local modules = {
 }
 
 return function()
-    describe("CPU", function()
-        describe("Instructions", modules.Instructions)
-        describe("AddressingModes", modules.AddressingModes)
-    end)
+    describe("Instructions", modules.Instructions)
+    describe("AddressingModes", modules.AddressingModes)
 end

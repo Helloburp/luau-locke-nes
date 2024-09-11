@@ -17,7 +17,7 @@ function m.RunInstructionAndReturnCycles(
     local opcode = mem.Read(regs.PC)
     regs.PC += 1
 
-    local opcodeData = C.OpcodeLookup[opcode]
+    local opcodeData = C.OpcodeLookup[opcode + 1] -- Lua moment
 
     local instructionId = opcodeData[2]
     local addrModeName = opcodeData[3]

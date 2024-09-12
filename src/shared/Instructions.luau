@@ -137,5 +137,13 @@ m.BMI = _newBranch(
     function(regs: Regs) return _getFlag("N", regs.STATUS) end
 )
 
+m.BVS = _newBranch(
+    function(regs: Regs) return _getFlag("V", regs.STATUS) end
+)
+
+m.BVC = _newBranch(
+    function(regs: Regs) return not _getFlag("V", regs.STATUS) end
+)
+
 
 return m

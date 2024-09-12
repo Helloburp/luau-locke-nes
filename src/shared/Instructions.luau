@@ -21,6 +21,16 @@ local _s8ToS16 = Helpers.Signed8ToSigned16
 
 local m = {}
 
+-- Empty stack; SP points to the spot where the next value is set.
+function _push(regs: Regs, val: u8, mem: IMemory)
+    mem.Write(C.SP_BASE + regs.SP, val)
+    regs.SP = _u8(regs.SP - 1)
+end
+
+function _pull(regs: Regs, mem: IMemory): u8
+    regs.SP = _u8(regs.SP + 1)
+    return mem.Read(C.SP_BASE + regs.SP)
+end
 
 function _setZeroAndNegative(regs: Regs, result: u8)
     _setFlag("Z", regs, result == 0)

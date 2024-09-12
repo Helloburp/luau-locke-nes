@@ -88,54 +88,41 @@ end
 
 function _branch(regs: Regs, addr: u16, mem: IMemory)
     regs.PC = _u16(regs.PC + _s8ToS16(mem.Read(addr)))
+    return BAND(oldPc, 0xFF00) ~= BAND(regs.PC, 0xFF00)
 end
 
 
--- Branch if carry clear
-function m.BCC(regs: Regs, addr: u16, mem: IMemory)
-    if _getFlag("C", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
+function _newBranch(_shouldBranchPredicate: (regs: Regs) -> boolean)
+    return function(regs: Regs, addr: u16, mem: IMemory)
+        if not _shouldBranchPredicate(regs) then return 0 end
+        return 1 + if _branch(regs, addr, mem) then 1 else 0
+    end
 end
 
 
--- Branch if carry set
-function m.BCS(regs: Regs, addr: u16, mem: IMemory)
-    if not _getFlag("C", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
-end
+m.BCC = _newBranch(
+    function(regs: Regs) return not _getFlag("C", regs.STATUS) end
+)
 
+m.BCS = _newBranch(
+    function(regs: Regs) return _getFlag("C", regs.STATUS) end
+)
 
--- Branch if equal
-function m.BEQ(regs: Regs, addr: u16, mem: IMemory)
-    if not _getFlag("Z", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
-end
+m.BEQ = _newBranch(
+    function(regs: Regs) return _getFlag("Z", regs.STATUS) end
+)
 
+m.BNE = _newBranch(
+    function(regs: Regs) return not _getFlag("Z", regs.STATUS) end
+)
 
--- Branch if not equal
-function m.BNE(regs: Regs, addr: u16, mem: IMemory)
-    if _getFlag("Z", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
-end
+m.BPL = _newBranch(
+    function(regs: Regs) return not _getFlag("N", regs.STATUS) end
+)
 
-
--- Branch if positive
-function m.BPL(regs: Regs, addr: u16, mem: IMemory)
-    if _getFlag("N", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
-end
-
--- Branch if negative
-function m.BMI(regs: Regs, addr: u16, mem: IMemory)
-    if not _getFlag("N", regs.STATUS) then return 0 end
-    _branch(regs, addr, mem)
-    return 1
-end
+m.BMI = _newBranch(
+    function(regs: Regs) return _getFlag("N", regs.STATUS) end
+)
 
 
 return m

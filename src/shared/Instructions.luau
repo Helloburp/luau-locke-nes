@@ -4,6 +4,7 @@
 ]]
 
 local T = require(script.Parent._TYPES)
+local C = require(script.Parent._CONSTANTS)
 type Regs = T.Registers
 type u8 = T.u8
 type u16 = T.u16

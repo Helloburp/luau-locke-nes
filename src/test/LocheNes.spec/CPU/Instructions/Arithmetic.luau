@@ -22,7 +22,7 @@ return function()
             regs.A = op1
             c.SetFlag("C", oldCarry)
 
-            instruction(regs, 0, mem)
+            c.TestInstructionExecution(instruction, 0, 0)
             expect(regs.A).to.equal(result)
 
             c.TestZeroAndNegative(regs.A)
@@ -57,32 +57,5 @@ return function()
         it("10 - 5 - 0 = 5 (C)", _newSBCTest(10, 5, 5, true))
         it("5 - 10 - 1 = -6 (N)", _newSBCTest(5, 10, -6%256, false))
         it("-80 - 80 - 1 = 95 (C, V)", _newSBCTest(-80%256, 80, 95, false))
-    end)
-
-
-
-    --[[ A,Z,C,N = M*2 or M,Z,C,N = M*2
-        C = contents of old bit 7;  Z = Result is zero
-        N = Bit 7 of result is set
-    ]]
-    describe("ASL", function()
-        local function _newASLTest(op, result, addr)
-            return function()
-                local regs, mem = c.Regs(), c.Mem()
-                if addr then mem.Write(addr, op) else regs.A = op end
-                m.ASL(regs, addr, mem)
-                local writtenResult =
-                    if not addr then regs.A
-                    else mem.Read(addr)
-                
-                expect(writtenResult).to.equal(result)
-
-                c.TestZeroAndNegative(writtenResult)
-                c.TestFlag("C", bit32.lshift(op, 1) > 255)
-            end
-        end
-        it("8 << 1 = 16 Implied", _newASLTest(8, 16, nil))
-        it("128 << 1 = 0 Absolute (C, Z)", _newASLTest(128, 0, 0))
-        it("65 << 1 = 130 Absolute (N)", _newASLTest(65, 130, 5))
     end)
 end

@@ -3,7 +3,6 @@
 
 local root = script.Parent.Parent.Parent.Parent.Parent.Shared
 local m = require(root.Instructions)
-local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 return function()
@@ -30,8 +29,19 @@ return function()
         it("3 & 2 = 2", _newAccumulatorTest(m.AND, 3, 2, 2))
     end)
 
-    describe("EOR", c.UnimplementedTest)
-    describe("ORA", c.UnimplementedTest)
+    describe("EOR", function()
+        it("0 ^ 0 = 0", _newAccumulatorTest(m.EOR, 0, 0, 0))
+        it("1 ^ 1 = 0", _newAccumulatorTest(m.EOR, 1, 1, 0))
+        it("1 ^ 0 = 1", _newAccumulatorTest(m.EOR, 1, 0, 1))
+        it("2 ^ 1 = 3", _newAccumulatorTest(m.EOR, 2, 1, 3))
+        it("3 ^ 2 = 1", _newAccumulatorTest(m.EOR, 3, 2, 1))
+    end)
 
-
+    describe("ORA", function()
+        it("0 | 0 = 0", _newAccumulatorTest(m.ORA, 0, 0, 0))
+        it("1 | 1 = 1", _newAccumulatorTest(m.ORA, 1, 1, 1))
+        it("1 | 0 = 1", _newAccumulatorTest(m.ORA, 1, 0, 1))
+        it("2 | 1 = 3", _newAccumulatorTest(m.ORA, 2, 1, 3))
+        it("3 | 2 = 3", _newAccumulatorTest(m.ORA, 3, 2, 3))
+    end)
 end

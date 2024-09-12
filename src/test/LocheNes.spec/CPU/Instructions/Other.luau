@@ -10,7 +10,12 @@ local _newCommon = require(script.Parent.Parent._COMMON)
 return function()
     local c = _newCommon(expect)
 
-    describe("NOP", c.UnimplementedTest)
+    describe("NOP", function()
+        it("...doesn't operate...", function()
+            c.TestInstructionExecution(m.NOP, 0, 0)
+            c.TestNoUntestedFlagsChanged()
+        end)
+    end)
 
     local function _newBitTest(acc, addr, memVal)
         return function()

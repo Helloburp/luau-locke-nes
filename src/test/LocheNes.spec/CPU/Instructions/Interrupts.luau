@@ -8,7 +8,7 @@ local _newCommon = require(script.Parent.Parent._COMMON)
 
 local C = require(root._CONSTANTS)
 
-local BAND, LSHIFT = bit32.band, bit32.lshift
+local BAND, LSHIFT, RSHIFT = bit32.band, bit32.lshift, bit32.rshift
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
@@ -32,7 +32,7 @@ return function()
             local regs, mem = c.Regs(), c.Mem()
             local oldStatus = regs.STATUS
             mem.Write(0xFFFE, BAND(interruptVector, 0x00FF))
-            mem.Write(0xFFFF, BAND(interruptVector, 0xFF00))
+            mem.Write(0xFFFF, RSHIFT(interruptVector, 8))
             regs.PC = oldPc
             regs.STATUS = oldStatus
             regs.SP = oldStkp
@@ -45,7 +45,7 @@ return function()
             local returnStatus = mem.Read(0x0100 + _u8(regs.SP + 1))
             local returnPc =
                 mem.Read(0x0100 + _u8(regs.SP + 2)) +
-                LSHIFT(mem.Read(0x0100 + _u8(regs.SP + 3)))
+                LSHIFT(mem.Read(0x0100 + _u8(regs.SP + 3)), 8)
             
             expect(BAND(returnStatus, C.StatusFlagMasks["B"]) > 0).to.be.ok()
             expect(returnPc).to.equal(_u16(oldPc + 2))
@@ -61,10 +61,9 @@ return function()
     )
         local regs, mem = c.Regs(), c.Mem()
         regs.PC, regs.STATUS, regs.SP = oldPc, oldStatus, oldStkp
-        local realSp = 0x100 + oldStkp
-        mem.Write(_u8(realSp + 1), stackPc)
-        mem.Write(_u8(realSp + 2), BAND(stackPc, 0x00FF))
-        mem.Write(_u8(realSp + 3), BAND(stackPc, 0xFF00))
+        mem.Write(0x0100 + _u8(oldStkp + 1), stackStatus)
+        mem.Write(0x0100 + _u8(oldStkp + 2), BAND(stackPc, 0x00FF))
+        mem.Write(0x0100 + _u8(oldStkp + 3), RSHIFT(stackPc, 8))
 
         c.TestInstructionExecution(m.RTI, 0, 0)
         c.TestFlag("N", h.GetFlag("N", stackStatus))
@@ -80,9 +79,9 @@ return function()
 
     describe("BRK", function()
         it("Executes as expected", function()
-            _newBreakTest(0x0000, 0x00, 0xFF, 0xEEEE)
-            _newBreakTest(0x00FF, 0x01, 0x00, 0xEEEE)
-            _newBreakTest(0x0045, 0x03, 0x54, 0xDDDD)
+            _newBreakTest(0x0000, 0x00, 0xFF, 0xEEEE)()
+            _newBreakTest(0x00FF, 0x01, 0x00, 0xEEEE)()
+            _newBreakTest(0x0045, 0x03, 0x54, 0xDDDD)()
         end)
     end)
 

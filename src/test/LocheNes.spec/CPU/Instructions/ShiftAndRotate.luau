@@ -80,12 +80,12 @@ return function()
         end
 
         local expectedResult = if shouldRotateLeft
-            then _u8(RSHIFT(val, 1)) + (if oldCarry then 1 else 0) * 2^7
-            else _u8(LSHIFT(val, 1)) + (if oldCarry then 1 else 0)
+            then _u8(LSHIFT(val, 1)) + (if oldCarry then 1 else 0)
+            else _u8(RSHIFT(val, 1)) + (if oldCarry then 1 else 0) * 2^7
 
         local expectedCarry = if shouldRotateLeft
-            then h.GetBit(val, 7)
-            else h.GetBit(val, 0)
+            then h.GetBit(7, val)
+            else h.GetBit(0, val)
 
         c.TestInstructionExecution(instruction, addr, 0)
         local result = if addr then c.Mem().Read(addr) else c.Regs().A

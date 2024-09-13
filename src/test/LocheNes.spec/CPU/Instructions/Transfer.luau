@@ -3,7 +3,6 @@
 
 local root = script.Parent.Parent.Parent.Parent.Parent.Shared
 local m = require(root.Instructions)
-local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 return function()
@@ -43,9 +42,9 @@ return function()
     local function _newLoadDescribeBlock(instruction, reg)
         return function()
             it("Loads as expected", function()
-                _newLoadDescribeBlock(instruction, reg, 0x05, 0x0000)
-                _newLoadDescribeBlock(instruction, reg, 0xFF, 0x00CE)
-                _newLoadDescribeBlock(instruction, reg, 0x00, 0xFFFF)
+                _testLoadRegisterWithMemory(instruction, reg, 0x05, 0x0000)
+                _testLoadRegisterWithMemory(instruction, reg, 0xFF, 0x00CE)
+                _testLoadRegisterWithMemory(instruction, reg, 0x00, 0xFFFF)
             end)
         end
     end

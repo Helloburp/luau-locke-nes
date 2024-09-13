@@ -13,9 +13,9 @@ return function()
 
 
     local function _compareTest(instruction, reg, addr, val, regVal)
-        local result = _u8(c.Regs()[reg] - val)
         c.Mem().Write(addr, val)
         c.Regs()[reg] = regVal
+        local result = _u8(c.Regs()[reg] - val)
 
         c.TestInstructionExecution(instruction, addr, 0)
         c.TestZeroAndNegative(result)

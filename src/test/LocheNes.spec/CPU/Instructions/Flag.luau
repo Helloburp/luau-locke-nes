@@ -3,7 +3,6 @@
 
 local root = script.Parent.Parent.Parent.Parent.Parent.Shared
 local m = require(root.Instructions)
-local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 
@@ -19,10 +18,12 @@ return function()
     end
 
     local function _newFlagDescribeBlock(instruction, flag, expectedValue)
-        it("Computes properly", function()
-            _flagTest(instruction, flag, expectedValue, 0x00000000)
-            _flagTest(instruction, flag, expectedValue, 0x11111111)
-        end)
+        return function()
+            it("Computes properly", function()
+                _flagTest(instruction, flag, expectedValue, 0x00000000)
+                _flagTest(instruction, flag, expectedValue, 0x11111111)
+            end)
+        end
     end
 
     describe("CLC", _newFlagDescribeBlock(m.CLC, "C", false))

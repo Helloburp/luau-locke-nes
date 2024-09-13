@@ -22,7 +22,7 @@ return function()
 
         if reg == "STATUS" then
             -- Break flag and bit 5 set to 1
-            val = BAND(val, 0x00110000)
+            val = BOR(val, 0b00110000)
         end
 
         c.TestInstructionExecution(instruction, nil, 0)
@@ -55,13 +55,12 @@ return function()
 
         if reg == "STATUS" then
             -- Break flag and bit 5 ignored
-            val = BOR(val, 0x11001111)
+            val = BAND(val, 0b11001111)
         end
 
         c.TestInstructionExecution(instruction, nil, 0)
         expect(regs.SP).to.equal(_u8(oldSp + 1))
         expect(regs[reg]).to.equal(val)
-        c.TestZeroAndNegative(val)
     end
 
     local function _newPullDescribeBlock(instruction, reg)

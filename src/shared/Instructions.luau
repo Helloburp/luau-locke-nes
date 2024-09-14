@@ -416,4 +416,6 @@ function m.BIT(regs: Regs, addr: u16, mem: IMemory)
     _setFlag("Z", regs, BAND(val, regs.A) == 0)
 end
 
+function m.XXX() end
+
 return m

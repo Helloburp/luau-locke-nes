@@ -7,9 +7,13 @@ local C = require(inst_root._CONSTANTS)
 local h = require(inst_root.Helpers)
 local m = require(inst_root.CPU)
 
+
+local Log = require(inst_root.Log)
 local Parse = require(inst_root.Parse)
 local NROM = require(inst_root.Mappers.NROM_000)
 local NesTest = require(script.Parent.Parent["nestest.nes"])
+
+local LOGFILE = require(script.Parent.Parent["nestest.log.part1"])
 
 type u16 = T.u16
 type u8 = T.u8
@@ -74,7 +78,13 @@ return function()
     end)
 
     local function _runNesTest(maxCycles: number)
+        local iter = Log.IterLog(LOGFILE)
         while cpu.ExecutionState.Clock < maxCycles and not testComplete do
+            if cpu.ExecutionState.Cycles == 0 then
+                local goodLogBreakdown = Log.BreakdownLog(iter())
+                local pcLog = Log.GetLogPc(cpu.Registers.PC, mem)
+                expect(pcLog).to.equal(goodLogBreakdown.PC)
+            end
             m.Cycle(cpu)
         end
     end

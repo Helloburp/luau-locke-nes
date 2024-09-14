@@ -25,6 +25,21 @@ local OPCODE_LOOKUP = {
 	{"CPX","CPX","IMM",2,false}, {"SBC","SBC","IZX",6, true}, {"???","NOP","IMP",2,false}, {"???","XXX","IMP",8,false}, {"CPX","CPX","ZP0",3,false}, {"SBC","SBC","ZP0",3, true}, {"INC","INC","ZP0",5,false}, {"???","XXX","IMP",5,false}, {"INX","INX","IMP",2,false}, {"SBC","SBC","IMM",2, true}, {"NOP","NOP","IMP",2,false}, {"???","SBC","IMP",2,false}, {"CPX","CPX","ABS",4,false}, {"SBC","SBC","ABS",4, true}, {"INC","INC","ABS",6,false}, {"???","XXX","IMP",6,false}, 
 	{"BEQ","BEQ","REL",2,false}, {"SBC","SBC","IZY",5, true}, {"???","XXX","IMP",2,false}, {"???","XXX","IMP",8,false}, {"???","NOP","IMP",4,false}, {"SBC","SBC","ZPX",4, true}, {"INC","INC","ZPX",6,false}, {"???","XXX","IMP",6,false}, {"SED","SED","IMP",2,false}, {"SBC","SBC","ABY",4, true}, {"NOP","NOP","IMP",2,false}, {"???","XXX","IMP",7,false}, {"???","NOP","IMP",4, true}, {"SBC","SBC","ABX",4, true}, {"INC","INC","ABX",7,false}, {"???","XXX","IMP",7,false},
 }
+
+
+-- Convenience table, because remembering indeces SUCKS
+local SLOW_OPCODE_LOOKUP: {T.OpcodeData} = {} do
+	for i, data in pairs(OPCODE_LOOKUP) do
+		SLOW_OPCODE_LOOKUP[i] = {
+			InstructionName = data[1],
+			Instruction = data[2],
+			AddressingMode = data[3],
+			Cycles = data[4],
+			HasOopsCycle = data[5],
+		}
+	end
+end
+
 -- The amount of bytes which each addressing mode takes in its argument
 local BYTES_PER_ADDRESSING_MODE: { [T.EAddressingMode]: number } = {
     ["ZPX"] = 1, ["ZPY"] = 1, ["ABX"] = 2, ["ABY"] = 2,
@@ -46,6 +61,7 @@ local m = {
 	StatusFlagMasks = STATUS_FLAG_MASKS,
 	BytesPerAddressingMode = BYTES_PER_ADDRESSING_MODE,
 	OpcodeLookup = OPCODE_LOOKUP,
+	SlowOpcodeLookup = SLOW_OPCODE_LOOKUP,
 
 	SP_BASE		    = 0x0100,
 	SP_RESET		= 0x00FD,

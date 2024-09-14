@@ -35,13 +35,13 @@ function m.ABY(regs: Regs, arg: u16): u16
     return _u16(arg + regs.Y), BAND(arg, 0xFF) + regs.Y > 255
 end
 
-function m.INX(regs: Regs, arg: u8, mem: Mem): u16
+function m.IZX(regs: Regs, arg: u8, mem: Mem): u16
     local lo = mem.Read(_u8(arg + regs.X))
     local hi = mem.Read(_u8(arg + regs.X + 1))
     return lo + LSHIFT(hi, 8)
 end
 
-function m.INY(regs: Regs, arg: u8, mem: Mem): u16
+function m.IZY(regs: Regs, arg: u8, mem: Mem): u16
     local lo = mem.Read(arg)
     local hi = mem.Read(_u8(arg + 1))
     return _u16(lo + LSHIFT(hi, 8) + regs.Y), lo + regs.Y > 255

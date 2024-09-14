@@ -68,49 +68,49 @@ return function()
         end)
     end)
 
-    describe("INX", function()
+    describe("IZX", function()
         it("Address Computation", function()
             _test(
-                m.INX, 0x00, 0xF1FF, false, nil,
+                m.IZX, 0x00, 0xF1FF, false, nil,
                 { [0x0000] = 0xFF, [0x0001] = 0xF1, }
             )
             _test(
-                m.INX, 0xFF, 0xF1FF, false, nil,
+                m.IZX, 0xFF, 0xF1FF, false, nil,
                 { [0xFF] = 0xFF, [0x0000] = 0xF1, }
             )
             _test(
-                m.INX, 0x00, 0xF1FF, false, {X = 0x04},
+                m.IZX, 0x00, 0xF1FF, false, {X = 0x04},
                 { [0x04] = 0xFF, [0x05] = 0xF1, }
             )
         end)
         it("Does not accept addresses outside of zero page", function()
             _test(
-                m.INX, 0xFFFF, 0xF100, false, nil,
+                m.IZX, 0xFFFF, 0xF100, false, nil,
                 { [0xFFFF] = 0xFF, [0x000] = 0xF1, }
             )
         end)
     end)
 
-    describe("INY", function()
+    describe("IZY", function()
         it("Address Computation", function()
             _test(
-                m.INY, 0x00, 0xEEFF, false, nil,
+                m.IZY, 0x00, 0xEEFF, false, nil,
                 { [0x0000] = 0xFF, [0x0001] = 0xEE }
             )
             _test(
-                m.INY, 0x05, 0x05F6, false, {Y = 5},
+                m.IZY, 0x05, 0x05F6, false, {Y = 5},
                 { [0x0005] = 0xF1, [0x0006] = 0x05}
             )
         end)
         it("Does not accept addresses outside of zero page", function()
             _test(
-                m.INY, 0x00FF, 0x0115, false, {Y = 0x04},
+                m.IZY, 0x00FF, 0x0115, false, {Y = 0x04},
                 { [0x00FF] = 0x11, [0x0100] = 0xFE, [0x0000] = 0x01}
             )
         end)
         it("Oops Cycle", function()
             _test(
-                m.INY, 0xFF, 0xFF03, true, {Y = 0x04},
+                m.IZY, 0xFF, 0xFF03, true, {Y = 0x04},
                 { [0x00FF] = 0xFF, [0x0000] = 0xFE }
             )
         end)

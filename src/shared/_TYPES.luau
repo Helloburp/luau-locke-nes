@@ -84,7 +84,7 @@ export type GenericInstruction = NonImplicitInstruction
 
 export type EAddressingMode =
     "ZPX" | "ZPY" | "ABX" | "ABY" |
-    "INX" | "INY" | "IMP" | "ACC" |
+    "IZX" | "IZY" | "IMP" | "ACC" |
     "IMM" | "ZP0" | "REL" | "IND"
 
 type NoArgAddressingMode = (regs: Registers) -> (nil, false)

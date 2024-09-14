@@ -57,12 +57,6 @@ function m.REL(regs: Regs, arg: u8): u16
     return _u16(regs.PC + _s8ToS16(arg))
 end
 
-function m.JMP(regs: Regs, arg: u16, mem: Mem)
-    local lo = mem.Read(arg)
-    local hi = mem.Read(_u8(arg + 1))
-    return _u16(lo + LSHIFT(hi, 8))
-end
-
 function m.IMM(regs: Regs)
     return _u16(regs.PC + 1)
 end

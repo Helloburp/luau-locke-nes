@@ -353,10 +353,9 @@ function _pushPc(regs: Regs, mem: IMemory, offset: number)
     _push(regs, _u8(regs.PC + offset), mem)
 end
 
+-- JMP straight up uses the address provided...
 function m.JMP(regs: Regs, addr: u16, mem: IMemory)
-    local lo = mem.Read(addr)
-    local hi = mem.Read(_u16(addr + 1))
-    regs.PC = LSHIFT(hi, 8) + lo
+    regs.PC = addr
 end
 
 function m.JSR(regs: Regs, addr: u16, mem: IMemory)
@@ -365,10 +364,8 @@ function m.JSR(regs: Regs, addr: u16, mem: IMemory)
         location. I'm not sure how this would work on a real 6502,
         but I am assuming the jump happens as initially expected.
     ]]
-    local lo = mem.Read(addr)
-    local hi = mem.Read(_u16(addr + 1))
     _pushPc(regs, mem, 2)
-    regs.PC = LSHIFT(hi, 8) + lo
+    regs.PC = addr
 end
 
 function m.RTS(regs: Regs, addr: u16, mem: IMemory)

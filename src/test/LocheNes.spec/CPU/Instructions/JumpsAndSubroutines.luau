@@ -21,7 +21,9 @@ return function()
         mem.Write(_u16(fromAddr + 1), RSHIFT(toAddr, 8))
         c.TestInstructionExecution(m.JMP, fromAddr, 0)
 
-        expect(regs.PC).to.equal(toAddr)
+        -- Yeah, it's weird... but it literally does just take the
+        -- provided address
+        expect(regs.PC).to.equal(fromAddr)
     end
 
     local function _newJsrTest(oldStkp, toAddr, fromAddr)
@@ -35,7 +37,7 @@ return function()
             local oldPc = regs.PC
 
             c.TestInstructionExecution(m.JSR, fromAddr, 0)
-            expect(regs.PC).to.equal(toAddr)
+            expect(regs.PC).to.equal(fromAddr)
             expect(regs.SP).to.equal(_u8(oldStkp - 2))
 
             local returnPc =

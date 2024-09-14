@@ -28,8 +28,9 @@ local OPCODE_LOOKUP = {
 -- The amount of bytes which each addressing mode takes in its argument
 local BYTES_PER_ADDRESSING_MODE: { [T.EAddressingMode]: number } = {
     ["ZPX"] = 1, ["ZPY"] = 1, ["ABX"] = 2, ["ABY"] = 2,
-    ["INX"] = 1, ["INY"] = 1, ["IMP"] = 0, ["ACC"] = 0,
-    ["IMM"] = 0, ["ZP0"] = 1, ["REL"] = 1, ["IND"] = 2,
+    ["IZX"] = 1, ["IZY"] = 1, ["IMP"] = 0, ["ACC"] = 0,
+    ["IMM"] = 1, ["ZP0"] = 1, ["REL"] = 1, ["IND"] = 2,
+	["ABS"] = 2
 }
 
 local STATUS_FLAG_ORDER: {T.EStatusFlag} = {"C", "Z", "I", "D", "B", "U", "V", "N"}

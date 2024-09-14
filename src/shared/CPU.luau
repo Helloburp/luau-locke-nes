@@ -4,9 +4,13 @@ type CPU = T.CPU
 type Regs = T.Registers
 type Mem = T.IMemory
 
+local h = require(script.Parent.Helpers)
+
 local m = {}
 
 local LSHIFT = bit32.lshift
+
+local _u8, _u16 = h.WrapU8, h.WrapU16
 
 
 function m.RunInstructionAndReturnCycles(
@@ -15,7 +19,7 @@ function m.RunInstructionAndReturnCycles(
     instructions: {[T.EInstruction]: T.GenericInstruction}
 ): number
     local opcode = mem.Read(regs.PC)
-    regs.PC += 1
+    regs.PC = _u16(regs.PC + 1)
 
     local opcodeData = C.OpcodeLookup[opcode + 1] -- Lua moment
 
@@ -27,8 +31,8 @@ function m.RunInstructionAndReturnCycles(
     local addrModeBytes = C.BytesPerAddressingMode[addrModeName]
 
     local lo = mem.Read(regs.PC)
-    local hi = mem.Read(regs.PC + 1)
-    regs.PC += addrModeBytes
+    local hi = mem.Read(_u16(regs.PC + 1))
+    regs.PC = _u16(regs.PC + addrModeBytes)
 
     local addrModeArg = if addrModeBytes == 1 then lo
         elseif addrModeBytes == 2 then lo + LSHIFT(hi)
@@ -45,7 +49,7 @@ function m.RunInstructionAndReturnCycles(
 
     local shouldOopsCycle = addrOopsCycle and instructionOopsCycle
     
-    return instructionCycles + extraCycles or 0 + if shouldOopsCycle then 1 else 0
+    return instructionCycles + (extraCycles or 0) + if shouldOopsCycle then 1 else 0
 end
 
 
@@ -64,5 +68,25 @@ function m.Cycle(cpu: CPU)
     cpu.ExecutionState.Cycles -= 1
 end
 
+-- New CPU struct with values set to expected state at startup
+function m.NewCPU(
+    addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
+    instructions: {[T.EInstruction]: T.GenericInstruction},
+    memory: Mem
+): CPU
+    return {
+        Registers = {
+            A = 0, X = 0, Y = 0,
+            PC = 0xFFFC, SP = 0xFD,
+            STATUS = 0b00000100
+        },
+        ExecutionState = {
+            Cycles = 0, Clock = 0
+        },
+        AddressingModes = addressingModes,
+        Instructions = instructions,
+        Memory = memory
+    }
+end
 
 return m

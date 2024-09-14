@@ -81,11 +81,20 @@ type NonImplicitInstruction = (
 export type Instruction = ImplicitInstruction | NonImplicitInstruction
 export type GenericInstruction = NonImplicitInstruction
 
+export type OpcodeData = {
+	InstructionName: EInstructionName,
+	Instruction: EInstruction,
+	AddressingMode: EAddressingMode,
+	Cycles: number,
+	HasOopsCycle: boolean
+}
+
 
 export type EAddressingMode =
     "ZPX" | "ZPY" | "ABX" | "ABY" |
     "IZX" | "IZY" | "IMP" | "ACC" |
-    "IMM" | "ZP0" | "REL" | "IND"
+    "IMM" | "ZP0" | "REL" | "IND" |
+    "ABS"
 
 type NoArgAddressingMode = (regs: Registers) -> (nil, false)
 type U8AddressingMode = (regs: Registers, arg: u8, mem: IMemory) -> (u16, boolean)

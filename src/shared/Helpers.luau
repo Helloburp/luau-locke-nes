@@ -56,11 +56,20 @@ function m.NewRegisters(): Regs
     return { A = 0, X = 0, Y = 0, PC = 0, SP = 0, STATUS = 0 }
 end
 
+
+-- Memory used for testing purposes
 function m.NewMemory(): IMemory
     local t = {}
     return {
-        Read = function(i) return t[i] or 0x00 end,
-        Write = function(i, v) t[i] = v end
+        Read = function(i)
+            assert(i%0x10000 == i, `Value "{i}" is not within a two-byte range.`)
+            return t[i] or 0x00
+        end,
+        Write = function(i, v)
+            assert(i%0x10000 == i, `Value "{i}" is not within a two-byte range.`)
+            assert(v%256 == v, `Value "{v}" is not within a byte range.`)
+            t[i] = v
+        end
     }
 end
 

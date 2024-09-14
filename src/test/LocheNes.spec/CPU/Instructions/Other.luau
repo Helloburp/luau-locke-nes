@@ -36,7 +36,7 @@ return function()
         it("Arithmetic", function()
             _newBitTest(0, 50, 255)()
             _newBitTest(255, 0, 0)()
-            _newBitTest(0xFF, 0b01010100, 0xFFFF)()
+            _newBitTest(0xFF, 0xFFFF, 0b01010100)()
         end)
     end)
 end

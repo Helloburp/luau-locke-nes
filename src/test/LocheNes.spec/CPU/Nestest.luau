@@ -40,6 +40,8 @@ return function()
             require(inst_root.Instructions),
             mem
         )
+        -- Automation mode
+        cpu.Registers.PC = 0xC000
 
         local byte1Written, byte2Written = false, false
 

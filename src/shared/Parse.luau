@@ -2,58 +2,86 @@ local T = require(script.Parent._TYPES)
 local h = require(script.Parent.Helpers)
 local m = {}
 
-type u8 = T.u8
-type Header = string
-type Rom = string
+local _getBit = h.GetBit
 
-type HeaderFlags = {
+type u8 = T.u8
+
+local WU8, RU8 = buffer.writeu8, buffer.readu8
+local RSHIFT, LSHIFT, BAND = bit32.rshift, bit32.lshift, bit32.band
+
+local PRG_ROM_BANK_SIZE = (2^14)
+local CHR_MEM_BANK_SIZE = (2^13)
+
+function _hexStrBytes(str: string) return string.gmatch(str, "(%x).-(%x)") end
+
+function m.HexStrToBuffer(str: string): buffer
+    local values = {}
+    for hiNibble, loNibble in _hexStrBytes(str) do
+        local val = LSHIFT(tonumber(hiNibble, 16), 4) + tonumber(loNibble, 16)
+        table.insert(values, val)
+    end
+
+    local b = buffer.create(#values)
+    for i, v in ipairs(values) do
+       WU8(b, i - 1, v)
+    end
+
+    return b
+end
+
+type Header = {
     PrgRom16kBankCount: u8,
     ChrMemory: {
         _t: "Rom",
         ChrRom8kBankCount: u8,
     } | {_t: "Ram"},
 
-    HasTrainer: boolean
+    NametableArrangement: "Vertical" | "Horizontal" | "Alternative",
+    HasPersistentMemory: boolean,
+    HasTrainer: boolean,
+
+    TVSystem: "NTSC" | "PAL" | "Dual",
+    MapperId: u8,
 }
 
-local PATTERN_BYTE = "%x.-%x"
-local PATTERN_8KB = string.rep(PATTERN_BYTE, 8 * 1024)
-local PATTERN_16KB = string.rep(PATTERN_BYTE, 16 * 1024)
 
-m.HexBytesIter = function(str: string) return string.gmatch("%x.-%x", str) end
+function m.Header(rom: buffer): Header
+    local flags = {} :: Header
+    local prgRomSize = RU8(rom, 4)
+    local chrRomSize = RU8(rom, 5)
+    local flags6, flags7, flags9 = RU8(rom, 6), RU8(rom, 7), RU8(rom, 9)
 
-function m.PickByte(str: string, index: number): T.u8
-    for i, byteStr in m.HexBytesIter(str) do
-        if i - 1 == index then
-            return tonumber(byteStr, 16)
-                or error(`Corrupted rom: byte {i - 1} is not a number!`)
-        end
-    end
-
-    error(`Index {index} out of range for string!`)
-end
-
-function m.Header(rom: Rom): Header
-    local header = ""
-    for i, byteStr in m.HexBytesIter(rom) do
-        if i > 16 then break end
-    end
-    return header
-end
-
-function m.Flags(header: Header): HeaderFlags
-    local flags = {}
-    local prgRomSize = m.PickByte(header, 4)
-    local chrRomSize = m.PickByte(header, 5)
-    local b6 = m.PickByte(header, 6)
-
-    flags.HasTrainer = h.GetBit(3, b6)
+    flags.HasPersistentMemory = _getBit(1, flags6)
+    flags.HasTrainer = _getBit(2, flags6)
     flags.PrgRom16kBankCount = prgRomSize
     flags.ChrMemory = if chrRomSize == 0
         then {_t = "Ram"}
         else {_t = "Rom", ChrRom8kBankCount = chrRomSize}
+    
+    flags.NametableArrangement = if _getBit(3, flags6)
+        then "Alternative"
+        else (if _getBit(0, flags6) then "Horizontal" else "Vertical")
+    
+    flags.MapperId = RSHIFT(flags6, 4) + BAND(flags7, 0xF0)
+
+    flags.TVSystem = if flags9 == 1 then "PAL" else "NTSC"
 
     return flags
+end
+
+
+-- Bank offset starts at 0
+function m.PrgRomOffset(hasTrainer: boolean, bankOffset: number): number
+    return 16 + (if hasTrainer then 512 else 0) + PRG_ROM_BANK_SIZE * bankOffset
+end
+
+function m.ChrMemOffset(
+    hasTrainer: boolean,
+    prgRomBanks: number,
+    bankOffset: number
+): number
+    return m.PrgRomOffset(hasTrainer, prgRomBanks)
+        + CHR_MEM_BANK_SIZE * bankOffset
 end
 
 

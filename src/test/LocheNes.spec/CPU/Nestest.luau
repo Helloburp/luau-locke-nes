@@ -5,6 +5,7 @@ local inst_root = script.Parent.Parent.Parent.Parent.Shared
 local T = require(inst_root._TYPES)
 local C = require(inst_root._CONSTANTS)
 local h = require(inst_root.Helpers)
+local m = require(inst_root.CPU)
 
 local Parse = require(inst_root.Parse)
 local NROM = require(inst_root.Mappers.NROM_000)
@@ -19,6 +20,7 @@ local LSHIFT = bit32.lshift
 return function()
 
     local mem: T.IMemory
+    local cpu: T.CPU
     local testComplete: boolean
     local testResult: u16
 
@@ -31,7 +33,13 @@ return function()
     beforeEach(function()
         mem = h.NewMemory()
         testComplete = false
-        testResult = 0
+        testResult = 0xFFFF
+
+        cpu = m.NewCPU(
+            require(inst_root.AddressingModes),
+            require(inst_root.Instructions),
+            mem
+        )
 
         local byte1Written, byte2Written = false, false
 
@@ -63,7 +71,15 @@ return function()
         expect(mem.Read(0xC000)).to.equal(0x4c)
     end)
 
-    local function _runNesTest()
-
+    local function _runNesTest(maxCycles: number)
+        while cpu.ExecutionState.Clock < maxCycles and not testComplete do
+            m.Cycle(cpu)
+        end
     end
+
+    it("Completes Nestest successfully", function()
+        _runNesTest(5000)
+        expect(testComplete).to.equal(true)
+        expect(testResult).to.equal(0x0000)
+    end)
 end

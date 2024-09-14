@@ -29,13 +29,14 @@ function m.RunInstructionAndReturnCycles(
     local instructionOopsCycle = opcodeData[5]
 
     local addrModeBytes = C.BytesPerAddressingMode[addrModeName]
+    assert(addrModeBytes, `Did not find address mode bytes for mode {addrModeName}`)
 
     local lo = mem.Read(regs.PC)
     local hi = mem.Read(_u16(regs.PC + 1))
     regs.PC = _u16(regs.PC + addrModeBytes)
 
     local addrModeArg = if addrModeBytes == 1 then lo
-        elseif addrModeBytes == 2 then lo + LSHIFT(hi)
+        elseif addrModeBytes == 2 then lo + LSHIFT(hi, 8)
         else 0
     
 
@@ -43,6 +44,7 @@ function m.RunInstructionAndReturnCycles(
         regs, addrModeArg, mem
     )
 
+    assert(instructions[instructionId], `Could not find instruction {instructionId}`)
     local extraCycles = (instructions[instructionId])(
         regs, addr, mem
     )

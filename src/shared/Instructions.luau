@@ -256,8 +256,8 @@ end
 function _newTransferRegisterToRegister(regFrom: string, regTo: string)
     -- Transferring to the stack pointer doesn't trip N and Z flags.
     if regTo ~= "SP" then
-    return function(regs: Regs)
-        _transferRegisterToRegister(regs, regFrom, regTo)
+        return function(regs: Regs)
+            _transferRegisterToRegister(regs, regFrom, regTo)
         end
     else
         return function(regs: Regs)
@@ -292,7 +292,8 @@ function m.PLA(regs: Regs, addr: u16, mem: IMemory)
 end
 
 function m.PLP(regs: Regs, addr: u16, mem: IMemory)
-    regs.STATUS = BAND(_pull(regs, mem), 0b11001111)
+    regs.STATUS = BAND(_pull(regs, mem), 0b11101111)
+    _setFlag("U", regs, true)
 end
 
 
@@ -371,7 +372,7 @@ function m.JSR(regs: Regs, addr: u16, mem: IMemory)
         location. I'm not sure how this would work on a real 6502,
         but I am assuming the jump happens as initially expected.
     ]]
-    _pushPc(regs, mem, 2)
+    _pushPc(regs, mem, -1)
     regs.PC = addr
 end
 

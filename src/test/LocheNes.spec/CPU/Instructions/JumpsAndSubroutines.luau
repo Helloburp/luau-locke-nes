@@ -44,8 +44,9 @@ return function()
                 mem.Read(0x0100 + _u8(regs.SP + 1)) +
                 LSHIFT(mem.Read(0x0100 + _u8(regs.SP + 2)), 8)
             
-            -- It's weird, but it really is -1 of what it should be
-            expect(returnPc).to.equal(_u16(oldPc + 2))
+            -- It's weird, but it really is -1 of what it should be since
+            -- it gets incremented when pulled off the stack.
+            expect(returnPc).to.equal(oldPc - 1)
 
             c.TestNoUntestedFlagsChanged()
         end

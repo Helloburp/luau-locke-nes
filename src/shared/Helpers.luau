@@ -53,7 +53,11 @@ function m.Signed8ToSigned16(val: u8): u16
 end
 
 function m.NewRegisters(): Regs
-    return { A = 0, X = 0, Y = 0, PC = 0, SP = 0, STATUS = 0 }
+    return {
+        A = 0, X = 0, Y = 0,
+        PC = 0xFFFC, SP = 0xFD,
+        STATUS = 0b00100100     -- Interrupt and unused set to 1
+    }
 end
 
 

@@ -21,16 +21,20 @@ return function()
         end)
 
         describe("SetFlag", function()
-            local _n = m.NewRegisters
+            local _n = function()
+                local regs = m.NewRegisters()
+                regs.STATUS = bit32.band(regs.STATUS, 0b11111011) -- Disable I flag
+                return regs
+            end
             it("Arithmetic", function()
-                expect(m.SetFlag("C", _n(), true).STATUS).to.equal(0x01)
-                expect(m.SetFlag("Z", _n(), true).STATUS).to.equal(0x02)
-                expect(m.SetFlag("I", _n(), true).STATUS).to.equal(0x04)
-                expect(m.SetFlag("D", _n(), true).STATUS).to.equal(0x08)
-                expect(m.SetFlag("B", _n(), true).STATUS).to.equal(0x10)
+                expect(m.SetFlag("C", _n(), true).STATUS).to.equal(0x21)
+                expect(m.SetFlag("Z", _n(), true).STATUS).to.equal(0x22)
+                expect(m.SetFlag("I", _n(), true).STATUS).to.equal(0x24)
+                expect(m.SetFlag("D", _n(), true).STATUS).to.equal(0x28)
+                expect(m.SetFlag("B", _n(), true).STATUS).to.equal(0x30)
                 expect(m.SetFlag("U", _n(), true).STATUS).to.equal(0x20)
-                expect(m.SetFlag("V", _n(), true).STATUS).to.equal(0x40)
-                expect(m.SetFlag("N", _n(), true).STATUS).to.equal(0x80)
+                expect(m.SetFlag("V", _n(), true).STATUS).to.equal(0x60)
+                expect(m.SetFlag("N", _n(), true).STATUS).to.equal(0xA0)
             end)
 
             it("Range", function()

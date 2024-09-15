@@ -78,12 +78,28 @@ return function()
     end)
 
     local function _runNesTest(maxCycles: number)
+        local instructionNumber = 0
         local iter = Log.IterLog(LOGFILE)
         while cpu.ExecutionState.Clock < maxCycles and not testComplete do
             if cpu.ExecutionState.Cycles == 0 then
+                instructionNumber += 1
                 local goodLogBreakdown = Log.BreakdownLog(iter())
-                local pcLog = Log.GetLogPc(cpu.Registers.PC, mem)
-                expect(pcLog).to.equal(goodLogBreakdown.PC)
+                local pcLog, regLog, cycLog =
+                    Log.GetLogPc(cpu.Registers.PC, mem),
+                    Log.GetLogRegs(cpu.Registers),
+                    Log.GetLogCycles(cpu.ExecutionState.Clock)
+                assert(
+                    pcLog == goodLogBreakdown.PC,
+                    `Expected PC to be {goodLogBreakdown.PC}, got {pcLog} instead. (Instruction #{instructionNumber})`
+                )
+                assert(
+                    regLog == goodLogBreakdown.Registers,
+                    `Expected registers to be {goodLogBreakdown.Registers}, got {regLog} instead. (Instruction #{instructionNumber})`
+                )
+                assert(
+                    cycLog == goodLogBreakdown.Cycles,
+                    `Expected cycles to be {goodLogBreakdown.Cycles}, got {cycLog} instead. (Instruction #{instructionNumber})`
+                )
             end
             m.Cycle(cpu)
         end

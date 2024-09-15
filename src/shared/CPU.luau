@@ -77,11 +77,7 @@ function m.NewCPU(
     memory: Mem
 ): CPU
     return {
-        Registers = {
-            A = 0, X = 0, Y = 0,
-            PC = 0xFFFC, SP = 0xFD,
-            STATUS = 0b00000100
-        },
+        Registers = h.NewRegisters(),
         ExecutionState = {
             Cycles = 0, Clock = 0
         },

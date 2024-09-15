@@ -79,7 +79,7 @@ function m.NewCPU(
     return {
         Registers = h.NewRegisters(),
         ExecutionState = {
-            Cycles = 0, Clock = 0
+            Cycles = 0, Clock = 7   -- Startup sequence takes 7 cycles
         },
         AddressingModes = addressingModes,
         Instructions = instructions,

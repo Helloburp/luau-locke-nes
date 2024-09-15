@@ -254,8 +254,15 @@ function _transferRegisterToRegister(regs: Regs, regFrom: string, regTo: string)
 end
 
 function _newTransferRegisterToRegister(regFrom: string, regTo: string)
+    -- Transferring to the stack pointer doesn't trip N and Z flags.
+    if regTo ~= "SP" then
     return function(regs: Regs)
         _transferRegisterToRegister(regs, regFrom, regTo)
+        end
+    else
+        return function(regs: Regs)
+            regs[regTo] = regs[regFrom]
+        end
     end
 end
 

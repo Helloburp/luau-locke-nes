@@ -35,7 +35,9 @@ return function()
         c.TestInstructionExecution(instruction, nil, 0)
 
         expect(regs[reg2]).to.equal(val)
-        c.TestZeroAndNegative(regs[reg2])
+        if reg2 ~= "SP" then
+            c.TestZeroAndNegative(regs[reg2])
+        end
         c.TestNoUntestedFlagsChanged()
     end
 

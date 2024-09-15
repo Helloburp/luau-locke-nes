@@ -3,7 +3,6 @@
 
 local root = script.Parent.Parent.Parent.Parent.Parent.Shared
 local m = require(root.Instructions)
-local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 local BAND = bit32.band
@@ -11,32 +10,31 @@ local BAND = bit32.band
 return function()
     local c = _newCommon(expect)
 
-    local function _checkPCAfterJump(regs, oldPc, offset)
-        expect(regs.PC).to.equal(h.WrapU16(oldPc + offset))
+    local function _checkPCAfterJump(regs, oldPc, newAddr)
+        expect(regs.PC).to.equal(newAddr)
     end
     
     local function _newBranchTest(
         instruction, shouldJumpPredicate: () -> (boolean),
-        pc, operand
+        pc, newAddress
     )
         return function()
-            local offset = h.Signed8ToSigned16(operand)
             local shouldJump = shouldJumpPredicate()
-            local jumpsToNewPage = h.WrapU16(BAND(pc, 0x00FF) + offset) > 255
+            local jumpsToNewPage = BAND(newAddress, 0xFF00) ~= BAND(pc, 0xFF00)
 
             local regs, mem = c.Regs(), c.Mem()
             regs.PC = pc
-            mem.Write(0, operand)
+            mem.Write(0, newAddress)
 
             local expectedCycles = if shouldJump
                 then (if jumpsToNewPage then 2 else 1)
                 else 0
             
-            c.TestInstructionExecution(instruction, 0, expectedCycles)
+            c.TestInstructionExecution(instruction, newAddress, expectedCycles)
 
             _checkPCAfterJump(
                 regs, pc,
-                if shouldJump then offset else 0
+                if shouldJump then newAddress else pc
             )
 
             c.TestNoUntestedFlagsChanged()

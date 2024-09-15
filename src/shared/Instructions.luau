@@ -166,10 +166,10 @@ end
     Branching
 ]]
 
--- Returns whether branch led to new page
+-- Returns whether branch led to new page. Addr is given by REL addressing mode
 function _branch(regs: Regs, addr: u16, mem: IMemory): boolean
     local oldPc = regs.PC
-    regs.PC = _u16(regs.PC + _s8ToS16(mem.Read(addr)))
+    regs.PC = addr
     return BAND(oldPc, 0xFF00) ~= BAND(regs.PC, 0xFF00)
 end
 

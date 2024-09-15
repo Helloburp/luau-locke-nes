@@ -54,8 +54,9 @@ return function()
         regs.SP = oldSp
 
         if reg == "STATUS" then
-            -- Break flag and bit 5 ignored
-            val = BAND(val, 0b11001111)
+            -- Break flag and bit 5 ignored (Bit 5, of course, is always 1)
+            val = BAND(val, 0b11101111)
+            val = BOR(val, 0b00100000)
         end
 
         c.TestInstructionExecution(instruction, nil, 0)

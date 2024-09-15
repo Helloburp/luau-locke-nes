@@ -47,7 +47,8 @@ return function()
                 mem.Read(0x0100 + _u8(regs.SP + 2)) +
                 LSHIFT(mem.Read(0x0100 + _u8(regs.SP + 3)), 8)
             
-            expect(BAND(returnStatus, C.StatusFlagMasks["B"]) > 0).to.be.ok()
+            expect(h.GetFlag("B", returnStatus)).to.be.ok()
+            expect(h.GetFlag("U", returnStatus)).to.be.ok()
             expect(returnPc).to.equal(_u16(oldPc + 2))
 
             c.TestFlag("I", true)
@@ -72,6 +73,7 @@ return function()
         c.TestFlag("I", h.GetFlag("I", stackStatus))
         c.TestFlag("D", h.GetFlag("D", stackStatus))
         c.TestFlag("V", h.GetFlag("V", stackStatus))
+        c.TestFlag("U", true)
         expect(regs.PC).to.equal(stackPc)
 
         c.TestFlag("B", false)

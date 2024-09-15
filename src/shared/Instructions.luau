@@ -399,8 +399,9 @@ end
 
 
 function m.RTI(regs: Regs, addr: u16, mem: IMemory)
-    local pulledStatus = BAND(_pull(regs, mem), 0b11001111)
+    local pulledStatus = BAND(_pull(regs, mem), 0b11101111)
     regs.STATUS = pulledStatus
+    _setFlag("U", regs, true)
     local lo = _pull(regs, mem)
     local hi = _pull(regs, mem)
     regs.PC = LSHIFT(hi, 8) + lo

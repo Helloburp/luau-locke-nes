@@ -57,8 +57,10 @@ function m.REL(regs: Regs, arg: u8): u16
     return _u16(regs.PC + _s8ToS16(arg))
 end
 
+-- The PC has already moved to the next instruction by this point;
+-- Backtrack to get the argument.
 function m.IMM(regs: Regs)
-    return _u16(regs.PC + 1)
+    return _u16(regs.PC - 1)
 end
 
 return m

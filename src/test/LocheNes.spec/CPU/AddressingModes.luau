@@ -15,7 +15,7 @@ return function()
         arg: T.u16?,
         expectedAddr: T.u16?,
         expectedOopsCycle: boolean,
-        state: {X: number?, Y: number?}?,
+        state: {X: number?, Y: number?, PC: number?}?,
         memState: {[T.u16]: T.u8?}?
     )
         for addr, val in pairs(memState or {}) do
@@ -23,6 +23,7 @@ return function()
         end
         c.Regs().X = state and (state.X or 0) or 0
         c.Regs().Y = state and (state.Y or 0) or 0
+        c.Regs().PC = state and (state.PC or 0) or 0
         local addr, oopsCycle = _mode(c.Regs(), arg, c.Mem())
         expect(addr).to.equal(expectedAddr)
         expect(oopsCycle or false).to.equal(expectedOopsCycle)
@@ -146,9 +147,8 @@ return function()
 
     describe("IMM", function()
         it("Address Computation", function()
-            _test(m.ACC, nil, nil, false)
-            _test(m.ACC, 0, nil, false)
-            _test(m.ACC, 0xFFFF, nil, false)
+            _test(m.IMM, nil, 0xFFFE, false, {PC = 0xFFFF})
+            _test(m.IMM, nil, 0xFFFF, false)
         end)
     end)
 

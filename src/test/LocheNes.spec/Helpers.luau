@@ -83,5 +83,16 @@ return function()
                 end).never.to.throw()
             end)
         end)
+
+        describe("Signed u8 to Signed u16", function()
+            it("Arithmetic", function()
+                local addr, offset = 0xC731, 0x04
+                local s16Offset = m.Signed8ToSigned16(offset)
+                local result = m.WrapU16(addr + s16Offset)
+
+                expect(s16Offset).to.equal(0x0004)
+                expect(result).to.equal(0xC735)
+            end)
+        end)
     end)
 end

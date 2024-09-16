@@ -152,4 +152,19 @@ return function()
         end)
     end)
 
+    describe("IND", function()
+        it("Address Computation", function()
+            _test(
+                m.IND, 0xEEEE, 0xFE11, false, {Y = 0x04},
+                { [0xEEEE] = 0x11, [0xEEEF] = 0xFE, [0x0000] = 0x01}
+            )
+        end)
+        it("Wraps the current page for the MSB", function()
+            _test(
+                m.IND, 0x02FF, 0x0300, false, nil,
+                { [0x02FF] = 0x00, [0x200] = 0x03, [0x0300] = 0xAA}
+            )
+        end)
+    end)
+
 end

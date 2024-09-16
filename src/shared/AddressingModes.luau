@@ -63,4 +63,13 @@ function m.IMM(regs: Regs)
     return _u16(regs.PC - 1)
 end
 
+function m.IND(regs: Regs, arg: u16, mem: Mem)
+    local lo = mem.Read(arg)
+
+    -- Hardware bug: If the address is on a page boundary, it will
+    -- wrap to the beginning of the page.
+    local hi = mem.Read(BAND(arg, 0xFF00) +  _u8(arg + 1))
+    return _u16(lo + LSHIFT(hi, 8))
+end
+
 return m

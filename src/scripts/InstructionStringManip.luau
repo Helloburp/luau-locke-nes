@@ -111,7 +111,7 @@ function _getOpcodeInfo()
 end
 
 function _printOpcodesDefinition()
-	local instructionsWithOopsCycle = {"ADC", "AND", "CMP", "EOR", "LDA", "LDX", "LDY", "ORA", "SBC"}
+	local instructionsWithOopsCycle = {"ADC", "AND", "CMP", "EOR", "LDA", "LDX", "LDY", "ORA", "SBC", "???"}
 	local opcodesWithOopsCycle = {0xFC}
 	local infoTable = _getOpcodeInfo()
 	local entries = {"{\n"}

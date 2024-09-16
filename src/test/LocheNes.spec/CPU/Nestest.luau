@@ -203,6 +203,7 @@ return function()
         -- expect(testResult).to.equal(0x0000)
     end)
 
+    -- Source for error codes: https://www.qmtpro.com/~nes/misc/nestest.txt
     it("Full run of nestest", function()
         _runNesTest(50000, false, nil, function() print("Winner!") end)
         expect(testComplete).to.equal(true)

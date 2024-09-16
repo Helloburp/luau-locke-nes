@@ -7,6 +7,7 @@ local T = require(script.Parent["Helpers.types"])
 
 export type u8 = T.u8
 export type u16 = T.u16
+export type Bus = T.Bus
 
 export type Registers = {
     A: u8,
@@ -38,7 +39,6 @@ export type InstructionData = {
     ContributesToPageCrossCycle: boolean,
 }
 
-export type Bus = T.Bus
 
 --[[
     Output: extra cycles. (May not be applicable)

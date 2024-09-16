@@ -4,11 +4,11 @@
     https://www.nesdev.org/obelisk-6502-guide/addressing.html
 ]]
 
-local T = require(script.Parent._TYPES)
+local T = require(script.Parent["CPU.types"])
 type u8 = T.u8
 type u16 = T.u16
 type Regs = T.Registers
-type Mem = T.IMemory
+type Mem = T.Bus
 
 local Helpers = require(script.Parent.Helpers)
 local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16

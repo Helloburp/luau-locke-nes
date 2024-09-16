@@ -1,4 +1,4 @@
-local T = require(script.Parent._TYPES)
+local T = require(script.Parent["CPU.types"])
 
 local LSHIFT = bit32.lshift
 

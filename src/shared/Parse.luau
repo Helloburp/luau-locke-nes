@@ -1,4 +1,4 @@
-local T = require(script.Parent._TYPES)
+local T = require(script.Parent["CPU.types"])
 local h = require(script.Parent.Helpers)
 local m = {}
 

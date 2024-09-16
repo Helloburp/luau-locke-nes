@@ -2,8 +2,8 @@
 --!nocheck
 
 local inst_root = script.Parent.Parent.Parent.Parent.Shared
-local T = require(inst_root._TYPES)
-local C = require(inst_root._CONSTANTS)
+local T = require(inst_root["CPU.types"])
+local C = require(inst_root["CPU.constants"])
 local h = require(inst_root.Helpers)
 local m = require(inst_root.CPU)
 
@@ -31,7 +31,7 @@ local LSHIFT = bit32.lshift
 
 return function()
 
-    local mem: T.IMemory
+    local mem: T.Bus
     local cpu: T.CPU
     local testComplete: boolean
     local testResult: u16
@@ -49,7 +49,7 @@ return function()
     end
 
     beforeEach(function()
-        mem = h.NewMemory()
+        mem = h.NewBus()
         testComplete = false
         testResult = 0xFFFF
 
@@ -121,7 +121,7 @@ return function()
     )
         local goodLogBreakdown = Log.BreakdownLog(_getNextLog())
         local pcLog, regLog, cycLog =
-            Log.GetLogPc(cpu.Registers.PC, cpu.Memory),
+            Log.GetLogPc(cpu.Registers.PC, cpu.Bus),
             Log.GetLogRegs(cpu.Registers),
             Log.GetLogCycles(cpu.ExecutionState.Clock)
 
@@ -184,8 +184,8 @@ return function()
         while cpu.ExecutionState.Clock < maxCycles and not testComplete do
             if cpu.ExecutionState.Cycles == 0 then
                 instructionNumber += 1
-                lastPcLog = Log.GetLogPc(cpu.Registers.PC, cpu.Memory)
-                lastOpcode = cpu.Memory.Read(cpu.Registers.PC)
+                lastPcLog = Log.GetLogPc(cpu.Registers.PC, cpu.Bus)
+                lastOpcode = cpu.Bus.Read(cpu.Registers.PC)
                 _doPerInstruction()
 
                 if cpu.Registers.PC == 0xC66E then

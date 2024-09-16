@@ -18,7 +18,7 @@ local LOG_LINE_WITH_ILLEGAL_NOP = "C6BD  04 A9    *NOP $A9 = 00                 
 
 return function()
     it("Generates PC logs as expected", function()
-        local mem = h.NewMemory()
+        local mem = h.NewBus()
         mem.Write(0x0000, 0x4C)
         mem.Write(0x0001, 0xF5)
         mem.Write(0x0002, 0xC5)

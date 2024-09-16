@@ -1,9 +1,9 @@
 
-local T = require(script.Parent._TYPES)
-local C = require(script.Parent._CONSTANTS)
+local T = require(script.Parent["CPU.types"])
+local C = require(script.Parent["CPU.constants"])
 local h = require(script.Parent.Helpers)
 type Regs = T.Registers
-type Mem = T.IMemory
+type Mem = T.Bus
 type u8 = T.u8
 type u16 = T.u16
 

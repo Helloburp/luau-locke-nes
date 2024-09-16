@@ -6,8 +6,6 @@ local m = require(root.Instructions)
 local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
-local C = require(root._CONSTANTS)
-
 local BAND, LSHIFT, RSHIFT = bit32.band, bit32.lshift, bit32.rshift
 
 local _u8, _u16 = h.WrapU8, h.WrapU16

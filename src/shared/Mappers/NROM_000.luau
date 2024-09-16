@@ -1,6 +1,6 @@
 local inst_root = script.Parent.Parent
 
-local T = require(inst_root._TYPES)
+local T = require(inst_root["CPU.types"])
 local Parse = require(inst_root.Parse)
 
 type u8 = T.u8

@@ -3,12 +3,12 @@
     https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
 ]]
 
-local T = require(script.Parent._TYPES)
-local C = require(script.Parent._CONSTANTS)
+local T = require(script.Parent["CPU.types"])
+local C = require(script.Parent["CPU.constants"])
 type Regs = T.Registers
 type u8 = T.u8
 type u16 = T.u16
-type IMemory = T.IMemory
+type Bus = T.Bus
 
 
 local BAND, BXOR, BNOT, BOR =
@@ -24,14 +24,14 @@ local _s8ToS16 = Helpers.Signed8ToSigned16
 local m = {}
 
 -- Empty stack; SP points to the spot where the next value is set.
-function _push(regs: Regs, val: u8, mem: IMemory)
-    mem.Write(C.SP_BASE + regs.SP, val)
+function _push(regs: Regs, val: u8, bus: Bus)
+    bus.Write(C.SP_BASE + regs.SP, val)
     regs.SP = _u8(regs.SP - 1)
 end
 
-function _pull(regs: Regs, mem: IMemory): u8
+function _pull(regs: Regs, bus: Bus): u8
     regs.SP = _u8(regs.SP + 1)
-    return mem.Read(C.SP_BASE + regs.SP)
+    return bus.Read(C.SP_BASE + regs.SP)
 end
 
 function _setZeroAndNegative(regs: Regs, result: u8)
@@ -62,13 +62,13 @@ function _adder(regs: Regs, operand: u8)
 end
 
 
-function m.ADC(regs: Regs, addr: u16, mem: IMemory)
-    _adder(regs, mem.Read(addr))
+function m.ADC(regs: Regs, addr: u16, bus: Bus)
+    _adder(regs, bus.Read(addr))
 end
 
 
-function m.SBC(regs: Regs, addr: u16, mem: IMemory)
-    _adder(regs, BXOR(mem.Read(addr), 0xFF))
+function m.SBC(regs: Regs, addr: u16, bus: Bus)
+    _adder(regs, BXOR(bus.Read(addr), 0xFF))
 end
 
 
@@ -81,59 +81,59 @@ end
     it also says that Z is set if "the last operation resulted in 0",
     and OLC's emulator also sees it that way. So, that's what I'm going with
 ]]
-function m.ASL(regs: Regs, addr: u16?, mem: IMemory)
-    local val = if addr then mem.Read(addr) else regs.A
+function m.ASL(regs: Regs, addr: u16?, bus: Bus)
+    local val = if addr then bus.Read(addr) else regs.A
     local result = LSHIFT(val, 1)
     local result_u8 = _u8(result)
 
     if not addr then
         regs.A = result_u8
     else
-        mem.Write(addr, result_u8)
+        bus.Write(addr, result_u8)
     end
 
     _setFlag("C", regs, _getBit(8, result))
     _setZeroAndNegative(regs, result_u8)
 end
 
-function m.LSR(regs: Regs, addr: u16?, mem: IMemory)
-    local val = if addr then mem.Read(addr) else regs.A
+function m.LSR(regs: Regs, addr: u16?, bus: Bus)
+    local val = if addr then bus.Read(addr) else regs.A
     local result = RSHIFT(val, 1)
 
     if not addr then
         regs.A = result
     else
-        mem.Write(addr, result)
+        bus.Write(addr, result)
     end
 
     _setFlag("C", regs, val%2 > 0)
     _setZeroAndNegative(regs, result)
 end
 
-function m.ROL(regs: Regs, addr: u16?, mem: IMemory)
-    local val = if addr then mem.Read(addr) else regs.A
+function m.ROL(regs: Regs, addr: u16?, bus: Bus)
+    local val = if addr then bus.Read(addr) else regs.A
     local result = LSHIFT(val, 1) + if _getFlag("C", regs.STATUS) then 1 else 0
     local result_u8 = _u8(result)
 
     if not addr then
         regs.A = result_u8
     else
-        mem.Write(addr, result_u8)
+        bus.Write(addr, result_u8)
     end
 
     _setFlag("C", regs, BAND(val, 0x80) > 0)
     _setZeroAndNegative(regs, result_u8)
 end
 
-function m.ROR(regs: Regs, addr: u16?, mem: IMemory)
-    local val = if addr then mem.Read(addr) else regs.A
+function m.ROR(regs: Regs, addr: u16?, bus: Bus)
+    local val = if addr then bus.Read(addr) else regs.A
     local result = RSHIFT(val, 1) + if _getFlag("C", regs.STATUS) then 128 else 0
     local result_u8 = _u8(result)
 
     if not addr then
         regs.A = result_u8
     else
-        mem.Write(addr, result_u8)
+        bus.Write(addr, result_u8)
     end
 
     _setFlag("C", regs, val%2 > 0 )
@@ -146,18 +146,18 @@ end
 ]]
 
 -- A,Z,N = A&M
-function m.AND(regs: Regs, addr: u16, mem: IMemory)
-    regs.A = BAND(regs.A, mem.Read(addr))
+function m.AND(regs: Regs, addr: u16, bus: Bus)
+    regs.A = BAND(regs.A, bus.Read(addr))
     _setZeroAndNegative(regs, regs.A)
 end
 
-function m.EOR(regs: Regs, addr: u16, mem: IMemory)
-    regs.A = BXOR(regs.A, mem.Read(addr))
+function m.EOR(regs: Regs, addr: u16, bus: Bus)
+    regs.A = BXOR(regs.A, bus.Read(addr))
     _setZeroAndNegative(regs, regs.A)
 end
 
-function m.ORA(regs: Regs, addr: u16, mem: IMemory)
-    regs.A = BOR(regs.A, mem.Read(addr))
+function m.ORA(regs: Regs, addr: u16, bus: Bus)
+    regs.A = BOR(regs.A, bus.Read(addr))
     _setZeroAndNegative(regs, regs.A)
 end
 
@@ -167,7 +167,7 @@ end
 ]]
 
 -- Returns whether branch led to new page. Addr is given by REL addressing mode
-function _branch(regs: Regs, addr: u16, mem: IMemory): boolean
+function _branch(regs: Regs, addr: u16, bus: Bus): boolean
     local oldPc = regs.PC
     regs.PC = addr
     return BAND(oldPc, 0xFF00) ~= BAND(regs.PC, 0xFF00)
@@ -175,9 +175,9 @@ end
 
 
 function _newBranch(_shouldBranchPredicate: (regs: Regs) -> boolean)
-    return function(regs: Regs, addr: u16, mem: IMemory)
+    return function(regs: Regs, addr: u16, bus: Bus)
         if not _shouldBranchPredicate(regs) then return 0 end
-        return 1 + if _branch(regs, addr, mem) then 1 else 0
+        return 1 + if _branch(regs, addr, bus) then 1 else 0
     end
 end
 
@@ -219,14 +219,14 @@ m.BVC = _newBranch(
     Transfer
 ]]
 
-function _transferToRegister(regs: Regs, reg: string, addr: u16, mem: IMemory)
-    regs[reg] = mem.Read(addr)
+function _transferToRegister(regs: Regs, reg: string, addr: u16, bus: Bus)
+    regs[reg] = bus.Read(addr)
     _setZeroAndNegative(regs, regs[reg])
 end
 
 function _newTransferToRegister(reg: string)
-    return function(regs: Regs, addr: u16, mem: IMemory)
-        _transferToRegister(regs, reg, addr, mem)
+    return function(regs: Regs, addr: u16, bus: Bus)
+        _transferToRegister(regs, reg, addr, bus)
     end
 end
 
@@ -234,13 +234,13 @@ m.LDA = _newTransferToRegister("A")
 m.LDX = _newTransferToRegister("X")
 m.LDY = _newTransferToRegister("Y")
 
-function _storeFromRegister(regs: Regs, reg: string, addr: u16, mem: IMemory)
-    mem.Write(addr, regs[reg])
+function _storeFromRegister(regs: Regs, reg: string, addr: u16, bus: Bus)
+    bus.Write(addr, regs[reg])
 end
 
 function _newStoreFromRegister(reg: string)
-    return function(regs: Regs, addr: u16, mem: IMemory)
-        _storeFromRegister(regs, reg, addr, mem)
+    return function(regs: Regs, addr: u16, bus: Bus)
+        _storeFromRegister(regs, reg, addr, bus)
     end
 end
 
@@ -278,21 +278,21 @@ m.TYA = _newTransferRegisterToRegister("Y", "A")
     Stack
 ]]
 
-function m.PHA(regs: Regs, addr: u16, mem: IMemory)
-    _push(regs, regs.A, mem)
+function m.PHA(regs: Regs, addr: u16, bus: Bus)
+    _push(regs, regs.A, bus)
 end
 
-function m.PHP(regs: Regs, addr: u16, mem: IMemory)
-    _push(regs, BOR(regs.STATUS, 0b00110000), mem)
+function m.PHP(regs: Regs, addr: u16, bus: Bus)
+    _push(regs, BOR(regs.STATUS, 0b00110000), bus)
 end
 
-function m.PLA(regs: Regs, addr: u16, mem: IMemory)
-    regs.A = _pull(regs, mem)
+function m.PLA(regs: Regs, addr: u16, bus: Bus)
+    regs.A = _pull(regs, bus)
     _setZeroAndNegative(regs, regs.A)
 end
 
-function m.PLP(regs: Regs, addr: u16, mem: IMemory)
-    regs.STATUS = BAND(_pull(regs, mem), 0b11101111)
+function m.PLP(regs: Regs, addr: u16, bus: Bus)
+    regs.STATUS = BAND(_pull(regs, bus), 0b11101111)
     _setFlag("U", regs, true)
 end
 
@@ -309,9 +309,9 @@ local function _newRegisterIncrement(reg: string, delta: number)
 end
 
 local function _newMemoryIncrement(delta: number)
-    return function(regs: Regs, addr: u16, mem: IMemory)
-        mem.Write(addr, _u8(mem.Read(addr) + delta))
-        _setZeroAndNegative(regs, mem.Read(addr))
+    return function(regs: Regs, addr: u16, bus: Bus)
+        bus.Write(addr, _u8(bus.Read(addr) + delta))
+        _setZeroAndNegative(regs, bus.Read(addr))
     end
 end
 
@@ -344,8 +344,8 @@ m.SEI = _newSetFlag("I", true)
 
 
 local function _newCompare(reg: string)
-    return function(regs: Regs, addr: u16, mem: IMemory)
-        local val = regs[reg] + _u8(BNOT(mem.Read(addr))) + 1
+    return function(regs: Regs, addr: u16, bus: Bus)
+        local val = regs[reg] + _u8(BNOT(bus.Read(addr))) + 1
         _setFlag("C", regs, val > 255)
         _setZeroAndNegative(regs, _u8(val))
     end
@@ -356,29 +356,29 @@ m.CPX = _newCompare("X")
 m.CPY = _newCompare("Y")
 
 
-function _pushPc(regs: Regs, mem: IMemory, offset: number)
-    _push(regs, RSHIFT(_u16(regs.PC + offset), 8), mem)
-    _push(regs, _u8(regs.PC + offset), mem)
+function _pushPc(regs: Regs, bus: Bus, offset: number)
+    _push(regs, RSHIFT(_u16(regs.PC + offset), 8), bus)
+    _push(regs, _u8(regs.PC + offset), bus)
 end
 
 -- JMP straight up uses the address provided...
-function m.JMP(regs: Regs, addr: u16, mem: IMemory)
+function m.JMP(regs: Regs, addr: u16, bus: Bus)
     regs.PC = addr
 end
 
-function m.JSR(regs: Regs, addr: u16, mem: IMemory)
+function m.JSR(regs: Regs, addr: u16, bus: Bus)
     --[[
         There is a test for the stack overwritting the jump
         location. I'm not sure how this would work on a real 6502,
         but I am assuming the jump happens as initially expected.
     ]]
-    _pushPc(regs, mem, -1)
+    _pushPc(regs, bus, -1)
     regs.PC = addr
 end
 
-function m.RTS(regs: Regs, addr: u16, mem: IMemory)
-    local lo = _pull(regs, mem)
-    local hi = _pull(regs, mem)
+function m.RTS(regs: Regs, addr: u16, bus: Bus)
+    local lo = _pull(regs, bus)
+    local hi = _pull(regs, bus)
     regs.PC = _u16(LSHIFT(hi, 8) + lo + 1)
 end
 
@@ -387,24 +387,24 @@ end
     Interrupts
 ]]
 
-function m.BRK(regs: Regs, addr: u16, mem: IMemory)
-    _pushPc(regs, mem, 2)
+function m.BRK(regs: Regs, addr: u16, bus: Bus)
+    _pushPc(regs, bus, 2)
     local pushedStatus = BOR(regs.STATUS, C.StatusFlagMasks["B" :: T.EStatusFlag])
-    _push(regs, pushedStatus, mem)
+    _push(regs, pushedStatus, bus)
     _setFlag("I", regs, true)
 
-    local lo = mem.Read(0xFFFE)
-    local hi = mem.Read(0xFFFF)
+    local lo = bus.Read(0xFFFE)
+    local hi = bus.Read(0xFFFF)
     regs.PC = LSHIFT(hi, 8) + lo
 end
 
 
-function m.RTI(regs: Regs, addr: u16, mem: IMemory)
-    local pulledStatus = BAND(_pull(regs, mem), 0b11101111)
+function m.RTI(regs: Regs, addr: u16, bus: Bus)
+    local pulledStatus = BAND(_pull(regs, bus), 0b11101111)
     regs.STATUS = pulledStatus
     _setFlag("U", regs, true)
-    local lo = _pull(regs, mem)
-    local hi = _pull(regs, mem)
+    local lo = _pull(regs, bus)
+    local hi = _pull(regs, bus)
     regs.PC = LSHIFT(hi, 8) + lo
 end
 
@@ -415,8 +415,8 @@ end
 
 function m.NOP() end
 
-function m.BIT(regs: Regs, addr: u16, mem: IMemory)
-    local val = mem.Read(addr)
+function m.BIT(regs: Regs, addr: u16, bus: Bus)
+    local val = bus.Read(addr)
     _setFlag("N", regs, val > 127)
     _setFlag("V", regs, BAND(val, 0b01000000) > 0)
     _setFlag("Z", regs, BAND(val, regs.A) == 0)

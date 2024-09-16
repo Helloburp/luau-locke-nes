@@ -3,9 +3,10 @@
     - https://www.nesdev.org/wiki/CPU_registers
 ]]
 
--- These numeric types have no behavior, but are used to convey intent.
-export type u8 = number
-export type u16 = number
+local T = require(script.Parent["Helpers.types"])
+
+export type u8 = T.u8
+export type u16 = T.u16
 
 export type Registers = {
     A: u8,
@@ -27,7 +28,7 @@ export type CPU = {
 
     Instructions: {[EInstruction]: Instruction},
     AddressingModes: {[EAddressingMode]: AddressingMode},
-    Memory: IMemory,
+    Bus: Bus,
 }
 
 -- In bitwise order
@@ -37,10 +38,7 @@ export type InstructionData = {
     ContributesToPageCrossCycle: boolean,
 }
 
-export type IMemory = {
-    Read: (u16) -> (u8),
-    Write: (u16, u8) -> ()
-}
+export type Bus = T.Bus
 
 --[[
     Output: extra cycles. (May not be applicable)
@@ -70,12 +68,12 @@ export type EInstructionName = ELegalInstruction | "???"    -- Display/debug
 
 -- May have a mode that does not require an address
 type ImplicitInstruction = (
-    registers: Registers, absAddr: u16?, memory: IMemory
+    registers: Registers, absAddr: u16?, memory: Bus
 ) -> (number?)
 
 -- Always needs an address
 type NonImplicitInstruction = (
-    registers: Registers, absAddr: u16, memory: IMemory
+    registers: Registers, absAddr: u16, memory: Bus
 ) -> (number?)
 
 export type Instruction = ImplicitInstruction | NonImplicitInstruction
@@ -97,8 +95,8 @@ export type EAddressingMode =
     "ABS"
 
 type NoArgAddressingMode = (regs: Registers) -> (nil, false)
-type U8AddressingMode = (regs: Registers, arg: u8, mem: IMemory) -> (u16, boolean)
-type U16AddressingMode = (regs: Registers, arg: u16, mem: IMemory) -> (u16, boolean)
+type U8AddressingMode = (regs: Registers, arg: u8, mem: Bus) -> (u16, boolean)
+type U16AddressingMode = (regs: Registers, arg: u16, mem: Bus) -> (u16, boolean)
 export type AddressingMode = NoArgAddressingMode | U8AddressingMode | U16AddressingMode
 export type GenericAddressingMode = U16AddressingMode
 

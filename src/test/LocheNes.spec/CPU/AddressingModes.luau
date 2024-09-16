@@ -4,7 +4,7 @@
 local _newCommon = require(script.Parent._COMMON)
 local root = script.Parent.Parent.Parent.Parent.Shared
 local m = require(root.AddressingModes)
-local T = require(root._TYPES)
+local T = require(root["CPU.types"])
 
 return function()
     local c = _newCommon(expect)

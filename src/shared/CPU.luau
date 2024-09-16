@@ -1,8 +1,8 @@
-local T = require(script.Parent._TYPES)
-local C = require(script.Parent._CONSTANTS)
+local T = require(script.Parent["CPU.types"])
+local C = require(script.Parent["CPU.constants"])
 type CPU = T.CPU
 type Regs = T.Registers
-type Mem = T.IMemory
+type Bus = T.Bus
 
 local h = require(script.Parent.Helpers)
 
@@ -14,11 +14,11 @@ local _u8, _u16 = h.WrapU8, h.WrapU16
 
 
 function m.RunInstructionAndReturnCycles(
-    regs: Regs, mem: Mem,
+    regs: Regs, bus: Bus,
     addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
     instructions: {[T.EInstruction]: T.GenericInstruction}
 ): number
-    local opcode = mem.Read(regs.PC)
+    local opcode = bus.Read(regs.PC)
     regs.PC = _u16(regs.PC + 1)
 
     local opcodeData = C.OpcodeLookup[opcode + 1] -- Lua moment
@@ -31,8 +31,8 @@ function m.RunInstructionAndReturnCycles(
     local addrModeBytes = C.BytesPerAddressingMode[addrModeName]
     assert(addrModeBytes, `Did not find address mode bytes for mode {addrModeName}`)
 
-    local lo = mem.Read(regs.PC)
-    local hi = mem.Read(_u16(regs.PC + 1))
+    local lo = bus.Read(regs.PC)
+    local hi = bus.Read(_u16(regs.PC + 1))
     regs.PC = _u16(regs.PC + addrModeBytes)
 
     local addrModeArg = if addrModeBytes == 1 then lo
@@ -42,12 +42,12 @@ function m.RunInstructionAndReturnCycles(
 
     assert(addressingModes[addrModeName], `Did not find address mode named "{addrModeName}"`)
     local addr, addrOopsCycle = (addressingModes[addrModeName])(
-        regs, addrModeArg, mem
+        regs, addrModeArg, bus
     )
 
     assert(instructions[instructionId], `Could not find instruction {instructionId}`)
     local extraCycles = (instructions[instructionId])(
-        regs, addr, mem
+        regs, addr, bus
     )
 
     local shouldOopsCycle = addrOopsCycle and instructionOopsCycle
@@ -61,7 +61,7 @@ function m.Cycle(cpu: CPU)
 
     if cpu.ExecutionState.Cycles == 0 then
          cpu.ExecutionState.Cycles += m.RunInstructionAndReturnCycles(
-            cpu.Registers, cpu.Memory,
+            cpu.Registers, cpu.Bus,
             cpu.AddressingModes :: any,
             cpu.Instructions :: any
          )
@@ -75,7 +75,7 @@ end
 function m.NewCPU(
     addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
     instructions: {[T.EInstruction]: T.GenericInstruction},
-    memory: Mem
+    bus: Bus
 ): CPU
     return {
         Registers = h.NewRegisters(),
@@ -84,7 +84,7 @@ function m.NewCPU(
         },
         AddressingModes = addressingModes,
         Instructions = instructions,
-        Memory = memory
+        Bus = bus
     }
 end
 

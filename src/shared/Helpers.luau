@@ -1,15 +1,15 @@
 
 
-local T = require(script.Parent._TYPES)
+local T = require(script.Parent["CPU.types"])
 type Regs = T.Registers
 type u8 = T.u8
 type u16 = T.u16
-type IMemory = T.IMemory
+type Bus = T.Bus
 
 local BAND, BOR, BNOT, LSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift
 
-local C = require(script.Parent._CONSTANTS)
+local C = require(script.Parent["CPU.constants"])
 
 local m = {}
 
@@ -52,6 +52,22 @@ function m.Signed8ToSigned16(val: u8): u16
     return if val > 127 then BOR(val, 0xFF00) else val
 end
 
+
+--[[
+    Takes an address on the bus in a mirrored range and converts it into
+    a valid memory index of the associated device.
+    0 <= result < realRangeLength
+    mirroredRangeStartAddr <= addr
+]]
+function m.UnmirrorAddress(
+    addr: u16,
+    mirroredRangeStartAddr: u16,
+    realRangeLength: u16
+)
+    return (addr - mirroredRangeStartAddr)%realRangeLength
+end
+
+
 function m.NewRegisters(): Regs
     return {
         A = 0, X = 0, Y = 0,
@@ -62,7 +78,7 @@ end
 
 
 -- Memory used for testing purposes
-function m.NewMemory(): IMemory
+function m.NewBus(): Bus
     local t = {}
     return {
         Read = function(i)

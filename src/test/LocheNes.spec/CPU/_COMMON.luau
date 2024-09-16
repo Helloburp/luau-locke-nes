@@ -4,15 +4,15 @@
 
 local root = script.Parent.Parent.Parent.Parent.Shared
 local h = require(root.Helpers)
-local C = require(root._CONSTANTS)
-local T = require(root._TYPES)
+local C = require(root["CPU.constants"])
+local T = require(root["CPU.types"])
 type u8 = T.u8
 
 local BAND, BXOR, BNOT =
     bit32.band, bit32.bxor, bit32.bnot
 
 local regs = h.NewRegisters()
-local mem = h.NewMemory()
+local mem = h.NewBus()
 local oldFlags = {}     -- Flags before instruction execution
 local testedFlags = {}  -- Flags that were checked during testing
 
@@ -72,7 +72,7 @@ return function(expect: any)
     end
     m.Reset = function()
         regs = h.NewRegisters()
-        mem = h.NewMemory()
+        mem = h.NewBus()
         oldFlags = {}
         testedFlags = {}
     end

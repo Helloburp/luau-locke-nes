@@ -14,6 +14,8 @@ C5F7  86 00     STX $00 = 00                    A:00 X:00 Y:00 P:26 SP:FD PPU:  
 C5F9  86 10     STX $10 = 00                    A:00 X:00 Y:00 P:26 SP:FD PPU:  0, 45 CYC:15
 ]]
 
+local LOG_LINE_WITH_ILLEGAL_NOP = "C6BD  04 A9    *NOP $A9 = 00                    A:AA X:97 Y:4E P:EF SP:F9 PPU:128, 89 CYC:14579"
+
 return function()
     it("Generates PC logs as expected", function()
         local mem = h.NewMemory()
@@ -22,6 +24,11 @@ return function()
         mem.Write(0x0002, 0xC5)
         local log = m.GetLogPc(0x0000, mem)
         expect(log).to.equal("0000  4C F5 C5")
+    end)
+
+    it("Handles illegal NOPS as expected", function()
+        local breakdown = m.BreakdownLog(LOG_LINE_WITH_ILLEGAL_NOP)
+        expect(breakdown.PC).to.equal("C6BD  04 A9")
     end)
 
     it("Generates register logs as expected", function()

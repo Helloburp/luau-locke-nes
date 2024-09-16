@@ -58,7 +58,7 @@ export type LogBreakdown = {
     Cycles: string
 }
 function m.BreakdownLog(log: string): LogBreakdown
-    local pc =  string.match(log, "(%x%x%x%x.-%x)%s-%a%a%a")
+    local pc =  string.match(log, "(%x%x%x%x.-%x)%s-%*?%a%a%a")
     local registers = string.match(log, "(A:%x%x.-)%s-PPU")
     local cycles = string.match(log, "(CYC:%d+)")
     assert(pc and registers and cycles, "Improperly formatted log.")

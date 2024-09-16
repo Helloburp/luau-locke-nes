@@ -156,7 +156,8 @@ return function()
     local function _runNesTest(
         maxCycles: number,
         shouldCompareLogs: boolean,
-        _onError: (() -> ())?
+        _onError: (() -> ())?,
+        _onEnd: (() -> ())?     -- When PC reaches C663
     )
         local instructionNumber = 0
         
@@ -186,22 +187,25 @@ return function()
                 lastPcLog = Log.GetLogPc(cpu.Registers.PC, cpu.Memory)
                 lastOpcode = cpu.Memory.Read(cpu.Registers.PC)
                 _doPerInstruction()
+
+                if cpu.Registers.PC == 0xC66E then
+                    _onEnd()
+                    break
+                end
             end
             _doCycle()
         end
     end
 
-    it("Matches Nestest log", function()
-        _runNesTest(26554, true) -- Full log is 26554 cycles long
+    it("Matches Nestest log up to illegal operations", function()
+        _runNesTest(15274, true) -- Full log is 26554 cycles long
         -- expect(testComplete).to.equal(true)
         -- expect(testResult).to.equal(0x0000)
     end)
 
-    -- Disabled because irrelevant
-    -- it("Full run of nestest", function()
-    --     _runNesTest(50000, false)
-    --     expect(testComplete).to.equal(true)
-    --     assert(testResult == 0, string.format("Test failed with result %X", testResult))
-    --     expect(testResult).to.equal(0x0000)
-    -- end)
+    it("Full run of nestest", function()
+        _runNesTest(50000, false, nil, function() print("Winner!") end)
+        expect(testComplete).to.equal(true)
+        assert(testResult == 0x0000, string.format("Test failed: 0x02: %X, 0x03: %X", mem.Read(0x02), mem.Read(0x03)))
+    end)
 end

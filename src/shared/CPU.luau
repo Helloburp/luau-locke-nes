@@ -40,6 +40,7 @@ function m.RunInstructionAndReturnCycles(
         else 0
     
 
+    assert(addressingModes[addrModeName], `Did not find address mode named "{addrModeName}"`)
     local addr, addrOopsCycle = (addressingModes[addrModeName])(
         regs, addrModeArg, mem
     )

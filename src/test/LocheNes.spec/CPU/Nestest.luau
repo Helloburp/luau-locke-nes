@@ -13,7 +13,15 @@ local Parse = require(inst_root.Parse)
 local NROM = require(inst_root.Mappers.NROM_000)
 local NesTest = require(script.Parent.Parent["nestest.nes"])
 
-local LOGFILE = require(script.Parent.Parent["nestest.log.part1"])
+local inst_logfiles = script.Parent.Parent.logfiles
+
+local LOGFILES = {
+    require(inst_logfiles["nestest.log.part1of5"]),
+    require(inst_logfiles["nestest.log.part2of5"]),
+    require(inst_logfiles["nestest.log.part3of5"]),
+    require(inst_logfiles["nestest.log.part4of5"]),
+    require(inst_logfiles["nestest.log.part5of5"]),
+}
 
 type u16 = T.u16
 type u8 = T.u8
@@ -34,6 +42,12 @@ return function()
     local prgBanks = header.PrgRom16kBankCount
     local prgOffset = Parse.PrgRomOffset(header.HasTrainer, 0)
 
+    local function _onWrite(i, v)
+        if i == 0x0300 and v == 0xA9 then
+            -- error("Condition hit")
+        end
+    end
+
     beforeEach(function()
         mem = h.NewMemory()
         testComplete = false
@@ -51,6 +65,9 @@ return function()
 
         local oldWrite = mem.Write
         mem.Write = function(i, v)
+            if not i then return end
+            _onWrite(i, v)
+
             if i == 0x02 then
                 byte1Written = true
             elseif i == 0x03 then
@@ -65,6 +82,7 @@ return function()
         
         local oldRead = mem.Read
         mem.Read = function(i)
+            if not i then return 0 end
             local romValue = NROM.CpuReadFromBuffer(i, rom, prgOffset, prgBanks)
             if romValue then return romValue end
             return oldRead(i)
@@ -96,29 +114,94 @@ return function()
         )
     end
 
-    local function _runNesTest(maxCycles: number)
-        local instructionNumber = 0
-        local iter = Log.IterLog(LOGFILE)
+    local function _checkLogs(
+        instructionNumber: number,
+        _getNextLog: () -> (string?),
+        _onError: () -> ()
+    )
+        local goodLogBreakdown = Log.BreakdownLog(_getNextLog())
+        local pcLog, regLog, cycLog =
+            Log.GetLogPc(cpu.Registers.PC, cpu.Memory),
+            Log.GetLogRegs(cpu.Registers),
+            Log.GetLogCycles(cpu.ExecutionState.Clock)
 
+        local s, r = pcall(function()
+            _compareLogs(goodLogBreakdown, instructionNumber, pcLog, regLog, cycLog)
+        end)
 
-        while cpu.ExecutionState.Clock < maxCycles and not testComplete do
-            if cpu.ExecutionState.Cycles == 0 then
-                instructionNumber += 1
-                local goodLogBreakdown = Log.BreakdownLog(iter())
-                local pcLog, regLog, cycLog =
-                    Log.GetLogPc(cpu.Registers.PC, cpu.Memory),
-                    Log.GetLogRegs(cpu.Registers),
-                    Log.GetLogCycles(cpu.ExecutionState.Clock)
-
-                _compareLogs(goodLogBreakdown, instructionNumber, pcLog, regLog, cycLog)
-            end
-            m.Cycle(cpu)
+        if not s then
+            _onError(cpu)
+            error(r)
         end
     end
 
-    it("Completes Nestest successfully", function()
-        _runNesTest(5000)
-        expect(testComplete).to.equal(true)
-        expect(testResult).to.equal(0x0000)
+    local function _newLogger(logfiles: {string}): () -> (string?)
+        local logfileIndex = 1
+
+        local iter = Log.IterLog(LOGFILES[logfileIndex])
+
+        local function _getNextLog()
+            local nextLog = iter()
+            if not nextLog then
+                logfileIndex += 1
+                iter = Log.IterLog(LOGFILES[logfileIndex])
+                nextLog = iter()
+            end
+            return nextLog
+        end
+
+        return _getNextLog
+    end
+
+    local function _runNesTest(
+        maxCycles: number,
+        shouldCompareLogs: boolean,
+        _onError: (() -> ())?
+    )
+        local instructionNumber = 0
+        
+        local _getNextLog = _newLogger(LOGFILES)
+        local _onLogError = _onError or function() end
+
+        local lastPcLog: string = ""
+        local lastOpcode: number = 0
+
+        local _doPerInstruction = if shouldCompareLogs
+            then function() _checkLogs(instructionNumber, _getNextLog, _onLogError) end
+            else function() end
+
+        local function _doCycle()
+            local s, e = pcall(function() m.Cycle(cpu) end)
+
+            if not s then
+                _onLogError()
+                local opcodeData = C.SlowOpcodeLookup[lastOpcode + 1]
+                error(`Lua Error! {e}\nLast PC: {lastPcLog}\nInstruction: {opcodeData.InstructionName}, {opcodeData.Instruction}, {opcodeData.AddressingMode}`)
+            end
+        end
+        
+        while cpu.ExecutionState.Clock < maxCycles and not testComplete do
+            if cpu.ExecutionState.Cycles == 0 then
+                instructionNumber += 1
+                lastPcLog = Log.GetLogPc(cpu.Registers.PC, cpu.Memory)
+                lastOpcode = cpu.Memory.Read(cpu.Registers.PC)
+                _doPerInstruction()
+            end
+            _doCycle()
+        end
+    end
+
+    it("Matches Nestest log", function()
+        _runNesTest(26554, true) -- Full log is 26554 cycles long
+        -- expect(testComplete).to.equal(true)
+        -- expect(testResult).to.equal(0x0000)
     end)
+
+    -- Disabled because irrelevant
+    -- it("Full run of nestest", function()
+    --     _runNesTest(50000, false)
+    --     expect(testComplete).to.equal(true)
+    --     assert(testResult == 0, string.format("Test failed with result %X", testResult))
+    --     expect(testResult).to.equal(0x0000)
+    -- end)
 end

@@ -68,6 +68,15 @@ function m.UnmirrorAddress(
 end
 
 
+--[[
+    Counts the numbers of trailing zeroes for a binary number
+]]
+function m.TrailingZeroesBase2(n: number): number
+    while n%2 == 0 do n /= 2 end
+    return n
+end
+
+
 function m.NewRegisters(): Regs
     return {
         A = 0, X = 0, Y = 0,

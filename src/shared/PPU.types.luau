@@ -14,8 +14,17 @@ export type Registers = {
     PPUADDR: u8, PPUDATA: u8, OAMDMA: u8
 }
 
-export type EPpuControlFlags    = "N" | "I" | "S" | "B" | "H" | "P" | "V"
-export type EPpuMaskFlags       = "G" | "m" | "M" | "b" | "s" | "R" | "G" | "B"
-export type EPpuStatusFlags     = "O" | "S" | "V"
+export type InternalRegisters = {
+    v: u16,     -- 15 bits (current vram address)
+    t: u16,     -- 15 bits (temporary vram address)
+    x: u8,      -- 3 bits (fine x scroll)
+    w: boolean  -- 1st/second write toggle
+}
+
+export type EPpuControlFlag     = "N" | "I" | "S" | "B" | "H" | "P" | "V"
+export type EPpuMaskFlag        = "G" | "m" | "M" | "b" | "s" | "R" | "G" | "B"
+export type EPpuStatusFlag      = "O" | "S" | "V"
+
+export type EVRamAddressComponent = "X" | "Y" | "N" | "y"
 
 return {}

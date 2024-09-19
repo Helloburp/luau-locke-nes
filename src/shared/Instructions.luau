@@ -15,9 +15,11 @@ local BAND, BXOR, BNOT, BOR =
     bit32.band, bit32.bxor, bit32.bnot, bit32.bor
 local LSHIFT, RSHIFT = bit32.lshift, bit32.rshift
 
+local cpu = require(script.Parent.CPU)
+
 local Helpers = require(script.Parent.Helpers)
 local _getBit, _setBit = Helpers.GetBit, Helpers.SetBit
-local _getFlag, _setFlag = Helpers.GetFlag, Helpers.SetFlag
+local _getFlag, _setFlag = cpu.GetFlag, cpu.SetFlag
 local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
 local _s8ToS16 = Helpers.Signed8ToSigned16
 

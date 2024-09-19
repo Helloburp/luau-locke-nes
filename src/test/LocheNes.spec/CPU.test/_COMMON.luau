@@ -3,6 +3,7 @@
 
 
 local root = script.Parent.Parent.Parent.Parent.Shared
+local cpu = require(root.CPU)
 local h = require(root.Helpers)
 local C = require(root["CPU.constants"])
 local T = require(root["CPU.types"])
@@ -11,7 +12,7 @@ type u8 = T.u8
 local BAND, BXOR, BNOT =
     bit32.band, bit32.bxor, bit32.bnot
 
-local regs = h.NewRegisters()
+local regs = cpu.NewRegisters()
 local mem = h.NewBus()
 local oldFlags = {}     -- Flags before instruction execution
 local testedFlags = {}  -- Flags that were checked during testing
@@ -20,7 +21,7 @@ local testedFlags = {}  -- Flags that were checked during testing
 return function(expect: any)
 
     local function _testFlag(flag: T.EStatusFlag, expected: boolean)
-        expect(h.GetFlag(flag, regs.STATUS)).to.equal(expected)
+        expect(cpu.GetFlag(flag, regs.STATUS)).to.equal(expected)
         table.insert(testedFlags, flag)
     end
 
@@ -48,10 +49,10 @@ return function(expect: any)
     end
 
     local function _testNoUntestedFlagsChanged()
-        for _, flag in pairs(C.StatusFlagOrder) do
+        for flag, _ in pairs(C.StatusFlagMasks) do
             if table.find(testedFlags, flag) then continue end
-            expect(h.GetFlag(flag, regs.STATUS))
-                .to.equal(h.GetFlag(flag, oldFlags))
+            expect(cpu.GetFlag(flag, regs.STATUS))
+                .to.equal(cpu.GetFlag(flag, oldFlags))
         end
     end
 
@@ -65,13 +66,13 @@ return function(expect: any)
     m.TestInstructionExecution = _testInstructionExecution
     m.TestNoUntestedFlagsChanged = _testNoUntestedFlagsChanged
     m.SetFlag = function(flag: T.EStatusFlag, value: boolean)
-        return h.SetFlag(flag, regs, value)
+        return cpu.SetFlag(flag, regs, value)
     end
     m.GetFlag = function(flag: T.EStatusFlag)
-        return h.GetFlag(flag, regs.STATUS)
+        return cpu.GetFlag(flag, regs.STATUS)
     end
     m.Reset = function()
-        regs = h.NewRegisters()
+        regs = cpu.NewRegisters()
         mem = h.NewBus()
         oldFlags = {}
         testedFlags = {}

@@ -8,6 +8,8 @@ local T = require(script.Parent["Helpers.types"])
 export type u8 = T.u8
 export type u16 = T.u16
 export type Bus = T.Bus
+export type ExecutionState = T.ExecutionState
+export type StatusFlagFunctions = T.BitfieldFunctions<EStatusFlag>
 
 export type Registers = {
     A: u8,
@@ -18,10 +20,6 @@ export type Registers = {
     STATUS: u8,
 }
 
-export type ExecutionState = {
-    Cycles: number,
-    Clock: number
-}
 
 export type CPU = {
     ExecutionState: ExecutionState,

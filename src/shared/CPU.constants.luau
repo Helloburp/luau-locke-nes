@@ -47,7 +47,6 @@ local BYTES_PER_ADDRESSING_MODE: { [T.EAddressingMode]: number } = {
 	["ABS"] = 2
 }
 
-local STATUS_FLAG_ORDER: {T.EStatusFlag} = {"C", "Z", "I", "D", "B", "U", "V", "N"}
 
 local STATUS_FLAG_MASKS: {[T.EStatusFlag]: number} = {
 	C = LSHIFT(1, 0), Z = LSHIFT(1, 1), I = LSHIFT(1, 2), D = LSHIFT(1, 3),
@@ -56,7 +55,6 @@ local STATUS_FLAG_MASKS: {[T.EStatusFlag]: number} = {
 
 
 local m = {
-	StatusFlagOrder = STATUS_FLAG_ORDER,
 	StatusFlagMasks = STATUS_FLAG_MASKS,
 	BytesPerAddressingMode = BYTES_PER_ADDRESSING_MODE,
 	OpcodeLookup = OPCODE_LOOKUP,

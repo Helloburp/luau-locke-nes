@@ -5,6 +5,7 @@ local inst_root = script.Parent.Parent.Parent.Shared
 
 local m = require(inst_root.Log)
 local h = require(inst_root.Helpers)
+local cpu = require(inst_root.CPU)
 
 -- local LOGFILE = require(script.Parent["nestest.log"])
 local LOGFILE = [[
@@ -32,7 +33,7 @@ return function()
     end)
 
     it("Generates register logs as expected", function()
-        local regs = h.NewRegisters()
+        local regs = cpu.NewRegisters()
         regs.STATUS = 0x24
         regs.SP = 0xFD
         local log = m.GetLogRegs(regs)

@@ -1,8 +1,10 @@
 local T = require(script.Parent["CPU.types"])
 local C = require(script.Parent["CPU.constants"])
+type u8 = T.u8
 type CPU = T.CPU
 type Regs = T.Registers
 type Bus = T.Bus
+type StatusFlagFunctions = T.StatusFlagFunctions
 
 local h = require(script.Parent.Helpers)
 
@@ -11,6 +13,30 @@ local m = {}
 local LSHIFT = bit32.lshift
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
+
+
+local StatusFlags = h.NewBitfieldFunctions(
+    require(script.Parent["CPU.constants"]).StatusFlagMasks
+) :: StatusFlagFunctions
+
+function m.SetFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
+    regs.STATUS = StatusFlags.Set(flag, regs.STATUS, if value then 1 else 0)
+    return regs
+end
+
+
+function m.GetFlag(flag: T.EStatusFlag, status: u8): boolean
+    return if StatusFlags.Get(flag, status) == 1 then true else false
+end
+
+
+function m.NewRegisters(): Regs
+    return {
+        A = 0, X = 0, Y = 0,
+        PC = 0xFFFC, SP = 0xFD,
+        STATUS = 0b00100100     -- Interrupt and unused set to 1
+    }
+end
 
 
 function m.RunInstructionAndReturnCycles(
@@ -78,7 +104,7 @@ function m.NewCPU(
     bus: Bus
 ): CPU
     return {
-        Registers = h.NewRegisters(),
+        Registers = m.NewRegisters(),
         ExecutionState = {
             Cycles = 0, Clock = 7   -- Startup sequence takes 7 cycles
         },

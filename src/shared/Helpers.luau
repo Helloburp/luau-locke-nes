@@ -1,24 +1,16 @@
 
 
-local T = require(script.Parent["CPU.types"])
-type Regs = T.Registers
+local T = require(script.Parent["Helpers.types"])
 type u8 = T.u8
 type u16 = T.u16
 type Bus = T.Bus
+type BitfieldFunctions<T> = T.BitfieldFunctions<T>
 
 local BAND, BOR, BNOT, LSHIFT, RSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
 
-local C = require(script.Parent["CPU.constants"])
 
 local m = {}
-
-function _flagToBitIndex(flag: T.EStatusFlag)
-    local bitIndex = table.find(C.StatusFlagOrder, flag)
-        or error(`Invalid flag input: {flag}`)
-    bitIndex -= 1
-    return bitIndex
-end
 
 
 function m.SetBit(bitIndex: number, word: number, value: boolean): number
@@ -32,15 +24,6 @@ function m.GetBit(bitIndex: number, word: number): boolean
     return BAND(word, LSHIFT(1, bitIndex)) > 0
 end
 
-function m.SetFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
-    regs.STATUS = m.SetBit(_flagToBitIndex(flag), regs.STATUS, value)
-    return regs
-end
-
-
-function m.GetFlag(flag: T.EStatusFlag, status: u8): boolean
-    return m.GetBit(_flagToBitIndex(flag), status)
-end
 
 function m.WrapU8(word: number): u8
     return word%256
@@ -74,8 +57,12 @@ end
     Counts the numbers of trailing zeroes for a binary number
 ]]
 function m.TrailingZeroesBase2(n: number): number
-    while n%2 == 0 do n /= 2 end
-    return n
+    local c = 0
+    while n%2 == 0 do
+        n /= 2
+        c += 1
+    end
+    return c
 end
 
 
@@ -94,13 +81,24 @@ function m.SetValueInBitfield(
 end
 
 
-function m.NewRegisters(): Regs
-    return {
-        A = 0, X = 0, Y = 0,
-        PC = 0xFFFC, SP = 0xFD,
-        STATUS = 0b00100100     -- Interrupt and unused set to 1
-    }
+
+function m.NewBitfieldFunctions<EValue>(
+    masks: {[EValue]: number}
+): BitfieldFunctions<EValue>
+    local offsets: {[EValue]: number} = {}
+    for i, v in pairs(masks) do offsets[i] = m.TrailingZeroesBase2(v) end
+
+    local function _get(valueType: EValue, bitfield: number)
+        return m.GetValueFromBitfield(bitfield, masks[valueType], offsets[valueType])
+    end
+
+    local function _set(valueType: EValue, bitfield: number, value: number)
+        return m.SetValueInBitfield(bitfield, masks[valueType], offsets[valueType], value)
+    end
+
+    return {Get = _get, Set = _set}
 end
+
 
 
 -- Memory used for testing purposes

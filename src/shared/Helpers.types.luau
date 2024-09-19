@@ -9,4 +9,14 @@ export type Bus = {
     Write: (u16, u8) -> ()
 }
 
+export type ExecutionState = {
+    Cycles: number,
+    Clock: number
+}
+
+export type BitfieldFunctions<EValue> = {
+    Get: (EValue, bitfield: number) -> (number),
+    Set: (EValue, bitfield: number, value: number) -> (number)
+}
+
 return {}

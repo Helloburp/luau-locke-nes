@@ -3,9 +3,9 @@
 
 
 local modules = {
-    Instructions = require(script.Instructions),
-    AddressingModes = require(script.AddressingModes),
-    NesTest = require(script.Nestest)
+    Instructions = require(script["Instructions.test"]),
+    AddressingModes = require(script["AddressingModes.test"]),
+    NesTest = require(script["Nestest.test"])
 }
 
 return function()

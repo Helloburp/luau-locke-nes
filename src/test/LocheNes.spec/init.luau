@@ -3,10 +3,10 @@
 
 
 local modules = {
-    CPU = require(script.CPU),
-    Helpers = require(script.Helpers),
-    Parse = require(script.Parse),
-    Log = require(script.Log),
+    CPU = require(script["CPU.test"]),
+    Helpers = require(script["Helpers.test"]),
+    Parse = require(script["Parse.test"]),
+    Log = require(script["Log.test"]),
 }
 
 return function()

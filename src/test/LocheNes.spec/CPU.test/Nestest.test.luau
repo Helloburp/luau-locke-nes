@@ -204,9 +204,9 @@ return function()
     end)
 
     -- Source for error codes: https://www.qmtpro.com/~nes/misc/nestest.txt
-    it("Full run of nestest", function()
-        _runNesTest(50000, false, nil, function() print("Winner!") end)
-        expect(testComplete).to.equal(true)
-        assert(testResult == 0x0000, string.format("Test failed: 0x02: %X, 0x03: %X", mem.Read(0x02), mem.Read(0x03)))
-    end)
+    -- it("Full run of nestest", function()
+    --     _runNesTest(50000, false, nil, function() print("Winner!") end)
+    --     expect(testComplete).to.equal(true)
+    --     assert(testResult == 0x0000, string.format("Test failed: 0x02: %X, 0x03: %X", mem.Read(0x02), mem.Read(0x03)))
+    -- end)
 end

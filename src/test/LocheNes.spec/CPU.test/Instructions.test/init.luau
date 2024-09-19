@@ -2,18 +2,18 @@
 --!nocheck
 
 local modules = {
-    Transfer = require(script.Transfer),
-    Stack = require(script.Stack),
-    Increments = require(script.Increments),
-    Arithmetic = require(script.Arithmetic),
-    Logic = require(script.Logic),
-    ShiftAndRotate = require(script.ShiftAndRotate),
-    Flag = require(script.Flag),
-    Comparisons = require(script.Comparisons),
-    Branch = require(script.Branch),
-    JumpsAndSubroutines = require(script.JumpsAndSubroutines),
-    Interrupts = require(script.Interrupts),
-    Other = require(script.Other)
+    Transfer = require(script["Transfer.test"]),
+    Stack = require(script["Stack.test"]),
+    Increments = require(script["Increments.test"]),
+    Arithmetic = require(script["Arithmetic.test"]),
+    Logic = require(script["Logic.test"]),
+    ShiftAndRotate = require(script["ShiftAndRotate.test"]),
+    Flag = require(script["Flag.test"]),
+    Comparisons = require(script["Comparisons.test"]),
+    Branch = require(script["Branch.test"]),
+    JumpsAndSubroutines = require(script["JumpsAndSubroutines.test"]),
+    Interrupts = require(script["Interrupts.test"]),
+    Other = require(script["Other.test"])
 }
 
 local _newCommon = require(script.Parent._COMMON)

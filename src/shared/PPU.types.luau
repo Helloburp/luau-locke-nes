@@ -7,12 +7,14 @@ local T = require(script.Parent["Helpers.types"])
 export type u8 = T.u8
 export type u16 = T.u16
 export type Bus = T.Bus
+export type ExecutionState = T.ExecutionState
 
 export type Registers = {
     PPUCTRL: u8, PPUMASK: u8, PPUSTATUS: u8,
     OAMADDR: u8, OAMDATA: u8, PPUSCROLL: u8,
     PPUADDR: u8, PPUDATA: u8, OAMDMA: u8
 }
+
 
 export type InternalRegisters = {
     v: u16,     -- 15 bits (current vram address)
@@ -22,9 +24,16 @@ export type InternalRegisters = {
 }
 
 export type EPpuControlFlag     = "N" | "I" | "S" | "B" | "H" | "P" | "V"
-export type EPpuMaskFlag        = "G" | "m" | "M" | "b" | "s" | "R" | "G" | "B"
+export type EPpuMaskFlag        = "Greyscale" | "m" | "M" | "b" | "s" | "R" | "G" | "B"
 export type EPpuStatusFlag      = "O" | "S" | "V"
 
+export type EPatternTableAddressComponent = "FineY" | "BitPlane" | "TileNumber" | "Half"
+
 export type EVRamAddressComponent = "X" | "Y" | "N" | "y"
+
+export type VRamAddressBitfieldFunctions = T.BitfieldFunctions<EVRamAddressComponent>
+export type PpuControlBitfieldFunctions = T.BitfieldFunctions<EPpuControlFlag>
+export type PpuMaskBitfieldFunctions = T.BitfieldFunctions<EPpuMaskFlag>
+export type PpuStatusBitfieldFunctions = T.BitfieldFunctions<EPpuStatusFlag>
 
 return {}

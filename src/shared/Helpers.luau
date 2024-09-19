@@ -6,8 +6,8 @@ type u8 = T.u8
 type u16 = T.u16
 type Bus = T.Bus
 
-local BAND, BOR, BNOT, LSHIFT =
-    bit32.band, bit32.bor, bit32.bnot, bit32.lshift
+local BAND, BOR, BNOT, LSHIFT, RSHIFT =
+    bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
 
 local C = require(script.Parent["CPU.constants"])
 
@@ -19,6 +19,7 @@ function _flagToBitIndex(flag: T.EStatusFlag)
     bitIndex -= 1
     return bitIndex
 end
+
 
 function m.SetBit(bitIndex: number, word: number, value: boolean): number
     local mask = LSHIFT(1, bitIndex)
@@ -35,6 +36,7 @@ function m.SetFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
     regs.STATUS = m.SetBit(_flagToBitIndex(flag), regs.STATUS, value)
     return regs
 end
+
 
 function m.GetFlag(flag: T.EStatusFlag, status: u8): boolean
     return m.GetBit(_flagToBitIndex(flag), status)
@@ -74,6 +76,21 @@ end
 function m.TrailingZeroesBase2(n: number): number
     while n%2 == 0 do n /= 2 end
     return n
+end
+
+
+function m.GetValueFromBitfield(bitfield: number, mask: number, offset: number): number
+    return RSHIFT(BAND(bitfield, mask), offset)
+end
+
+
+function m.SetValueInBitfield(
+    bitfield: number,
+    mask: number,
+    offset: number,
+    value: number
+): number
+    return BAND(bitfield, BNOT(mask)) + LSHIFT(value, offset)
 end
 
 

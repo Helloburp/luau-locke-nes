@@ -16,7 +16,8 @@ export type ExecutionState = {
 
 export type BitfieldFunctions<EValue> = {
     Get: (EValue, bitfield: number) -> (number),
-    Set: (EValue, bitfield: number, value: number) -> (number)
+    Set: (EValue, bitfield: number, value: number) -> (number),
+    Compose: ({[EValue]: number}) -> (number)
 }
 
 return {}

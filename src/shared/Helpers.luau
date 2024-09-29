@@ -96,7 +96,15 @@ function m.NewBitfieldFunctions<EValue>(
         return m.SetValueInBitfield(bitfield, masks[valueType], offsets[valueType], value)
     end
 
-    return {Get = _get, Set = _set}
+    local function _compose(vals: {[EValue]: number})
+        local bitfield = 0
+        for valueType, value in pairs(vals) do
+            _set(valueType, bitfield, value)
+        end
+        return bitfield
+    end
+
+    return {Get = _get, Set = _set, Compose = _compose}
 end
 
 

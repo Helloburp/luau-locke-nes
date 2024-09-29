@@ -8,6 +8,8 @@ export type u8 = T.u8
 export type u16 = T.u16
 export type Bus = T.Bus
 export type ExecutionState = T.ExecutionState
+export type BitfieldFunctions<T> = T.BitfieldFunctions<T>
+
 
 export type Registers = {
     PPUCTRL: u8, PPUMASK: u8, PPUSTATUS: u8,
@@ -15,6 +17,10 @@ export type Registers = {
     PPUADDR: u8, PPUDATA: u8, OAMDMA: u8
 }
 
+export type Latches = {
+    Nametable: u8,              AttributeTable: u8,
+    PatternTableTileLow: u8,    PatternTableTileHigh: u8
+}
 
 export type InternalRegisters = {
     v: u16,     -- 15 bits (current vram address)
@@ -30,10 +36,7 @@ export type EPpuStatusFlag      = "O" | "S" | "V"
 export type EPatternTableAddressComponent = "FineY" | "BitPlane" | "TileNumber" | "Half"
 
 export type EVRamAddressComponent = "X" | "Y" | "N" | "y"
+export type EAttributeAddressComponent = "N" | "AttributeOffset" | "Y" | "X"
 
-export type VRamAddressBitfieldFunctions = T.BitfieldFunctions<EVRamAddressComponent>
-export type PpuControlBitfieldFunctions = T.BitfieldFunctions<EPpuControlFlag>
-export type PpuMaskBitfieldFunctions = T.BitfieldFunctions<EPpuMaskFlag>
-export type PpuStatusBitfieldFunctions = T.BitfieldFunctions<EPpuStatusFlag>
 
 return {}

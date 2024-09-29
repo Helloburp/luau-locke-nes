@@ -1,6 +1,7 @@
 local T = require(script.Parent["PPU.types"])
 local C = require(script.Parent["PPU.constants"])
 
+
 local h = require(script.Parent.Helpers)
 
 type u8 = T.u8
@@ -9,16 +10,19 @@ type Regs = T.Registers
 type Bus = T.Bus
 type InternalRegs = T.InternalRegisters
 type ExecutionState = T.ExecutionState
+type Latches = T.Latches
 
-local VRamAddress = h.NewBitfieldFunctions(C.VRAM_ADDR_MASKS) :: T.VRamAddressBitfieldFunctions
-local PpuControl = h.NewBitfieldFunctions(C.PPUCTRL_MASKS) :: T.PpuControlBitfieldFunctions
-local PpuMask = h.NewBitfieldFunctions(C.PPUMASK_MASKS) :: T.PpuMaskBitfieldFunctions
-local PpuStatus = h.NewBitfieldFunctions(C.PPUSTATUS_MASKS) :: T.PpuStatusBitfieldFunctions
+
+local VRamAddress, AttributeAddress, PatternTableAddress, PpuControl =
+    C.BITFIELD_UTIL.VRamAddress,
+    C.BITFIELD_UTIL.AttributeAddress,
+    C.BITFIELD_UTIL.PatternTableAddress,
+    C.BITFIELD_UTIL.PpuControl
 
 
 local m = {}
 
-local LSHIFT = bit32.lshift
+local LSHIFT, BOR, BAND = bit32.lshift, bit32.bor, bit32.band
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
@@ -47,20 +51,34 @@ function _isOddFrame(clock: number)
 end
 
 
-function _fetchNametableEntry()
-
+-- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+function _getTileAddressFromVRamAddress(v: u16)
+    return C.NAMETABLE_RAM_BASE + VRamAddress.Set("y", v, 0)
 end
 
-function _fetchAttributeTableEntry()
-
+function _getAttributeAddressFromVRamAddress(v: u16)
+    local attrAddr = AttributeAddress.Compose{
+        ["N"] = VRamAddress.Get("N", v),
+        ["AttributeOffset"] = 0b1111,
+        ["Y"] = BAND(VRamAddress.Get("Y", v), 0b11100),
+        ["X"] = BAND(VRamAddress.Get("X", v), 0b11100)
+    }
+    return C.NAMETABLE_RAM_BASE + attrAddr
 end
 
-function _fetchLoPatternByte()
-
+function _getLowPatternTableAddress(ppuCtrl: u8, tileNumber: u8, row: number)
+    return PatternTableAddress.Compose{
+        ["FineY"] = row,
+        ["BitPlane"] = 0,
+        ["TileNumber"] = tileNumber,
+        ["Half"] = PpuControl.Get("B", ppuCtrl)
+    }
 end
 
-function _fetchHiPatternByte()
-
+function _getHighPatternTableAddress(ppuCtrl, tileNumber, row)
+    return PatternTableAddress.Set(
+        "BitPlane", _getLowPatternTableAddress(ppuCtrl, tileNumber, row), 1
+    )
 end
 
 
@@ -74,46 +92,133 @@ end
 
 
 --[[
+    Performs memory fetching logic for dots 321-336 and 1-256.
+    "Progress" is the stage of the fetching in these dots per tile.
+    I.e, a progress of 1 means the second cycle of the nametable fetch.
+
+    vramAddr is likely the v register.
+]]
+function _fetchToLatchesBasedOnProgress(
+    bus: Bus, ppuCtrl: u8, vramAddr: u16,
+    latches: Latches, backgroundFetchProgress: number
+)
+    if backgroundFetchProgress%2 == 0 then return end
+
+    local latchName, addr = unpack{
+        if backgroundFetchProgress == 1 then {
+            "Nametable", _getTileAddressFromVRamAddress(vramAddr)
+        }
+        elseif backgroundFetchProgress == 3 then {
+            "AttributeTable", _getTileAddressFromVRamAddress(vramAddr)
+        }
+        elseif backgroundFetchProgress == 5 then {
+            "PatternTableTileLow",
+            _getLowPatternTableAddress(
+                ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
+            )
+        }
+        elseif backgroundFetchProgress == 7 then {
+            "PatternTableTileHigh",
+            _getHighPatternTableAddress(
+                ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
+            )
+        }
+        else error("Invalid input")
+    }
+
+    latches[latchName] = bus.Read(addr)
+end
+
+
+function _shift()
+end
+
+
+--[[
     Takes the amount of cycles that have occured in the current frame.
 
     Returns whether the last dot of the line is skipped,
     specifically in the case of scanline 0
 ]]
-function _cycleAndReturnDotSkip(cyclesThisFrame: number): boolean
+function _cycleAndReturnDotSkip(
+    bus: Bus, regs: Regs, iRegs: InternalRegs,
+    latches: Latches, cyclesThisFrame: number
+): boolean
     local dot, scanline =
         _getDot(cyclesThisFrame)
         _getScanline(cyclesThisFrame)
+    
+    local isVisibleScanline = scanline >= 0 and scanline <= 240
+    local isPreRenderLine = scanline == 261
 
-    if scanline == 0 then -- Pre-render scanline
-        --[[
-            Make memory accesses it would for a regular scanline.
-            (Fill the shift registers for the first 2 tiles.)
-        ]]
-        --[[
-            During dots 280-304, vertical scroll bits are reloaded
-            if rendering is enabled.
-        ]]
-        --[[
-            If on an odd frame, and rendering is enabled,
-            the last dot (340) is skipped.
-        ]]
-    elseif scanline > 0 and scanline <= 240 then -- Visible scanlines
-        -- If dot 0, idle.
-        --[[
-            Dots 1-256:
-            Data for each tile is fetched. Memory accesses take 2 dots each.
-            In order:
-            - Nametable byte
-            - Attribute table byte
-            - Pattern table tile low
-            - Pattern table tile high (+8 bytes from table tile low)
+    if isVisibleScanline or isPreRenderLine then
 
-            Every 8 cycles, feed these bytes to the internal shift registers.
+        --[[
+            Variables
         ]]
+        
+        --[[
+            In OLC's code, the fetch range starts at 2 and ends at 337.
+            I think this is a bug. The NT fetch at 337 is labeled as unused,
+            and his implementation skips the first instance where an NT
+            fetch would occur.
+
+            I think the confusion arose because the shifters only
+            begin working on cycle 2, and OLC's logic shifts every time
+            a fetch is considered.
+        ]]
+        local isFetchDot =
+            (dot >= 1 and dot <= 256) or
+            (dot >= 321 and dot <= 336)
+        
+        local shouldFetchOccur = isFetchDot and dot%2 == 0
+
+        local shouldReloadShiftersFromDot =
+            (dot - 1)%8 == 0 and (
+                (dot >= 9 and dot <= 257) or
+                (dot >= 329 and dot <= 337)
+            )
+
+        local isShiftDot =
+            (dot >= 2 and dot <= 257) or
+            (dot >= 321 and dot <= 337)
+
+
+        --[[
+            Behavior
+        ]]
+
+        if scanline == 0 then
+            --[[
+                During dots 280-304, vertical scroll bits are reloaded
+                if rendering is enabled.
+            ]]
+            --[[
+                If on an odd frame, and rendering is enabled,
+                the last dot (340) is skipped.
+            ]]
+        end
+
+        if shouldFetchOccur then
+            local fetchProgress = (dot - 1)%8
+            _fetchToLatchesBasedOnProgress(
+                bus, regs.PPUCTRL, iRegs.v, latches,
+                fetchProgress
+            )
+        end
+
+
+        if shouldReloadShiftersFromDot then
+            -- Reload shifters
+        end
         --[[
             Sprite 0 hit cannot be raised until at least cycle 2,
             which is when the shifters start working
         ]]
+        
+        if isShiftDot then
+            _shift()
+        end
         --[[
             Dots 257-320:
             Data for sprites on next scanline are fetched. (2 dots each)
@@ -121,11 +226,6 @@ function _cycleAndReturnDotSkip(cyclesThisFrame: number): boolean
             - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
             - Pattern table tile low
             - Pattern table tile high
-        ]]
-        --[[
-            Dots 321-336:
-            First two tiles for the next scanline are fetched and loaded
-            into shift registers. Follows same order.
         ]]
         --[[
             Dots 337-340:

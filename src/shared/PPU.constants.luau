@@ -1,7 +1,10 @@
+local h = require(script.Parent.Helpers)
+local _bff = h.NewBitfieldFunctions
+
 local T = require(script.Parent["PPU.types"])
 type u8 = T.u8
 type u16 = T.u16
-
+type BitfieldFunctions<T> = T.BitfieldFunctions<T>
 
 -- Generated with scripts/PaletteStringManip.luau
 local COLORS = {
@@ -28,11 +31,18 @@ local VRAM_ADDR_MASKS: {[T.EVRamAddressComponent]: number} = {
     ["y"] = 0b111000000000000,
 }
 
+local ATTR_ADDR_MASKS: {[T.EAttributeAddressComponent]: number} = {
+    ["N"]               = 0b110000000000,
+    ["AttributeOffset"] = 0b001111000000,
+    ["Y"]               = 0b000000111000,
+    ["X"]               = 0b000000000111,
+}
+
 local PATTERN_TABLE_ADDR_MASKS: {[T.EPatternTableAddressComponent]: number} = {
-    ["FineY"]           = 0b00000000000111,
-    ["BitPlane"]        = 0b00000000001000,
-    ["TileNumber"]      = 0b01111111110000,
-    ["Half"]            = 0b10000000000000,
+    ["FineY"]               = 0b00000000000111,
+    ["BitPlane"]            = 0b00000000001000,
+    ["TileNumber"]          = 0b01111111110000,
+    ["Half"]                = 0b10000000000000,
 }
 
 local PPUCTRL_MASKS: {[T.EPpuControlFlag]: number} = {
@@ -64,6 +74,7 @@ local DOTS_PER_SCANLINE = 341
 
 local m = {
     PALETTE_RAM_BASE = 0x3F00,
+    NAMETABLE_RAM_BASE = 0x2000,
 
     SCANLINES_PER_FRAME = SCANLINES_PER_FRAME,
     DOTS_PER_SCANLINE = DOTS_PER_SCANLINE,
@@ -73,9 +84,20 @@ local m = {
     COLORS_COLOR3 = COLORS_COLOR3,
 
     VRAM_ADDR_MASKS = VRAM_ADDR_MASKS,
+    ATTR_ADDR_MASKS = ATTR_ADDR_MASKS,
+    PATTERN_TABLE_ADDR_MASKS = PATTERN_TABLE_ADDR_MASKS,
     PPUCTRL_MASKS = PPUCTRL_MASKS,
     PPUMASK_MASKS = PPUMASK_MASKS,
-    PPUSTATUS_MASKS = PPUSTATUS_MASKS
+    PPUSTATUS_MASKS = PPUSTATUS_MASKS,
+
+    BITFIELD_UTIL = {
+        VRamAddress         = _bff(VRAM_ADDR_MASKS) :: BitfieldFunctions<T.EVRamAddressComponent>,
+        PpuControl          = _bff(PPUCTRL_MASKS) :: BitfieldFunctions<T.EPpuControlFlag>,
+        PpuMask             = _bff(PPUMASK_MASKS) :: BitfieldFunctions<T.EPpuMaskFlag>,
+        PpuStatus           = _bff(PPUSTATUS_MASKS) :: BitfieldFunctions<T.EPpuStatusFlag>,
+        AttributeAddress    = _bff(ATTR_ADDR_MASKS) :: BitfieldFunctions<T.EAttributeAddressComponent>,
+        PatternTableAddress = _bff(PATTERN_TABLE_ADDR_MASKS) :: BitfieldFunctions<T.EPatternTableAddressComponent>,
+    }
 }
 
 return m

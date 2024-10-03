@@ -11,18 +11,27 @@ type Bus = T.Bus
 type InternalRegs = T.InternalRegisters
 type ExecutionState = T.ExecutionState
 type Latches = T.Latches
+type Shifters = T.Shifters
+type InternalState = T.InternalState
+type PPU = T.PPU
 
 
-local VRamAddress, AttributeAddress, PatternTableAddress, PpuControl =
+
+
+local VRamAddress, AttributeAddress, PatternTableAddress,
+    PpuControl, PpuMask, PpuStatus =
     C.BITFIELD_UTIL.VRamAddress,
     C.BITFIELD_UTIL.AttributeAddress,
     C.BITFIELD_UTIL.PatternTableAddress,
-    C.BITFIELD_UTIL.PpuControl
+    C.BITFIELD_UTIL.PpuControl,
+    C.BITFIELD_UTIL.PpuMask,
+    C.BITFIELD_UTIL.PpuStatus
 
 
 local m = {}
 
-local LSHIFT, BOR, BAND = bit32.lshift, bit32.bor, bit32.band
+local LSHIFT, RSHIFT, BOR, BAND =
+    bit32.lshift, bit32.rshift, bit32.bor, bit32.band
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
@@ -36,19 +45,19 @@ function _getScanline(cyclesThisFrame: number)
 end
 
 
+
+
 -- If divisible by 4, falls back to the background color.
-function _getPaletteRamIndex(
-    pixelValue: number, paletteNumber: number, isSprite: boolean
+function _getPixelValue(
+    patternValue: number, attributeValue: number, isSprite: boolean
 )
-    return if pixelValue == 0 then 0 else pixelValue
-        + LSHIFT(paletteNumber, 2)
-        + LSHIFT(if isSprite then 1 else 0, 4)
+    return if patternValue == 0 then 0 else (
+        patternValue +
+        LSHIFT(attributeValue, 2) + 
+        LSHIFT(if isSprite then 1 else 0, 4)
+    )
 end
 
-
-function _isOddFrame(clock: number)
-    return clock%(C.DOTS_PER_FRAME * 2) >= C.DOTS_PER_FRAME
-end
 
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
@@ -60,8 +69,8 @@ function _getAttributeAddressFromVRamAddress(v: u16)
     local attrAddr = AttributeAddress.Compose{
         ["N"] = VRamAddress.Get("N", v),
         ["AttributeOffset"] = 0b1111,
-        ["Y"] = BAND(VRamAddress.Get("Y", v), 0b11100),
-        ["X"] = BAND(VRamAddress.Get("X", v), 0b11100)
+        ["Y"] = RSHIFT(VRamAddress.Get("Y", v), 2),
+        ["X"] = RSHIFT(VRamAddress.Get("X", v), 2)
     }
     return C.NAMETABLE_RAM_BASE + attrAddr
 end
@@ -82,12 +91,67 @@ function _getHighPatternTableAddress(ppuCtrl, tileNumber, row)
 end
 
 
-function _increaseHorizontal()
+function _getAddressAfterIncrementHorizontal(vramAddr: u16): u16
+    if VRamAddress.Get("X", vramAddr) == 31 then
+        local n = VRamAddress.Get("N", vramAddr)
+        vramAddr = VRamAddress.Set("X", vramAddr, 0)
 
+        -- Flip X nametable bit
+        return VRamAddress.Set(
+            "N", vramAddr,
+            h.SetBit(0, n, not h.GetBit(0, n))
+        )
+    else
+        return VRamAddress.Set("X", VRamAddress.Get("X") + 1)
+    end
 end
 
-function _increaseVertical()
-    
+function _getAddressAfterIncrementVertical(vramAddr: u16)
+    -- Should we increment fine y, or set it to 0?
+    if VRamAddress.Get("y", vramAddr) == 7 then
+        local coarseY = VRamAddress.Get("Y", vramAddr)
+        vramAddr = VRamAddress.Set("y", vramAddr, 0)
+
+        -- Do we set Y to 0, and if we do, do we flip the nametable?
+        if coarseY == 29 then
+            local n = VRamAddress.Get("N", vramAddr)
+            vramAddr = VRamAddress.Set(
+                "N", vramAddr,
+                h.SetBit(1, n, not h.GetBit(1, n))
+            )
+            coarseY = 0
+        elseif coarseY == 31 then
+            coarseY = 0
+        else
+            coarseY += 1
+        end
+
+        return VRamAddress.Set("Y", vramAddr, coarseY)
+    else
+        return VRamAddress.Set("y", VRamAddress.Get("y") + 1)
+    end
+end
+
+
+function _getAddressAfterTransferX(v: u16, t: u16): u16
+    return VRamAddress.Compose{
+        ["X"] = VRamAddress.Get("X", t),
+        ["Y"] = VRamAddress.Get("Y", v),
+        ["N"] = BAND(VRamAddress.Get("N", v), 0b10) + -- Low bit is X nametable
+                BAND(VRamAddress.Get("N", t), 0b01),
+        ["y"] = VRamAddress.Get("y", v),
+    }
+end
+
+
+function _getAddressAfterTransferY(v: u16, t: u16): u16
+    return VRamAddress.Compose{
+        ["X"] = VRamAddress.Get("X", v),
+        ["Y"] = VRamAddress.Get("Y", t),
+        ["N"] = BAND(VRamAddress.Get("N", v), 0b01) + -- High bit is Y nametable
+                BAND(VRamAddress.Get("N", t), 0b10),
+        ["y"] = VRamAddress.Get("y", t),
+    }
 end
 
 
@@ -102,22 +166,22 @@ function _fetchToLatchesBasedOnProgress(
     bus: Bus, ppuCtrl: u8, vramAddr: u16,
     latches: Latches, backgroundFetchProgress: number
 )
-    if backgroundFetchProgress%2 == 0 then return end
+    if backgroundFetchProgress%2 == 1 then return end
 
     local latchName, addr = unpack{
-        if backgroundFetchProgress == 1 then {
+        if backgroundFetchProgress == 0 then {
             "Nametable", _getTileAddressFromVRamAddress(vramAddr)
         }
-        elseif backgroundFetchProgress == 3 then {
-            "AttributeTable", _getTileAddressFromVRamAddress(vramAddr)
+        elseif backgroundFetchProgress == 2 then {
+            "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
         }
-        elseif backgroundFetchProgress == 5 then {
+        elseif backgroundFetchProgress == 4 then {
             "PatternTableTileLow",
             _getLowPatternTableAddress(
                 ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
-        elseif backgroundFetchProgress == 7 then {
+        elseif backgroundFetchProgress == 6 then {
             "PatternTableTileHigh",
             _getHighPatternTableAddress(
                 ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
@@ -130,131 +194,187 @@ function _fetchToLatchesBasedOnProgress(
 end
 
 
-function _shift()
+function _shift(shifters: Shifters)
+    shifters.AttributeHi = RSHIFT(shifters.AttributeHi, 1)
+    shifters.AttributeLo = RSHIFT(shifters.AttributeLo, 1)
+    shifters.PatternHi = RSHIFT(shifters.PatternHi, 1)
+    shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
+end
+
+function _reloadShifters(
+    latches: Latches, shifters: Shifters, vramAddr: u16
+)
+
+    local offsetInAttributeByte = (
+        VRamAddress.Get("X", vramAddr)%2 +
+        VRamAddress.Get("Y", vramAddr)%2 * 2
+    ) * 2
+    
+    shifters.AttributeLo = BAND(shifters.AttributeLo, 0x00FF) +
+        LSHIFT(
+            0xFF * if h.GetBit(
+                offsetInAttributeByte,
+                latches.AttributeTable
+            ) then 1 else 0,
+            8
+        )
+
+    shifters.AttributeHi = BAND(shifters.AttributeHi, 0x00FF) +
+        LSHIFT(
+            0xFF * if h.GetBit(
+                offsetInAttributeByte + 1,
+                latches.AttributeTable
+            ) then 1 else 0,
+            8
+        )
+
+    shifters.PatternLo = BAND(shifters.PatternLo, 0x00FF) +
+        LSHIFT(latches.PatternTableTileLow, 8)
+
+    shifters.PatternHi = BAND(shifters.PatternHi, 0x00FF) +
+        LSHIFT(latches.PatternTableTileHigh, 8)
 end
 
 
---[[
-    Takes the amount of cycles that have occured in the current frame.
-
-    Returns whether the last dot of the line is skipped,
-    specifically in the case of scanline 0
-]]
-function _cycleAndReturnDotSkip(
-    bus: Bus, regs: Regs, iRegs: InternalRegs,
-    latches: Latches, cyclesThisFrame: number
-): boolean
-    local dot, scanline =
-        _getDot(cyclesThisFrame)
-        _getScanline(cyclesThisFrame)
+function _clock(ppu: PPU)
+    local iState = ppu.InternalState
     
-    local isVisibleScanline = scanline >= 0 and scanline <= 240
+    -- Perform skip cycle if at the beginning of an odd frame
+    if ppu.Frame%2 == 0 and ppu.ExecutionState.Cycles == 0 and
+        PpuMask.Get("b", iState.Registers.PPUMASK)
+    then
+        ppu.ExecutionState.Cycles += 1
+    end
+
+    local cycles = ppu.ExecutionState.Cycles
+    local dot, scanline = _getDot(cycles), _getScanline(cycles)
+
+    -- Set our pixel
+    local pixel = _cycleAndReturnPixel(
+        ppu.Bus, ppu.InternalState, dot, scanline
+    )
+    ppu.SetPixelForCycleCallback(cycles, _getColorByPixelValue(pixel, ppu.Bus))
+
+    -- Perform NMI if applicable
+    if dot == 1 and scanline == 241 and
+        PpuControl.Get("V", iState.Registers.PPUCTRL)
+    then
+        ppu.NmiCallback()
+    end
+
+    ppu.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
+    ppu.ExecutionState.Clock += 1
+end
+
+
+function _cycleAndReturnPixel(
+    bus: Bus, iState: InternalState, dot: number, scanline: number
+): u8
+    local returnedPixel = 0b00000
+
+    local regs, shifters, latches, iRegs =
+        iState.Registers, iState.Shifters,
+        iState.Latches, iState.InternalRegisters
+    
+    local isVisibleScanline = scanline >= 0 and scanline <= 239
     local isPreRenderLine = scanline == 261
 
+    local isRenderingEnabled = BOR(
+        PpuMask.Get("b", regs.PPUMASK),
+        PpuMask.Get("s", regs.PPUMASK)
+    ) > 0
+
+    if isPreRenderLine and dot == 1 then
+        regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
+    end
+
     if isVisibleScanline or isPreRenderLine then
+        local bgPixel: u8 = 0b00000
 
-        --[[
-            Variables
-        ]]
-        
-        --[[
-            In OLC's code, the fetch range starts at 2 and ends at 337.
-            I think this is a bug. The NT fetch at 337 is labeled as unused,
-            and his implementation skips the first instance where an NT
-            fetch would occur.
+        if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
-            I think the confusion arose because the shifters only
-            begin working on cycle 2, and OLC's logic shifts every time
-            a fetch is considered.
-        ]]
-        local isFetchDot =
-            (dot >= 1 and dot <= 256) or
-            (dot >= 321 and dot <= 336)
-        
-        local shouldFetchOccur = isFetchDot and dot%2 == 0
-
-        local shouldReloadShiftersFromDot =
-            (dot - 1)%8 == 0 and (
-                (dot >= 9 and dot <= 257) or
-                (dot >= 329 and dot <= 337)
-            )
-
-        local isShiftDot =
-            (dot >= 2 and dot <= 257) or
-            (dot >= 321 and dot <= 337)
-
-
-        --[[
-            Behavior
-        ]]
-
-        if scanline == 0 then
-            --[[
-                During dots 280-304, vertical scroll bits are reloaded
-                if rendering is enabled.
-            ]]
-            --[[
-                If on an odd frame, and rendering is enabled,
-                the last dot (340) is skipped.
-            ]]
-        end
-
-        if shouldFetchOccur then
             local fetchProgress = (dot - 1)%8
             _fetchToLatchesBasedOnProgress(
                 bus, regs.PPUCTRL, iRegs.v, latches,
                 fetchProgress
             )
+
+            if fetchProgress == 7 then
+                _reloadShifters(latches, shifters, iRegs.v)
+
+                if isRenderingEnabled then
+                    iRegs.v = _getAddressAfterIncrementHorizontal(iRegs.v)
+                end
+
+                if isRenderingEnabled and dot == 256 then
+                    iRegs.v = _getAddressAfterIncrementVertical(iRegs.v)
+                end
+            end
+
+            bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
+
+            if PpuMask.Get("b", regs.PPUMASK) then
+                _shift(shifters)
+            end
+
+        elseif dot >= 257 and dot <= 320 then
+            if isRenderingEnabled and dot == 257 then
+                iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
+            end
+            --[[
+                Dots 257-320:
+                Data for sprites on next scanline are fetched. (2 dots each)
+                In order:
+                - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
+                - Pattern table tile low
+                - Pattern table tile high
+            ]]
+        elseif dot >= 280 and dot <= 304 then
+            if isRenderingEnabled and isPreRenderLine then
+                iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
+            end
+        elseif dot == 337 or dot == 339 then
+            _fetchToLatchesBasedOnProgress(
+                bus, regs.PPUCTRL, iRegs.v, latches,
+                0 -- 0 progress implies nametable fetch
+            )
         end
 
+        returnedPixel = bgPixel
 
-        if shouldReloadShiftersFromDot then
-            -- Reload shifters
+    elseif scanline >= 241 and scanline <= 261 then
+        if scanline == 241 and dot == 1 then
+            regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 1)
         end
-        --[[
-            Sprite 0 hit cannot be raised until at least cycle 2,
-            which is when the shifters start working
-        ]]
-        
-        if isShiftDot then
-            _shift()
-        end
-        --[[
-            Dots 257-320:
-            Data for sprites on next scanline are fetched. (2 dots each)
-            In order:
-            - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
-            - Pattern table tile low
-            - Pattern table tile high
-        ]]
-        --[[
-            Dots 337-340:
-            Nametable bytes are fetched for unknown reason.
-        ]]
-    elseif scanline == 241 then
-        -- Idle
-    elseif scanline > 241 then
-        --[[ Dot 1:
-            VBlank flag is set.
-            VBlank NMI occurs.
-            No memory accesses are made.
-        ]]
-
     end
 
-    return false
+
+    return returnedPixel
 end
 
 
-function _getColorByPaletteRamIndex(index: number, bus: Bus)
+function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
+    local patternValue = 
+        (if h.GetBit(shifters.PatternLo, fineX) then 1 else 0) +
+        (if h.GetBit(shifters.PatternHi, fineX) then 2 else 0)
+
+    local attributeValue = 
+        (if h.GetBit(shifters.AttributeLo, fineX) then 1 else 0) +
+        (if h.GetBit(shifters.AttributeHi, fineX) then 2 else 0)
+
+    return _getPixelValue(patternValue, attributeValue, false)
+end
+
+
+function _getColorByPixelValue(index: number, bus: Bus)
     return bus.Read(C.PALETTE_RAM_BASE + index)
 end
 
 
--- Pixel is the offset.
-function _getPixelValueFromBitPlanes(lo: u8, hi: u8, pixel: number)
-    return if h.GetBit(lo, pixel) then 1 else 0 +
-        if h.GetBit(hi, pixel) then 2 else 0
+function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
+    return
+        (if h.GetBit(lo, fineX) then 1 else 0) +
+        (if h.GetBit(hi, fineX) then 2 else 0)
 end
 
 

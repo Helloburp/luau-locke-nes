@@ -18,8 +18,9 @@ export type PPU = {
 
     Frame: number,
 
-    NmiCallback: () -> (),
-    SetPixelForCycleCallback: (i: number, color: u8) -> ()
+    TriggerNmi: () -> (),
+    SetPixelForCycle: (i: number, color: u8) -> (),
+    OnFrameComplete: () -> ()
 }
 
 

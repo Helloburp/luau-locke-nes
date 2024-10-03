@@ -249,21 +249,26 @@ function _clock(ppu: PPU)
     local cycles = ppu.ExecutionState.Cycles
     local dot, scanline = _getDot(cycles), _getScanline(cycles)
 
-    -- Set our pixel
+    -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
         ppu.Bus, ppu.InternalState, dot, scanline
     )
-    ppu.SetPixelForCycleCallback(cycles, _getColorByPixelValue(pixel, ppu.Bus))
+    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, ppu.Bus))
 
     -- Perform NMI if applicable
     if dot == 1 and scanline == 241 and
         PpuControl.Get("V", iState.Registers.PPUCTRL)
     then
-        ppu.NmiCallback()
+        ppu.TriggerNmi()
     end
 
     ppu.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
     ppu.ExecutionState.Clock += 1
+
+    if ppu.ExecutionState.Cycles < cycles then
+        ppu.OnFrameComplete()
+        ppu.Frame += 1
+    end
 end
 
 

@@ -101,14 +101,3 @@ export type GenericAddressingMode = U16AddressingMode
 
 
 return {}
-
---[[ Address mode arguments & return values
-    16 bit absolute address or 8 bit relative address
-    A boolean describing whether the address crossed a page threshold
-]]
-
---[[ Address mode lookup info
-    How many bytes an addressing mode needs to compute its address
-        Should be used to increment the PC and construct an input
-        for the address mode.
-]]

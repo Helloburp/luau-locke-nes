@@ -109,6 +109,33 @@ end
 
 
 
+
+function m.MapReadToBus(bus: Bus, addressRange: NumberRange, _read: T.FnRead)
+    local min, max = addressRange.Min, addressRange.Max
+    local _oldRead = bus.Read
+
+    bus.Read = function(addr: u16)
+        if addr >= min and addr <= max then
+            return _read(addr)
+        end
+        return _oldRead(addr)
+    end
+end
+
+
+function m.MapWriteToBus(bus: Bus, addressRange: NumberRange, _write: T.FnWrite)
+    local min, max = addressRange.Min, addressRange.Max
+    local _oldWrite = bus.Write
+
+    bus.Write = function(addr: u16, val: u8)
+        if addr >= min and addr <= max then
+            _write(addr, val)
+        end
+        _oldWrite(addr, val)
+    end
+end
+
+
 -- Memory used for testing purposes
 function m.NewBus(): Bus
     local t = {}

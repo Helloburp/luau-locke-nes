@@ -14,6 +14,9 @@ type Latches = T.Latches
 type Shifters = T.Shifters
 type InternalState = T.InternalState
 type PPU = T.PPU
+type FnRead = T.FnRead
+type FnWrite = T.FnWrite
+
 
 
 
@@ -33,6 +36,7 @@ local m = {}
 local LSHIFT, RSHIFT, BOR, BAND =
     bit32.lshift, bit32.rshift, bit32.bor, bit32.band
 local RU8, WU8 = buffer.readu8, buffer.writeu8
+local _u8, _u16 = h.WrapU8, h.WrapU16
 
 
 function _getDot(cyclesThisFrame: number)
@@ -45,8 +49,6 @@ function _getScanline(cyclesThisFrame: number)
 end
 
 
-
-
 -- If divisible by 4, falls back to the background color.
 function _getPixelValue(
     patternValue: number, attributeValue: number, isSprite: boolean
@@ -57,7 +59,6 @@ function _getPixelValue(
         LSHIFT(if isSprite then 1 else 0, 4)
     )
 end
-
 
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
@@ -272,6 +273,19 @@ function _clock(ppu: PPU)
 end
 
 
+function _isRenderingEnabled(ppuMask: u8)
+    return BOR(
+            PpuMask.Get("b", ppuMask),
+            PpuMask.Get("s", ppuMask)
+        ) > 0
+end
+
+
+function _isInVBlank(scanline: number)
+    return scanline < 261 and scanline >= 240
+end
+
+
 function _cycleAndReturnPixel(
     bus: Bus, iState: InternalState, dot: number, scanline: number
 ): u8
@@ -284,13 +298,11 @@ function _cycleAndReturnPixel(
     local isVisibleScanline = scanline >= 0 and scanline <= 239
     local isPreRenderLine = scanline == 261
 
-    local isRenderingEnabled = BOR(
-        PpuMask.Get("b", regs.PPUMASK),
-        PpuMask.Get("s", regs.PPUMASK)
-    ) > 0
+    local isRenderingEnabled = _isRenderingEnabled(regs.PPUMASK)
 
     if isPreRenderLine and dot == 1 then
         regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = PpuStatus.Set("S", regs.PPUSTATUS, 0)
     end
 
     if isVisibleScanline or isPreRenderLine then
@@ -325,6 +337,10 @@ function _cycleAndReturnPixel(
         elseif dot >= 257 and dot <= 320 then
             if isRenderingEnabled and dot == 257 then
                 iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
+            end
+
+            if isRenderingEnabled then
+                regs.OAMADDR = 0x00
             end
             --[[
                 Dots 257-320:
@@ -383,13 +399,16 @@ function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
 end
 
 
-function m.PpuCtrlWrite(regs: Regs, val: u8, _nmi: () -> ())
+function m.PpuCtrlWriteAndReturnNmi(
+    regs: Regs, val: u8, cyclesThisFrame: number
+): boolean
+    local oldNmi, newNmi =
+        PpuControl.Get("V", regs.PPUCTRL),
+        PpuControl.Get("V", val)
+    local inVBlank = _isInVBlank(_getScanline(cyclesThisFrame))
     regs.PPUCTRL = val
 
-    -- Todo: If NMI flag bit (7) is changed from 0 to 1,
-        -- and PPU is in VBlank, and PPUSTATUS' vblank flag is set to 1:
-        -- Immediately generate NMI
-    
+    return oldNmi == 0 and newNmi == 1 and inVBlank
 end
 
 
@@ -399,10 +418,10 @@ end
 
 
 function m.PpuStatusRead(regs: Regs, internalRegs: InternalRegs)
-    -- Todo:
-    -- Clear bit 7 of Ppu Ctrl
-    -- Clear address latch (w)
-    return regs.PPUSTATUS   -- Todo: Consider making bits 0-4 "open bus"
+    local oldStatus = regs.PPUSTATUS
+    regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
+    internalRegs.w = false
+    return oldStatus   -- Todo: Consider making bits 0-4 "open bus"
 end
 
 
@@ -411,47 +430,68 @@ function m.OamAddrWrite(regs: Regs, val: u8)
 end
 
 
-function m.OamDataRead(regs: Regs)
-    -- If in vertical or forced blanking:
-        -- return the value from OAM at the address
-    -- If the PPU is rendering:
-        -- Return exposed OAM accesses during sprite evaluation/loading(?)
-            -- Probably not important.
+function m.OamDataRead(regs: Regs, OAM: buffer)
+    return RU8(OAM, regs.OAMADDR)
 end
 
 
-function m.OamDataWrite(regs: Regs, val: u8)
-    -- If currently rendering: Ignore write.
-    -- Todo: Increment OAMADDR; set OamData to val.
+function m.OamDataWrite(regs: Regs, val: u8, cyclesThisFrame: number)
+    if not _isInVBlank(_getScanline(cyclesThisFrame)) and
+        _isRenderingEnabled(regs.PPUMASK) then return end
+    
+    regs.OAMDATA = val
+    regs.OAMADDR = _u8(regs.OAMADDR, regs.OAMADDR + 1)
 end
 
 
-function m.PpuScrollWrite()
-    -- Depending on the state of the w register:
-        -- First write: X scroll
-        -- Second write: Y scroll
+function m.PpuScrollWrite(iRegs: InternalRegs, val: u8)
+    if not iRegs.w then
+        iRegs.t = VRamAddress.Set("X", iRegs.t, RSHIFT(val, 3))
+        iRegs.x = BAND(val, 0x07)
+    else
+        iRegs.t = VRamAddress.Set("Y", iRegs.t, RSHIFT(val, 3))
+        iRegs.t = VRamAddress.Set("y", iRegs.t, BAND(val, 0x07))
+    end
+
+    iRegs.w = not iRegs.w
 end
 
 
-function m.PpuAddrWrite()
-    -- Depending on the state of the w register:
-        -- First write: Upper byte
-        -- Second write: Lower byte
-        -- Addresses higher than 0x3FFF will be mirrored down.
+function m.PpuAddrWrite(iRegs: InternalRegs, val: u8)
+    if not iRegs.w then
+        iRegs.v = BAND(iRegs.v, 0x0F) + LSHIFT(BAND(val, 0x7F), 8)
+    else
+        iRegs.v = BAND(iRegs.v, 0xF0) + val
+    end
+
+    iRegs.w = not iRegs.w
 end
 
 
-function m.PpuDataRead()
-    -- Get old contents of read buffer (Recall that reads are delayed by 1 call)
-    -- Set read buffer to new contents
-    -- Increment vram address by amount determined by PpuCtrl
-    -- Return old contents of read buffer
+function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
+    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
+    iRegs.v = BAND(iRegs.v + inc, 0x7F)
+end
+
+function m.PpuDataRead(bus: Bus, regs: Regs, iRegs: InternalRegs)
+    local oldRead = regs.PPUDATA
+    local oldAddr = iRegs.v
+    regs.PPUDATA = bus.Read(iRegs.v)
+
+    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
+
+    -- Palette ram on later PPUs returned instantly
+    if oldAddr >= 0x3F00 and oldAddr <= 0x3FFF then
+        return regs.PPUDATA
+    end
+
+    return oldRead
 end
 
 
-function m.PpuDataWrite()
-    -- Write val to vram address
-    -- Increment vram address by amount determined by PpuCtrl
+function m.PpuDataWrite(bus: Bus, regs: Regs, iRegs: InternalRegs, val: u8)
+    bus.Write(iRegs.v, val)
+    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
 end
 
 
@@ -459,6 +499,71 @@ function m.OamDmaWrite()
     -- Writing XX will upload 256 bytes from the CPU page XX00-XXFF to OAM.
     -- CPU is delayed for 513 cycles + 1 if on a 'put' cycle (?)
         -- Put and Get cycles alternate; initial state is random
+end
+
+
+function m.NewPaletteControl(regs: Regs): (T.FnRead, T.FnWrite)
+    local b = buffer.create(0x20)
+
+    local function _offset(addr: u16)
+        local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
+        offset = if offset%4 == 0 then 0 else offset
+        return offset
+    end
+
+    local function _read(addr: u16)
+        local offset = _offset(addr)
+        
+        local isGreyscale = PpuMask.Get("Greyscale", regs.PPUMASK)
+        local color = RU8(b, offset)
+        return if not isGreyscale then color else BAND(color, 0x30)
+    end
+
+    local function _write(addr: u16, val: u8)
+        WU8(b, _offset(addr), val)
+    end
+
+    return _read, _write
+end
+
+function m.MapPaletteControl(bus: Bus, _r: FnRead, _w: FnWrite)
+    local paletteRange = NumberRange.new(0x3F00, 0x3FFF)
+    h.MapReadToBus(bus, paletteRange, _r)
+    h.MapWriteToBus(bus, paletteRange, _w)
+end
+
+function m.NewVRam(_getIsMirroringVertical: () -> boolean): (FnRead, FnWrite)
+    local b = buffer.create(0x800)
+
+    local function _offset(addr: u16)
+        local offset
+        if _getIsMirroringVertical() then
+            offset = h.UnmirrorAddress(addr, 0x2000, 0x800)
+        else
+            if addr < 0x2800 then
+                offset = h.UnmirrorAddress(addr, 0x2000, 0x400)
+            else
+                offset = h.UnmirrorAddress(addr, 0x2800, 0x400)
+            end
+        end
+        return offset
+    end
+
+    local function _read(addr: u16)
+        return RU8(b, _offset(addr))
+    end
+
+    local function _write(addr: u16, val: u8)
+        WU8(b, _offset(addr), val)
+    end
+
+    return _read, _write
+end
+
+function m.MapVRam(bus: Bus, _r: FnRead, _w: FnWrite)
+    local vramRange = NumberRange.new(0x2000, 0x2FFF)
+    h.MapReadToBus(bus, vramRange, _r)
+    h.MapWriteToBus(bus, vramRange, _w)
 end
 
 return m

@@ -1,6 +1,5 @@
 
 local Ppu = require(script.Parent.PPU)
-local Cpu = require(script.Parent.CPU)
 local h = require(script.Parent.Helpers)
 
 local T_CPU = require(script.Parent["CPU.types"])

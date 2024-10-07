@@ -2,9 +2,11 @@ local h = require(script.Parent.Helpers)
 local _bff = h.NewBitfieldFunctions
 
 local T = require(script.Parent["PPU.types"])
-type u8 = T.u8
-type u16 = T.u16
-type BitfieldFunctions<T> = T.BitfieldFunctions<T>
+
+local T_H = require(script.Parent["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>
 
 -- Generated with scripts/PaletteStringManip.luau
 local COLORS = {
@@ -73,9 +75,6 @@ local SCANLINES_PER_FRAME = 262
 local DOTS_PER_SCANLINE = 341
 
 local m = {
-    PALETTE_RAM_BASE = 0x3F00,
-    NAMETABLE_RAM_BASE = 0x2000,
-
     SCANLINES_PER_FRAME = SCANLINES_PER_FRAME,
     DOTS_PER_SCANLINE = DOTS_PER_SCANLINE,
     

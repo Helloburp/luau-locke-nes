@@ -5,10 +5,12 @@
 ]]
 
 local T = require(script.Parent["CPU.types"])
-type u8 = T.u8
-type u16 = T.u16
 type Regs = T.Registers
-type Mem = T.Bus
+
+local T_H = require(script.Parent["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type Mem = T_H.Bus
 
 local Helpers = require(script.Parent.Helpers)
 local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16

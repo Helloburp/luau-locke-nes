@@ -3,9 +3,11 @@ local T = require(script.Parent["CPU.types"])
 local C = require(script.Parent["CPU.constants"])
 local h = require(script.Parent.Helpers)
 type Regs = T.Registers
-type Mem = T.Bus
-type u8 = T.u8
-type u16 = T.u16
+
+local T_H = require(script.Parent["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type Mem = T_H.Bus
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 

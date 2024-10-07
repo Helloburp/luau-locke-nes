@@ -4,13 +4,17 @@
 export type u8 = number
 export type u16 = number
 
+-- The bus' methods are infallible.
 export type Bus = {
-    Read: FnRead,
-    Write: FnWrite
+    Read: (u16) -> (u8),
+    Write: (u16, u8) -> (true)
 }
 
-export type FnRead = (u16) -> (u8)
-export type FnWrite = (u16, u8) -> ()
+export type Peripheral = {
+    Read: ((u16) -> (u8?))?,
+    Write: ((u16, u8) -> (boolean))?
+}
+
 
 export type ExecutionState = {
     Cycles: number,

@@ -1,12 +1,17 @@
 local T = require(script.Parent["CPU.types"])
-local C = require(script.Parent["CPU.constants"])
-type u8 = T.u8
 type CPU = T.CPU
 type Regs = T.Registers
-type Bus = T.Bus
 type StatusFlagFunctions = T.StatusFlagFunctions
 
+local T_H = require(script.Parent["Helpers.types"])
+
+type u8 = T_H.u8
+type Bus = T_H.Bus
+
+
+local C = require(script.Parent["CPU.constants"])
 local h = require(script.Parent.Helpers)
+
 
 local m = {}
 
@@ -82,12 +87,12 @@ function m.RunInstructionAndReturnCycles(
 end
 
 
-function m.Cycle(cpu: CPU)
+function m.Clock(cpu: CPU, bus: Bus)
     assert(cpu.ExecutionState.Cycles >= 0, "CPU cycles should be >= 0")
 
     if cpu.ExecutionState.Cycles == 0 then
          cpu.ExecutionState.Cycles += m.RunInstructionAndReturnCycles(
-            cpu.Registers, cpu.Bus,
+            cpu.Registers, bus,
             cpu.AddressingModes :: any,
             cpu.Instructions :: any
          )
@@ -98,10 +103,9 @@ function m.Cycle(cpu: CPU)
 end
 
 -- New CPU struct with values set to expected state at startup
-function m.NewCPU(
+function m.New(
     addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
-    instructions: {[T.EInstruction]: T.GenericInstruction},
-    bus: Bus
+    instructions: {[T.EInstruction]: T.GenericInstruction}
 ): CPU
     return {
         Registers = m.NewRegisters(),
@@ -110,8 +114,9 @@ function m.NewCPU(
         },
         AddressingModes = addressingModes,
         Instructions = instructions,
-        Bus = bus
     }
 end
+
+
 
 return m

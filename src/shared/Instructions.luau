@@ -6,9 +6,11 @@
 local T = require(script.Parent["CPU.types"])
 local C = require(script.Parent["CPU.constants"])
 type Regs = T.Registers
-type u8 = T.u8
-type u16 = T.u16
-type Bus = T.Bus
+
+local T_H = require(script.Parent["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type Bus = T_H.Bus
 
 
 local BAND, BXOR, BNOT, BOR =
@@ -27,13 +29,13 @@ local m = {}
 
 -- Empty stack; SP points to the spot where the next value is set.
 function _push(regs: Regs, val: u8, bus: Bus)
-    bus.Write(C.SP_BASE + regs.SP, val)
+    bus.Write(0x100 + regs.SP, val)
     regs.SP = _u8(regs.SP - 1)
 end
 
 function _pull(regs: Regs, bus: Bus): u8
     regs.SP = _u8(regs.SP + 1)
-    return bus.Read(C.SP_BASE + regs.SP)
+    return bus.Read(0x100 + regs.SP)
 end
 
 function _setZeroAndNegative(regs: Regs, result: u8)

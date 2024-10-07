@@ -5,10 +5,11 @@
 
 local T = require(script.Parent["Helpers.types"])
 
-export type u8 = T.u8
-export type u16 = T.u16
-export type Bus = T.Bus
-export type ExecutionState = T.ExecutionState
+type u8 = T.u8
+type u16 = T.u16
+type Bus = T.Bus
+type ExecutionState = T.ExecutionState
+
 export type StatusFlagFunctions = T.BitfieldFunctions<EStatusFlag>
 
 export type Registers = {
@@ -27,7 +28,6 @@ export type CPU = {
 
     Instructions: {[EInstruction]: Instruction},
     AddressingModes: {[EAddressingMode]: AddressingMode},
-    Bus: Bus,
 }
 
 -- In bitwise order
@@ -95,6 +95,7 @@ export type EAddressingMode =
 type NoArgAddressingMode = (regs: Registers) -> (nil, false)
 type U8AddressingMode = (regs: Registers, arg: u8, mem: Bus) -> (u16, boolean)
 type U16AddressingMode = (regs: Registers, arg: u16, mem: Bus) -> (u16, boolean)
+
 export type AddressingMode = NoArgAddressingMode | U8AddressingMode | U16AddressingMode
 export type GenericAddressingMode = U16AddressingMode
 

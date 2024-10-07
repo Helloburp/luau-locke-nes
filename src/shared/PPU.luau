@@ -1,23 +1,22 @@
-local T = require(script.Parent["PPU.types"])
 local C = require(script.Parent["PPU.constants"])
-
-
 local h = require(script.Parent.Helpers)
 
-type u8 = T.u8
-type u16 = T.u16
+
+local T = require(script.Parent["PPU.types"])
 type Regs = T.Registers
-type Bus = T.Bus
 type InternalRegs = T.InternalRegisters
-type ExecutionState = T.ExecutionState
 type Latches = T.Latches
 type Shifters = T.Shifters
 type InternalState = T.InternalState
 type PPU = T.PPU
-type FnRead = T.FnRead
-type FnWrite = T.FnWrite
 
-
+local T_H = require(script.Parent["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type Bus = T_H.Bus
+type ExecutionState = T_H.ExecutionState
+type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>
+type Peripheral = T_H.Peripheral
 
 
 
@@ -63,7 +62,7 @@ end
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
 function _getTileAddressFromVRamAddress(v: u16)
-    return C.NAMETABLE_RAM_BASE + VRamAddress.Set("y", v, 0)
+    return 0x2000 + VRamAddress.Set("y", v, 0)
 end
 
 function _getAttributeAddressFromVRamAddress(v: u16)
@@ -73,7 +72,7 @@ function _getAttributeAddressFromVRamAddress(v: u16)
         ["Y"] = RSHIFT(VRamAddress.Get("Y", v), 2),
         ["X"] = RSHIFT(VRamAddress.Get("X", v), 2)
     }
-    return C.NAMETABLE_RAM_BASE + attrAddr
+    return 0x2000 + attrAddr
 end
 
 function _getLowPatternTableAddress(ppuCtrl: u8, tileNumber: u8, row: number)
@@ -237,11 +236,11 @@ function _reloadShifters(
 end
 
 
-function _clock(ppu: PPU)
+function m.Clock(ppu: PPU, bus: Bus)
     local iState = ppu.InternalState
     
-    -- Perform skip cycle if at the beginning of an odd frame
-    if ppu.Frame%2 == 0 and ppu.ExecutionState.Cycles == 0 and
+    -- Perform skip cycle if at the beginning of an odd frame & BG set
+    if iState.FrameCounter%2 == 0 and ppu.ExecutionState.Cycles == 0 and
         PpuMask.Get("b", iState.Registers.PPUMASK)
     then
         ppu.ExecutionState.Cycles += 1
@@ -252,9 +251,9 @@ function _clock(ppu: PPU)
 
     -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
-        ppu.Bus, ppu.InternalState, dot, scanline
+        bus, ppu.InternalState, dot, scanline
     )
-    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, ppu.Bus))
+    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
 
     -- Perform NMI if applicable
     if dot == 1 and scanline == 241 and
@@ -268,7 +267,7 @@ function _clock(ppu: PPU)
 
     if ppu.ExecutionState.Cycles < cycles then
         ppu.OnFrameComplete()
-        ppu.Frame += 1
+        iState.FrameCounter += 1
     end
 end
 
@@ -388,7 +387,7 @@ end
 
 
 function _getColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(C.PALETTE_RAM_BASE + index)
+    return bus.Read(0x3F00 + index)
 end
 
 
@@ -435,11 +434,15 @@ function m.OamDataRead(regs: Regs, OAM: buffer)
 end
 
 
-function m.OamDataWrite(regs: Regs, val: u8, cyclesThisFrame: number)
-    if not _isInVBlank(_getScanline(cyclesThisFrame)) and
-        _isRenderingEnabled(regs.PPUMASK) then return end
+function m.OamDataWrite(
+    regs: Regs, val: u8, cyclesThisFrame: number, oam: buffer
+)
+    if not _isInVBlank(_getScanline(cyclesThisFrame))
+        and _isRenderingEnabled(regs.PPUMASK) then
+        return
+    end
     
-    regs.OAMDATA = val
+    WU8(oam, regs.OAMADDR, val)
     regs.OAMADDR = _u8(regs.OAMADDR, regs.OAMADDR + 1)
 end
 
@@ -473,6 +476,7 @@ function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
     iRegs.v = BAND(iRegs.v + inc, 0x7F)
 end
 
+
 function m.PpuDataRead(bus: Bus, regs: Regs, iRegs: InternalRegs)
     local oldRead = regs.PPUDATA
     local oldAddr = iRegs.v
@@ -502,7 +506,7 @@ function m.OamDmaWrite()
 end
 
 
-function m.NewPaletteControl(regs: Regs): (T.FnRead, T.FnWrite)
+function m.NewPaletteControl(regs: Regs): (Peripheral)
     local b = buffer.create(0x20)
 
     local function _offset(addr: u16)
@@ -523,16 +527,14 @@ function m.NewPaletteControl(regs: Regs): (T.FnRead, T.FnWrite)
         WU8(b, _offset(addr), val)
     end
 
-    return _read, _write
+    return {
+        Read = _read,
+        Write = _write
+    }
 end
 
-function m.MapPaletteControl(bus: Bus, _r: FnRead, _w: FnWrite)
-    local paletteRange = NumberRange.new(0x3F00, 0x3FFF)
-    h.MapReadToBus(bus, paletteRange, _r)
-    h.MapWriteToBus(bus, paletteRange, _w)
-end
 
-function m.NewVRam(_getIsMirroringVertical: () -> boolean): (FnRead, FnWrite)
+function m.NewVRam(_getIsMirroringVertical: () -> boolean): (Peripheral)
     local b = buffer.create(0x800)
 
     local function _offset(addr: u16)
@@ -557,13 +559,66 @@ function m.NewVRam(_getIsMirroringVertical: () -> boolean): (FnRead, FnWrite)
         WU8(b, _offset(addr), val)
     end
 
-    return _read, _write
+    return {
+        Read = _read,
+        Write = _write
+    }
 end
 
-function m.MapVRam(bus: Bus, _r: FnRead, _w: FnWrite)
-    local vramRange = NumberRange.new(0x2000, 0x2FFF)
-    h.MapReadToBus(bus, vramRange, _r)
-    h.MapWriteToBus(bus, vramRange, _w)
+
+function m.MapPeripherals(
+    bus: Bus,
+    vram: Peripheral,
+    paletteControl: Peripheral
+)
+    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x2FFF), vram)
+    h.MapPeripheral(bus, NumberRange.new(0x3F00, 0x3FFF), paletteControl)
 end
+
+
+function m.NewOAM()
+    return buffer.create(0x40)
+end
+
+
+function _newInternalState(): InternalState
+    return {
+        Registers = {
+            PPUCTRL = 0x00, PPUMASK = 0x00, PPUSTATUS = 0xA0, PPUDATA = 0x00,
+            OAMADDR = 0x00,
+        },
+        InternalRegisters = {
+            v = 0x0000, t = 0x0000,
+            x = 0x000,  w = false
+        },
+        Latches = {
+            Nametable = 0x00, AttributeTable = 0x00, 
+            PatternTableTileLow = 0x00, PatternTableTileHigh = 0x00
+        },
+        Shifters = {
+            PatternLo = 0x00,   PatternHi = 0x00,
+            AttributeLo = 0x00, AttributeHi = 0x00
+        },
+        OAM = buffer.create(0x40),
+        FrameCounter = 0
+    }
+end
+
+
+function m.New(
+    _nmi: () -> (),
+    _onFrameComplete: () -> (),
+    _setPixelColorForCycle: (i: number, color: u8) -> ()
+): PPU
+    return {
+        InternalState = _newInternalState(),
+        ExecutionState = {Clock = 0, Cycles = 0},
+
+        TriggerNmi = _nmi,
+        OnFrameComplete = _onFrameComplete,
+        SetPixelForCycle = _setPixelColorForCycle
+    }
+end
+
 
 return m

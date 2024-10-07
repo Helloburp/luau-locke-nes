@@ -4,22 +4,16 @@
 
 local T = require(script.Parent["Helpers.types"])
 
-export type u8 = T.u8
-export type u16 = T.u16
-export type Bus = T.Bus
-export type FnRead = T.FnRead
-export type FnWrite = T.FnWrite
-export type ExecutionState = T.ExecutionState
-export type BitfieldFunctions<T> = T.BitfieldFunctions<T>
+type u8 = T.u8
+type u16 = T.u16
+type Bus = T.Bus
+type ExecutionState = T.ExecutionState
+type BitfieldFunctions<T> = T.BitfieldFunctions<T>
 
 
 export type PPU = {
     InternalState: InternalState,
     ExecutionState: ExecutionState,
-    Bus: Bus,
-
-    Frame: number,
-    OAM: buffer,
 
     TriggerNmi: () -> (),
     SetPixelForCycle: (i: number, color: u8) -> (),
@@ -28,9 +22,7 @@ export type PPU = {
 
 
 export type Registers = {
-    PPUCTRL: u8, PPUMASK: u8, PPUSTATUS: u8,
-    OAMADDR: u8, OAMDATA: u8,
-    PPUDATA: u8, OAMDMA: u8
+    PPUCTRL: u8, PPUMASK: u8, PPUSTATUS: u8, OAMADDR: u8, PPUDATA: u8
 }
 
 export type Latches = {
@@ -60,6 +52,8 @@ export type InternalState = {
     InternalRegisters: InternalRegisters,
     Latches: Latches,
     Shifters: Shifters,
+    OAM: buffer,
+    FrameCounter: number,
 }
 
 export type EPpuControlFlag     = "N" | "I" | "S" | "B" | "H" | "P" | "V"

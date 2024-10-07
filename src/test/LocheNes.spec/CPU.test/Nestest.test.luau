@@ -53,7 +53,7 @@ return function()
         testComplete = false
         testResult = 0xFFFF
 
-        cpu = m.NewCPU(
+        cpu = m.New(
             require(inst_root.AddressingModes),
             require(inst_root.Instructions),
             mem
@@ -121,7 +121,7 @@ return function()
     )
         local goodLogBreakdown = Log.BreakdownLog(_getNextLog())
         local pcLog, regLog, cycLog =
-            Log.GetLogPc(cpu.Registers.PC, cpu.Bus),
+            Log.GetLogPc(cpu.Registers.PC, mem),
             Log.GetLogRegs(cpu.Registers),
             Log.GetLogCycles(cpu.ExecutionState.Clock)
 
@@ -184,8 +184,8 @@ return function()
         while cpu.ExecutionState.Clock < maxCycles and not testComplete do
             if cpu.ExecutionState.Cycles == 0 then
                 instructionNumber += 1
-                lastPcLog = Log.GetLogPc(cpu.Registers.PC, cpu.Bus)
-                lastOpcode = cpu.Bus.Read(cpu.Registers.PC)
+                lastPcLog = Log.GetLogPc(cpu.Registers.PC, mem)
+                lastOpcode = mem.Read(cpu.Registers.PC)
                 _doPerInstruction()
 
                 if cpu.Registers.PC == 0xC66E then

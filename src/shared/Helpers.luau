@@ -5,6 +5,8 @@ type u8 = T.u8
 type u16 = T.u16
 type Bus = T.Bus
 type BitfieldFunctions<T> = T.BitfieldFunctions<T>
+type Peripheral = T.Peripheral
+
 
 local BAND, BOR, BNOT, LSHIFT, RSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
@@ -81,7 +83,6 @@ function m.SetValueInBitfield(
 end
 
 
-
 function m.NewBitfieldFunctions<EValue>(
     masks: {[EValue]: number}
 ): BitfieldFunctions<EValue>
@@ -108,36 +109,46 @@ function m.NewBitfieldFunctions<EValue>(
 end
 
 
-
-
-function m.MapReadToBus(bus: Bus, addressRange: NumberRange, _read: T.FnRead)
+function m.MapReadToBus(
+    bus: Bus, addressRange: NumberRange, _read: (u16) -> (u8?)
+)
     local min, max = addressRange.Min, addressRange.Max
     local _oldRead = bus.Read
 
-    bus.Read = function(addr: u16)
+    bus.Read = function(addr: u16): number
         if addr >= min and addr <= max then
-            return _read(addr)
+            return _read(addr) or _oldRead(addr)
         end
         return _oldRead(addr)
     end
 end
 
 
-function m.MapWriteToBus(bus: Bus, addressRange: NumberRange, _write: T.FnWrite)
+function m.MapWriteToBus(
+    bus: Bus, addressRange: NumberRange, _write: (u16, u8) -> (boolean)
+)
     local min, max = addressRange.Min, addressRange.Max
     local _oldWrite = bus.Write
 
-    bus.Write = function(addr: u16, val: u8)
+    bus.Write = function(addr: u16, val: u8): true
         if addr >= min and addr <= max then
-            _write(addr, val)
+            return _write(addr, val) or _oldWrite(addr, val)
         end
-        _oldWrite(addr, val)
+        return _oldWrite(addr, val)
     end
 end
 
 
--- Memory used for testing purposes
-function m.NewBus(): Bus
+function m.MapPeripheral(
+    bus: Bus, addressRange: NumberRange, peripheral: Peripheral
+)
+    local _read, _write = peripheral.Read, peripheral.Write
+    if _read then m.MapReadToBus(bus, addressRange, _read) end
+    if _write then m.MapWriteToBus(bus, addressRange, _write) end
+end
+
+
+function m.NewDebugBus(): Bus
     local t = {}
     return {
         Read = function(i)
@@ -151,5 +162,14 @@ function m.NewBus(): Bus
         end
     }
 end
+
+
+function m.NewBus(): Bus
+    return {
+        Read = function() return 0x00 end,
+        Write = function(val: u8) return true end
+    }
+end
+
 
 return m

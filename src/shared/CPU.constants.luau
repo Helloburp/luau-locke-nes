@@ -59,12 +59,6 @@ local m = {
 	BytesPerAddressingMode = BYTES_PER_ADDRESSING_MODE,
 	OpcodeLookup = OPCODE_LOOKUP,
 	SlowOpcodeLookup = SLOW_OPCODE_LOOKUP,
-
-	SP_BASE		    = 0x0100,
-	SP_RESET		= 0x00FD,
-	PC_RES			= 0xFFFC,
-	PC_IRQ			= 0xFFFE,
-	PC_NMI			= 0xFFFA,
 }
 
 return m

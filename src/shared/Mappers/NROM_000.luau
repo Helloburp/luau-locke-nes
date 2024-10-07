@@ -1,10 +1,11 @@
 local inst_root = script.Parent.Parent
 
-local T = require(inst_root["CPU.types"])
 local Parse = require(inst_root.Parse)
 
-type u8 = T.u8
-type u16 = T.u16
+local T_H = require(inst_root["Helpers.types"])
+type u8 = T_H.u8
+type u16 = T_H.u16
+type Mem = T_H.Bus
 
 local ADDR_MIN, ADDR_MAX = 0x8000, 0xFFFF
 local ADDR_RANGE = ADDR_MAX - ADDR_MIN + 1

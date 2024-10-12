@@ -17,11 +17,12 @@ local mem = h.NewDebugBus()
 local oldFlags = {}     -- Flags before instruction execution
 local testedFlags = {}  -- Flags that were checked during testing
 
+local StatusFlag = C.BITFIELD_UTIL.StatusFlag
 
 return function(expect: any)
 
     local function _testFlag(flag: T.EStatusFlag, expected: boolean)
-        expect(cpu.GetFlag(flag, regs.STATUS)).to.equal(expected)
+        expect(StatusFlag.GetBit(flag, regs.STATUS)).to.equal(expected)
         table.insert(testedFlags, flag)
     end
 
@@ -51,8 +52,8 @@ return function(expect: any)
     local function _testNoUntestedFlagsChanged()
         for flag, _ in pairs(C.StatusFlagMasks) do
             if table.find(testedFlags, flag) then continue end
-            expect(cpu.GetFlag(flag, regs.STATUS))
-                .to.equal(cpu.GetFlag(flag, oldFlags))
+            expect(StatusFlag.GetBit(flag, regs.STATUS))
+                .to.equal(StatusFlag.GetBit(flag, oldFlags))
         end
     end
 
@@ -66,10 +67,10 @@ return function(expect: any)
     m.TestInstructionExecution = _testInstructionExecution
     m.TestNoUntestedFlagsChanged = _testNoUntestedFlagsChanged
     m.SetFlag = function(flag: T.EStatusFlag, value: boolean)
-        return cpu.SetFlag(flag, regs, value)
+        regs.STATUS = StatusFlag.SetBit(flag, regs.STATUS, value)
     end
     m.GetFlag = function(flag: T.EStatusFlag)
-        return cpu.GetFlag(flag, regs.STATUS)
+        return StatusFlag.GetBit(flag, regs.STATUS)
     end
     m.Reset = function()
         regs = cpu.NewRegisters()

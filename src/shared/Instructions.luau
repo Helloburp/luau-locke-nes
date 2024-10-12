@@ -17,15 +17,23 @@ local BAND, BXOR, BNOT, BOR =
     bit32.band, bit32.bxor, bit32.bnot, bit32.bor
 local LSHIFT, RSHIFT = bit32.lshift, bit32.rshift
 
-local cpu = require(script.Parent.CPU)
-
-local Helpers = require(script.Parent.Helpers)
-local _getBit, _setBit = Helpers.GetBit, Helpers.SetBit
-local _getFlag, _setFlag = cpu.GetFlag, cpu.SetFlag
-local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
-local _s8ToS16 = Helpers.Signed8ToSigned16
+local h = require(script.Parent.Helpers)
+local _getBit, _setBit = h.GetBit, h.SetBit
+local _u8, _u16 = h.WrapU8, h.WrapU16
+local _s8ToS16 = h.Signed8ToSigned16
 
 local m = {}
+
+local StatusFlag = C.BITFIELD_UTIL.StatusFlag
+
+local _getFlag = StatusFlag.GetBit
+
+function _setFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
+    regs.STATUS = StatusFlag.SetBit(flag, regs.STATUS, value)
+    return regs
+end
+
+
 
 -- Empty stack; SP points to the spot where the next value is set.
 function _push(regs: Regs, val: u8, bus: Bus)

@@ -6,7 +6,8 @@ local m = require(root.Instructions)
 local h = require(root.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
-local cpu = require(root.CPU)
+local C = require(root["CPU.constants"])
+local StatusFlag = C.BITFIELD_UTIL.StatusFlag
 
 local BAND, LSHIFT, RSHIFT = bit32.band, bit32.lshift, bit32.rshift
 
@@ -47,8 +48,8 @@ return function()
                 mem.Read(0x0100 + _u8(regs.SP + 2)) +
                 LSHIFT(mem.Read(0x0100 + _u8(regs.SP + 3)), 8)
             
-            expect(cpu.GetFlag("B", returnStatus)).to.be.ok()
-            expect(cpu.GetFlag("U", returnStatus)).to.be.ok()
+            expect(StatusFlag.GetBit("B", returnStatus)).to.be.ok()
+            expect(StatusFlag.GetBit("U", returnStatus)).to.be.ok()
             expect(returnPc).to.equal(_u16(oldPc + 2))
 
             c.TestFlag("I", true)
@@ -67,12 +68,12 @@ return function()
         mem.Write(0x0100 + _u8(oldStkp + 3), RSHIFT(stackPc, 8))
 
         c.TestInstructionExecution(m.RTI, 0, 0)
-        c.TestFlag("N", cpu.GetFlag("N", stackStatus))
-        c.TestFlag("Z", cpu.GetFlag("Z", stackStatus))
-        c.TestFlag("C", cpu.GetFlag("C", stackStatus))
-        c.TestFlag("I", cpu.GetFlag("I", stackStatus))
-        c.TestFlag("D", cpu.GetFlag("D", stackStatus))
-        c.TestFlag("V", cpu.GetFlag("V", stackStatus))
+        c.TestFlag("N", StatusFlag.GetBit("N", stackStatus))
+        c.TestFlag("Z", StatusFlag.GetBit("Z", stackStatus))
+        c.TestFlag("C", StatusFlag.GetBit("C", stackStatus))
+        c.TestFlag("I", StatusFlag.GetBit("I", stackStatus))
+        c.TestFlag("D", StatusFlag.GetBit("D", stackStatus))
+        c.TestFlag("V", StatusFlag.GetBit("V", stackStatus))
         c.TestFlag("U", true)
         expect(regs.PC).to.equal(stackPc)
 

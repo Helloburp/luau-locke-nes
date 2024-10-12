@@ -93,8 +93,16 @@ function m.NewBitfieldFunctions<EValue>(
         return m.GetValueFromBitfield(bitfield, masks[valueType], offsets[valueType])
     end
 
+    local function _getBit(valueType: EValue, bitfield: number)
+        return _get(valueType, bitfield) > 0
+    end
+
     local function _set(valueType: EValue, bitfield: number, value: number)
         return m.SetValueInBitfield(bitfield, masks[valueType], offsets[valueType], value)
+    end
+
+    local function _setBit(valueType: EValue, bitfield: number, value: boolean)
+        return _set(valueType, bitfield, if value then 1 else 0)
     end
 
     local function _compose(vals: {[EValue]: number})
@@ -105,7 +113,11 @@ function m.NewBitfieldFunctions<EValue>(
         return bitfield
     end
 
-    return {Get = _get, Set = _set, Compose = _compose}
+    return {
+        Get = _get, Set = _set,
+        GetBit = _getBit, SetBit = _setBit,
+        Compose = _compose
+    }
 end
 
 

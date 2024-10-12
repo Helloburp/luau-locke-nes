@@ -19,21 +19,7 @@ local LSHIFT = bit32.lshift
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
-
-local StatusFlags = h.NewBitfieldFunctions(
-    require(script.Parent["CPU.constants"]).StatusFlagMasks
-) :: StatusFlagFunctions
-
-function m.SetFlag(flag: T.EStatusFlag, regs: Regs, value: boolean): Regs
-    regs.STATUS = StatusFlags.Set(flag, regs.STATUS, if value then 1 else 0)
-    return regs
-end
-
-
-function m.GetFlag(flag: T.EStatusFlag, status: u8): boolean
-    return if StatusFlags.Get(flag, status) == 1 then true else false
-end
-
+local StatusFlag = C.BITFIELD_UTIL.StatusFlag
 
 function m.NewRegisters(): Regs
     return {

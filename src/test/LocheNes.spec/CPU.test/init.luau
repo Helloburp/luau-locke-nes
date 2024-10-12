@@ -8,8 +8,6 @@ local modules = {
     NesTest = require(script["Nestest.test"])
 }
 
-local m = require(script.Parent.Parent.Parent.Shared.CPU)
-
 return function()
     describe("Instructions", modules.Instructions)
     describe("AddressingModes", modules.AddressingModes)

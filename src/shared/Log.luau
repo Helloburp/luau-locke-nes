@@ -20,13 +20,6 @@ function m.GetLogPc(pc: u16, mem: Mem): string
     local arg1 = mem.Read(_u16(pc + 1))
     local arg2 = mem.Read(_u16(pc + 2))
     
-
-    -- return string.format(
-    --     "%-5.4X %.2X %.2X %.2X",
-    --     pc, mem.Read(pc),
-    --     mem.Read(_u16(pc + 1)),
-    --     mem.Read(_u16(pc + 2))
-    -- )
     return string.format(
         "%-6.4X%.2X%s%s",
         pc, opcode,
@@ -72,6 +65,48 @@ end
 
 function m.IterLog(logfile: string)
     return string.gmatch(logfile, "%x.-CYC:%d+")
+end
+
+function m.IterLogMultiple(logfiles: {string}): () -> (string?)
+    local logfileIndex = 1
+    local iter = m.IterLog(logfiles[logfileIndex])
+
+    local function _getNextLog()
+        if logfileIndex > #logfiles then return nil end
+
+        local nextLog = iter()
+        if not nextLog then
+            logfileIndex += 1
+            if logfileIndex > #logfiles then return nil end
+
+            iter = m.IterLog(logfiles[logfileIndex])
+            nextLog = iter()
+        end
+
+        return nextLog
+    end
+
+    return _getNextLog
+end
+
+
+function m.AssertCpuLogsEqual(
+    goodLog: LogBreakdown, instructionNumber: number,
+    pcLog: string, regLog: string, cycLog: string, extraInfo: string?
+)
+    extraInfo = extraInfo or ""
+    assert(
+        pcLog == goodLog.PC,
+        `Expected PC to be {goodLog.PC}, got {pcLog} instead. (Instruction #{instructionNumber}){extraInfo}`
+    )
+    assert(
+        regLog == goodLog.Registers,
+        `Expected registers to be {goodLog.Registers}, got {regLog} instead. (Instruction #{instructionNumber}){extraInfo}`
+    )
+    assert(
+        cycLog == goodLog.Cycles,
+        `Expected cycles to be {goodLog.Cycles}, got {cycLog} instead. (Instruction #{instructionNumber}){extraInfo}`
+    )
 end
 
 

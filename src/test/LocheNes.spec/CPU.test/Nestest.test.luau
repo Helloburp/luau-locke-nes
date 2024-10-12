@@ -49,7 +49,7 @@ return function()
     end
 
     beforeEach(function()
-        mem = h.NewBus()
+        mem = h.NewDebugBus()
         testComplete = false
         testResult = 0xFFFF
 
@@ -172,7 +172,7 @@ return function()
             else function() end
 
         local function _doCycle()
-            local s, e = pcall(function() m.Cycle(cpu) end)
+            local s, e = pcall(function() m.Clock(cpu, mem) end)
 
             if not s then
                 _onLogError()

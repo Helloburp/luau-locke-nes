@@ -13,7 +13,7 @@ local BAND, BXOR, BNOT =
     bit32.band, bit32.bxor, bit32.bnot
 
 local regs = cpu.NewRegisters()
-local mem = h.NewBus()
+local mem = h.NewDebugBus()
 local oldFlags = {}     -- Flags before instruction execution
 local testedFlags = {}  -- Flags that were checked during testing
 
@@ -73,7 +73,7 @@ return function(expect: any)
     end
     m.Reset = function()
         regs = cpu.NewRegisters()
-        mem = h.NewBus()
+        mem = h.NewDebugBus()
         oldFlags = {}
         testedFlags = {}
     end

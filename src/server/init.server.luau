@@ -1,3 +1,7 @@
+
+-- Default TestEZ implementation
+--[[
 require(game.ReplicatedStorage.Packages.TestEZ).TestBootstrap:run(
-    {game.ReplicatedStorage.Shared.test}
+    {game.ReplicatedStorage.test}
 )
+]]

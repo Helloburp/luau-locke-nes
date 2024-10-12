@@ -1,11 +1,14 @@
 local inst_root = script.Parent.Parent
 
+local T_P = require(inst_root["Parse.types"])
 local Parse = require(inst_root.Parse)
 
 local T_H = require(inst_root["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Mem = T_H.Bus
+
+local T_NES = require(inst_root["NES.types"])
 
 local ADDR_MIN, ADDR_MAX = 0x8000, 0xFFFF
 local ADDR_RANGE = ADDR_MAX - ADDR_MIN + 1
@@ -15,15 +18,59 @@ local RU8 = buffer.readu8
 local m = {}
 
 
+function m.NewFromRom(
+    rom: buffer,
+    header: T_P.Header
+): T_NES.Cartridge
+    local prgBank0, prgBanks = Parse.PrgRomOffset(
+        header.HasTrainer, 0
+    ), header.PrgRom16kBankCount
+
+    local chrBank0 = Parse.ChrMemOffset(
+        header.HasTrainer, header.PrgRom16kBankCount, 0
+    )
+
+    local mirroringIsVertical = header.NametableArrangement == "Vertical"
+
+    return {
+        CpuPeripheral = {
+            Read = function(addr: u16)
+                return m.CpuReadFromBuffer(addr, rom, prgBank0, prgBanks)
+            end
+        },
+        PpuPeripheral = {
+            Read = function(addr: u16)
+                return m.PpuReadFromBuffer(addr, rom, chrBank0)
+            end
+        },
+        GetIsMirroringVertical = function()
+            return mirroringIsVertical
+        end
+    }
+end
+
+
 function m.CpuReadFromBuffer(
     addr: u16,
     rom: buffer,
     bank0Offset: number,
     prgBanks: number        -- Must be 0 or 1
 ): number?
-    if addr < ADDR_MIN or addr > ADDR_MAX then return nil end
+    if addr < 0x8000 then return nil end
 
-    addr = (addr - ADDR_MIN)%(ADDR_RANGE/(3 - prgBanks))
+    -- Proper mirroring of the chr rom
+    addr = (addr - 0x8000)%(ADDR_RANGE/(3 - prgBanks))
+    return RU8(rom, bank0Offset + addr)
+end
+
+
+function m.PpuReadFromBuffer(
+    addr: u16,
+    rom: buffer,
+    bank0Offset: number
+): number?
+    -- This "mapper" only maps the pattern tables
+    if addr >= 0x2000 then return nil end
     return RU8(rom, bank0Offset + addr)
 end
 

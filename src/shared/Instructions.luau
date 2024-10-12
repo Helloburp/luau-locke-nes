@@ -399,15 +399,35 @@ end
     Interrupts
 ]]
 
-function m.BRK(regs: Regs, addr: u16, bus: Bus)
-    _pushPc(regs, bus, 2)
-    local pushedStatus = BOR(regs.STATUS, C.StatusFlagMasks["B" :: T.EStatusFlag])
+-- Helper function; not an opcode
+function m.Interrupt(
+    regs: Regs, vector: u16, bus: Bus,
+    stackPcOffset: number, setsBreakFlag: boolean
+)
+    _pushPc(regs, bus, stackPcOffset)
+    local pushedStatus = if setsBreakFlag
+        then BOR(regs.STATUS, C.StatusFlagMasks["B" :: T.EStatusFlag])
+        else regs.STATUS
+    
     _push(regs, pushedStatus, bus)
     _setFlag("I", regs, true)
 
-    local lo = bus.Read(0xFFFE)
-    local hi = bus.Read(0xFFFF)
+    local lo = bus.Read(vector)
+    local hi = bus.Read(_u16(vector + 1))
     regs.PC = LSHIFT(hi, 8) + lo
+end
+
+
+function m.BRK(regs: Regs, addr: u16, bus: Bus)
+    m.Interrupt(regs, 0xFFFE, bus, 2, true)
+    -- _pushPc(regs, bus, 2)
+    -- local pushedStatus = BOR(regs.STATUS, C.StatusFlagMasks["B" :: T.EStatusFlag])
+    -- _push(regs, pushedStatus, bus)
+    -- _setFlag("I", regs, true)
+
+    -- local lo = bus.Read(0xFFFE)
+    -- local hi = bus.Read(0xFFFF)
+    -- regs.PC = LSHIFT(hi, 8) + lo
 end
 
 

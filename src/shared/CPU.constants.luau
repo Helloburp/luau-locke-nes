@@ -1,4 +1,6 @@
 local T = require(script.Parent["CPU.types"])
+local T_H = require(script.Parent["Helpers.types"])
+local h = require(script.Parent.Helpers)
 
 local LSHIFT = bit32.lshift
 
@@ -59,6 +61,10 @@ local m = {
 	BytesPerAddressingMode = BYTES_PER_ADDRESSING_MODE,
 	OpcodeLookup = OPCODE_LOOKUP,
 	SlowOpcodeLookup = SLOW_OPCODE_LOOKUP,
+
+	BITFIELD_UTIL = {
+		StatusFlag = h.NewBitfieldFunctions(STATUS_FLAG_MASKS) :: T.StatusFlagFunctions
+	}
 }
 
 return m

@@ -122,10 +122,18 @@ end
 
 
 function m.MapReadToBus(
-    bus: Bus, addressRange: NumberRange, _read: (u16) -> (u8?)
+    bus: Bus, addressRange: NumberRange?, _read: (u16) -> (u8?)
 )
-    local min, max = addressRange.Min, addressRange.Max
     local _oldRead = bus.Read
+
+    if not addressRange then
+        bus.Read = function(addr: u16): number
+            return _read(addr) or _oldRead(addr)
+        end
+        return
+    end
+
+    local min, max = addressRange.Min, addressRange.Max
 
     bus.Read = function(addr: u16): number
         if addr >= min and addr <= max then
@@ -137,10 +145,18 @@ end
 
 
 function m.MapWriteToBus(
-    bus: Bus, addressRange: NumberRange, _write: (u16, u8) -> (boolean)
+    bus: Bus, addressRange: NumberRange?, _write: (u16, u8) -> (boolean)
 )
-    local min, max = addressRange.Min, addressRange.Max
     local _oldWrite = bus.Write
+
+    if not addressRange then
+        bus.Write = function(addr: u16, val: u8)
+            return _write(addr, val) or _oldWrite(addr, val)
+        end
+        return
+    end
+
+    local min, max = addressRange.Min, addressRange.Max
 
     bus.Write = function(addr: u16, val: u8): true
         if addr >= min and addr <= max then
@@ -152,7 +168,7 @@ end
 
 
 function m.MapPeripheral(
-    bus: Bus, addressRange: NumberRange, peripheral: Peripheral
+    bus: Bus, addressRange: NumberRange?, peripheral: Peripheral
 )
     local _read, _write = peripheral.Read, peripheral.Write
     if _read then m.MapReadToBus(bus, addressRange, _read) end

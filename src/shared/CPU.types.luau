@@ -26,6 +26,9 @@ export type CPU = {
     ExecutionState: ExecutionState,
     Registers: Registers,
 
+    NMIInput: boolean,
+    IRQInput: boolean,
+
     Instructions: {[EInstruction]: Instruction},
     AddressingModes: {[EAddressingMode]: AddressingMode},
 }

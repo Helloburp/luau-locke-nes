@@ -19,7 +19,6 @@ type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>
 type Peripheral = T_H.Peripheral
 
 
-
 local VRamAddress, AttributeAddress, PatternTableAddress,
     PpuControl, PpuMask, PpuStatus =
     C.BITFIELD_UTIL.VRamAddress,
@@ -36,6 +35,7 @@ local LSHIFT, RSHIFT, BOR, BAND =
     bit32.lshift, bit32.rshift, bit32.bor, bit32.band
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 local _u8, _u16 = h.WrapU8, h.WrapU16
+
 
 
 function _getDot(cyclesThisFrame: number)
@@ -75,18 +75,18 @@ function _getAttributeAddressFromVRamAddress(v: u16)
     return 0x2000 + attrAddr
 end
 
-function _getLowPatternTableAddress(ppuCtrl: u8, tileNumber: u8, row: number)
+function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
     return PatternTableAddress.Compose{
         ["FineY"] = row,
         ["BitPlane"] = 0,
         ["TileNumber"] = tileNumber,
-        ["Half"] = PpuControl.Get("B", ppuCtrl)
+        ["Half"] = if right then 1 else 0
     }
 end
 
-function _getHighPatternTableAddress(ppuCtrl, tileNumber, row)
+function _getHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
-        "BitPlane", _getLowPatternTableAddress(ppuCtrl, tileNumber, row), 1
+        "BitPlane", _getLowPatternTableAddress(right, tileNumber, row), 1
     )
 end
 
@@ -168,7 +168,7 @@ function _fetchToLatchesBasedOnProgress(
 )
     if backgroundFetchProgress%2 == 1 then return end
 
-    local latchName, addr = unpack{
+    local latchName, addr = unpack(
         if backgroundFetchProgress == 0 then {
             "Nametable", _getTileAddressFromVRamAddress(vramAddr)
         }
@@ -178,17 +178,17 @@ function _fetchToLatchesBasedOnProgress(
         elseif backgroundFetchProgress == 4 then {
             "PatternTableTileLow",
             _getLowPatternTableAddress(
-                ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
+                PpuControl.Get("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
         elseif backgroundFetchProgress == 6 then {
             "PatternTableTileHigh",
             _getHighPatternTableAddress(
-                ppuCtrl, latches.Nametable, VRamAddress.Get("y", vramAddr)
+                PpuControl.Get("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
         else error("Invalid input")
-    }
+    )
 
     latches[latchName] = bus.Read(addr)
 end
@@ -620,5 +620,12 @@ function m.New(
     }
 end
 
+m.GetPixelValue = _getPixelValue
+m.GetLowPatternTableAddress = _getLowPatternTableAddress
+m.GetHighPatternTableAddress = _getHighPatternTableAddress
+m.GetColorByPixelValue = _getColorByPixelValue
+m.GetPatternValueFromBitPlanes = _getPatternValueFromBitPlanes
+m.GetDotInFrame = _getDot
+m.GetScanlineInFrame = _getScanline
 
 return m

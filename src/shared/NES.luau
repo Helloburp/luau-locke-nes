@@ -11,16 +11,16 @@ local h = require(root.Helpers)
 
 local T_H = require(root["Helpers.types"])
 type u8 = T_H.u8
+type Peripheral = T_H.Peripheral
 
 local T = require(root["NES.types"])
 type NES = T.NES
-
+type Cartridge = T.Cartridge
 
 local m = {}
 
 
 function m.Clock(nes: NES)
-    -- TODO: NMI handling
     if nes.Clock%12 == 0 then
         Cpu.Clock(nes.Cpu, nes.CpuBus)
     end
@@ -34,24 +34,24 @@ end
 
 function m.New(
     _onFrameComplete: () -> (),
-    _setPixel: (i: number, color: u8) -> ()
+    _setPixelForPpuCycle: (cycleInFrame: number, color: u8) -> (),
+    cartridge: Cartridge
 ): NES
-    local nes
+    local nes: NES
     local cpuBus = h.NewBus()
     local ppuBus = h.NewBus()
 
+    -- The cartridge can effectively map & observe all reads and writes.
+    h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
+    h.MapPeripheral(ppuBus, nil, cartridge.PpuPeripheral)
+
     local function _nmi()
-        nes.NmiSet = true
-    end
-
-
-    local function _getIsMirroringVertical()
-        return true
+        nes.Cpu.NMIInput = true
     end
 
 
     local cpu = Cpu.New(AddressingModes, Instructions)
-    local ppu = Ppu.New(_nmi, _onFrameComplete, _setPixel)
+    local ppu = Ppu.New(_nmi, _onFrameComplete, _setPixelForPpuCycle)
 
     CpuPeripherals.MapPeripherals(
         cpuBus,
@@ -62,7 +62,7 @@ function m.New(
 
     Ppu.MapPeripherals(
         ppuBus,
-        Ppu.NewVRam(_getIsMirroringVertical),
+        Ppu.NewVRam(cartridge.GetIsMirroringVertical),
         Ppu.NewPaletteControl(ppu.InternalState.Registers)
     )
 
@@ -72,7 +72,6 @@ function m.New(
         CpuBus = cpuBus,
         PpuBus = ppuBus,
 
-        NmiSet = false,
         Clock = 0
     }
 

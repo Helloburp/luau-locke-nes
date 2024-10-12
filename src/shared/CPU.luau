@@ -1,3 +1,5 @@
+
+
 local T = require(script.Parent["CPU.types"])
 type CPU = T.CPU
 type Regs = T.Registers
@@ -12,6 +14,7 @@ type Bus = T_H.Bus
 local C = require(script.Parent["CPU.constants"])
 local h = require(script.Parent.Helpers)
 
+local Instructions = require(script.Parent.Instructions)
 
 local m = {}
 
@@ -77,7 +80,14 @@ function m.Clock(cpu: CPU, bus: Bus)
     assert(cpu.ExecutionState.Cycles >= 0, "CPU cycles should be >= 0")
 
     if cpu.ExecutionState.Cycles == 0 then
-         cpu.ExecutionState.Cycles += m.RunInstructionAndReturnCycles(
+         cpu.ExecutionState.Cycles +=
+            if cpu.NMIInput then _nmi(cpu, bus)
+
+            elseif cpu.IRQInput and not StatusFlag.GetBit(
+                "I", cpu.Registers.STATUS
+            ) then _irq(cpu, bus)
+
+            else m.RunInstructionAndReturnCycles(
             cpu.Registers, bus,
             cpu.AddressingModes :: any,
             cpu.Instructions :: any
@@ -87,6 +97,26 @@ function m.Clock(cpu: CPU, bus: Bus)
     cpu.ExecutionState.Clock += 1
     cpu.ExecutionState.Cycles -= 1
 end
+
+
+--[[
+    Note: The PC stack offset is set to 0.
+    This is because, in my clock function, execution of an
+    interrupt happens *just* before another instruction
+    is ran, ergo, PC + 0 is where execution must resume.
+]]
+
+function _nmi(cpu: CPU, bus: Bus): number
+    Instructions.Interrupt(cpu.Registers, 0xFFFA, bus, 0, false)
+    cpu.NMIInput = false
+    return 8
+end
+
+function _irq(cpu: CPU, bus: Bus): number
+    Instructions.Interrupt(cpu.Registers, 0xFFFE, bus, 0, false)
+    return 7
+end
+
 
 -- New CPU struct with values set to expected state at startup
 function m.New(
@@ -98,6 +128,8 @@ function m.New(
         ExecutionState = {
             Cycles = 0, Clock = 7   -- Startup sequence takes 7 cycles
         },
+        NMIInput = false,
+        IRQInput = false,
         AddressingModes = addressingModes,
         Instructions = instructions,
     }

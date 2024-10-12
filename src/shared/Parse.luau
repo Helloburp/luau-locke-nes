@@ -1,3 +1,6 @@
+local T_PARSE = require(script.Parent["Parse.types"])
+type Header = T_PARSE.Header
+
 local T = require(script.Parent["Helpers.types"])
 local h = require(script.Parent.Helpers)
 local m = {}
@@ -29,21 +32,6 @@ function m.HexStrToBuffer(str: string): buffer
     return b
 end
 
-type Header = {
-    PrgRom16kBankCount: u8,
-    ChrMemory: {
-        _t: "Rom",
-        ChrRom8kBankCount: u8,
-    } | {_t: "Ram"},
-
-    NametableArrangement: "Vertical" | "Horizontal" | "Alternative",
-    HasPersistentMemory: boolean,
-    HasTrainer: boolean,
-
-    TVSystem: "NTSC" | "PAL" | "Dual",
-    MapperId: u8,
-}
-
 
 function m.Header(rom: buffer): Header
     local flags = {} :: Header
@@ -74,6 +62,7 @@ end
 function m.PrgRomOffset(hasTrainer: boolean, bankOffset: number): number
     return 16 + (if hasTrainer then 512 else 0) + PRG_ROM_BANK_SIZE * bankOffset
 end
+
 
 function m.ChrMemOffset(
     hasTrainer: boolean,

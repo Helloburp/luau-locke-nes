@@ -7,15 +7,20 @@ type PPU = T_PPU.PPU
 
 local T = require(script.Parent["Helpers.types"])
 type Bus = T.Bus
+type Peripheral = T.Peripheral
 
 
 export type NES = {
-    NmiSet: boolean,
     Clock: number,
 
     CpuBus: Bus,    PpuBus: Bus,
     Cpu: CPU,       Ppu: PPU
 }
 
+export type Cartridge = {
+    CpuPeripheral: Peripheral,
+    PpuPeripheral: Peripheral,
+    GetIsMirroringVertical: () -> boolean
+}
 
 return {}

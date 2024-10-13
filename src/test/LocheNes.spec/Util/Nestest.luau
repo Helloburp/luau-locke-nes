@@ -1,7 +1,6 @@
 local root = script.Parent.Parent.Parent.Parent.Shared
 
 local Log = require(root.Log)
-local Debug = require(root.Debug)
 local Parse = require(root.Parse)
 local NROM = require(root.Mappers.NROM_000)
 
@@ -13,6 +12,10 @@ local C_CPU = require(root["CPU.constants"])
 
 local T_CPU = require(root["CPU.types"])
 type CPU = T_CPU.CPU
+
+local T_PPU = require(root["PPU.types"])
+type PPU = T_PPU.PPU
+
 
 local T_H = require(root["Helpers.types"])
 type Bus = T_H.Bus
@@ -37,8 +40,8 @@ end
 
 function m.RunNesTest(
     maxCycles: number, shouldCompareLogs: boolean,
-    cpu: CPU, bus: Bus,
-    _runCpuCycle: (lastPcLog: string, lastOpcode: number) -> (boolean, string?),
+    cpu: CPU, bus: Bus, ppu: PPU?,
+    _runCpuCycle: () -> (boolean, string?),
     _onEnd: (() -> ()),  -- When PC reaches C663
     _shouldAbort: () -> (boolean)
 ): (boolean, string?)
@@ -56,11 +59,14 @@ function m.RunNesTest(
             if not nextLog then
                 return false, "Logs finished without reaching completion!"
             end
-            return Debug.CheckCpuLogsEqual(
-                cpu, bus, instructionNumber, nextLog
-            )
+            local logBreakdown = Log.BreakdownLog(nextLog)
+            local s, e = Log.CompareCpuLog(cpu, bus, logBreakdown)
+
+            if not ppu or not s then return s, e end
+
+            return Log.ComparePpuLog(ppu, logBreakdown.Ppu)
         end
-        else function() end
+        else function() return true end
 
     -- Enable automation mode
     cpu.Registers.PC = 0xC000
@@ -78,11 +84,11 @@ function m.RunNesTest(
             end
 
             if not s then
-                return s, e
+                return s, `{e} (Instruction #{instructionNumber})`
             end
         end
 
-        local s, e = _runCpuCycle(lastPcLog, lastOpcode)
+        local s, e = _runCpuCycle()
         if not s then
             local opData = C_CPU.SlowOpcodeLookup[lastOpcode + 1]
             return false,

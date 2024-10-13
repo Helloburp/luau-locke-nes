@@ -126,7 +126,7 @@ function m.New(
     return {
         Registers = m.NewRegisters(),
         ExecutionState = {
-            Cycles = 0, Clock = 7   -- Startup sequence takes 7 cycles
+            Cycles = 7, Clock = 0   -- Startup sequence takes 7 cycles
         },
         NMIInput = false,
         IRQInput = false,

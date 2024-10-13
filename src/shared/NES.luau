@@ -20,12 +20,13 @@ type Cartridge = T.Cartridge
 local m = {}
 
 
+-- Clock amounts divided by 4 (common denominator)
 function m.Clock(nes: NES)
-    if nes.Clock%12 == 0 then
+    Ppu.Clock(nes.Ppu, nes.PpuBus)
+
+    -- An offset of 2 allows for accurate syncronization.
+    if (nes.Clock + 2)%3 == 0 then
         Cpu.Clock(nes.Cpu, nes.CpuBus)
-    end
-    if nes.Clock%4 == 0 then
-        Ppu.Clock(nes.Ppu, nes.PpuBus)
     end
 
     nes.Clock += 1

@@ -1,14 +1,23 @@
+local T = require(script.Parent["Log.types"])
+type LogBreakdown = T.LogBreakdown
 
-local T = require(script.Parent["CPU.types"])
-local C = require(script.Parent["CPU.constants"])
+
+local T_CPU = require(script.Parent["CPU.types"])
+type CPU = T_CPU.CPU
+type Regs = T_CPU.Registers
+
 local h = require(script.Parent.Helpers)
-type Regs = T.Registers
 
 local T_H = require(script.Parent["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
-type Mem = T_H.Bus
+type Bus = T_H.Bus
 
+local T_PPU = require(script.Parent["PPU.types"])
+type PPU = T_PPU.PPU
+
+
+local C_CPU = require(script.Parent["CPU.constants"])
 local Ppu = require(script.Parent.PPU)
 
 
@@ -16,10 +25,10 @@ local _u8, _u16 = h.WrapU8, h.WrapU16
 
 local m = {}
 
-function m.GetLogPc(pc: u16, mem: Mem): string
+function m.GetLogPc(pc: u16, mem: Bus): string
     local opcode = mem.Read(pc)
-    local opcodeData = C.SlowOpcodeLookup[opcode + 1]
-    local bytes = C.BytesPerAddressingMode[opcodeData.AddressingMode]
+    local opcodeData = C_CPU.SlowOpcodeLookup[opcode + 1]
+    local bytes = C_CPU.BytesPerAddressingMode[opcodeData.AddressingMode]
     local arg1 = mem.Read(_u16(pc + 1))
     local arg2 = mem.Read(_u16(pc + 2))
     
@@ -57,12 +66,6 @@ function m.GetLogPpu(cyclesThisFrame: number)
     return string.format("PPU:%3d,%3d", scanline, dot)
 end
 
-export type LogBreakdown = {
-    PC: string,
-    Registers: string,
-    Ppu: string,
-    Cycles: string
-}
 function m.BreakdownLog(log: string): LogBreakdown
     local pc =  string.match(log, "(%x%x%x%x.-%x)%s-%*?%a%a%a")
     local registers = string.match(log, "(A:%x%x.-)%s-PPU")
@@ -102,23 +105,37 @@ function m.IterLogMultiple(logfiles: {string}): () -> (string?)
 end
 
 
-function m.AssertCpuLogsEqual(
-    goodLog: LogBreakdown, instructionNumber: number,
-    pcLog: string, regLog: string, cycLog: string, extraInfo: string?
-)
-    extraInfo = extraInfo or ""
-    assert(
-        pcLog == goodLog.PC,
-        `Expected PC to be {goodLog.PC}, got {pcLog} instead. (Instruction #{instructionNumber}){extraInfo}`
-    )
-    assert(
-        regLog == goodLog.Registers,
-        `Expected registers to be {goodLog.Registers}, got {regLog} instead. (Instruction #{instructionNumber}){extraInfo}`
-    )
-    assert(
-        cycLog == goodLog.Cycles,
-        `Expected cycles to be {goodLog.Cycles}, got {cycLog} instead. (Instruction #{instructionNumber}){extraInfo}`
-    )
+function m.CompareCpuLog(
+    cpu: CPU, cpuBus: Bus, goodLog: LogBreakdown
+): (boolean, string?)
+    local pcLog, regLog, cycLog =
+        m.GetLogPc(cpu.Registers.PC, cpuBus),
+        m.GetLogRegs(cpu.Registers),
+        m.GetLogCycles(cpu.ExecutionState.Clock)
+
+    if pcLog ~= goodLog.PC then 
+        return false, `Expected PC to be {goodLog.PC}, got {pcLog} instead.`
+    end
+    
+    if regLog ~= goodLog.Registers then
+        return false, `Expected registers to be {goodLog.Registers}, got {regLog} instead.`
+    end
+    if cycLog ~= goodLog.Cycles then
+        return false, `Expected cycles to be {goodLog.Cycles}, got {cycLog} instead.`
+    end
+
+    return true
+end
+
+function m.ComparePpuLog(
+    ppu: PPU, goodPpuLog: string
+): (boolean, string?)
+    local ppuLog = m.GetLogPpu(ppu.ExecutionState.Cycles)
+    if ppuLog ~= goodPpuLog then
+        return false, `Expected Ppu to be {goodPpuLog}, got {ppuLog} instead.`
+    end
+
+    return true
 end
 
 

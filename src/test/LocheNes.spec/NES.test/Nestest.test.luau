@@ -14,10 +14,9 @@ type Bus = T_H.Bus
 
 
 return function()
-    
     local nes: Nes
 
-    beforeAll(function()
+    beforeEach(function()
         nes = Nes.New(
             function() end, function() end,
             NestestUtil.Cartridge()
@@ -53,7 +52,7 @@ return function()
         shouldCompareLogs: boolean
     ): (boolean, string?)
         return NestestUtil.RunNesTest(
-            maxCycles, shouldCompareLogs, nes.Cpu, nes.CpuBus,
+            maxCycles, shouldCompareLogs, nes.Cpu, nes.CpuBus, nes.Ppu,
             _doCycle, function() end, function() return false end
         )
     end

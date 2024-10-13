@@ -63,7 +63,7 @@ return function()
         shouldCompareLogs: boolean
     ): (boolean, string?)
         return NestestUtil.RunNesTest(
-            maxCycles, shouldCompareLogs, cpu, bus,
+            maxCycles, shouldCompareLogs, cpu, bus, nil,
             _doCycle, function() end, function() return false end
         )
     end

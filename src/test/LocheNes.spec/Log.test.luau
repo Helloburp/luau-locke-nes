@@ -17,7 +17,6 @@ C5F9  86 10     STX $10 = 00                    A:00 X:00 Y:00 P:26 SP:FD PPU:  
 local LOG_LINE_WITH_ILLEGAL_NOP = "C6BD  04 A9    *NOP $A9 = 00                    A:AA X:97 Y:4E P:EF SP:F9 PPU:128, 89 CYC:14579"
 
 return function()
-    FOCUS()
     it("Generates PC logs as expected", function()
         local mem = h.NewDebugBus()
         mem.Write(0x0000, 0x4C)

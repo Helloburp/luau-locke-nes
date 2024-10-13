@@ -3,6 +3,7 @@
 
 
 local modules = {
+    Nes = require(script["NES.test"]),
     CPU = require(script["CPU.test"]),
     Helpers = require(script["Helpers.test"]),
     Parse = require(script["Parse.test"]),
@@ -11,6 +12,7 @@ local modules = {
 
 return function()
     describe("LocheNes", function()
+        describe("NES", modules.Nes)
         describe("CPU", modules.CPU)
         describe("Helpers", modules.Helpers)
         describe("Parse", modules.Parse)

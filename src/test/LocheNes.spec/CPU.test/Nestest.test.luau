@@ -13,6 +13,8 @@ local Parse = require(inst_root.Parse)
 local Debug = require(inst_root.Debug)
 local NROM = require(inst_root.Mappers.NROM_000)
 
+local NestestUtil = require(script.Parent.Parent.TestUtil.Nestest)
+
 local NESTEST_ROM = require(script.Parent.Parent["nestest.nes"])
 
 local LOGFILES = require(script.Parent.Parent.logfiles)
@@ -27,8 +29,6 @@ return function()
 
     local bus: T.Bus
     local cpu: T.CPU
-    local testComplete: boolean
-    local testResult: u16
 
     local rom = Parse.HexStrToBuffer(NESTEST_ROM)
     local header = Parse.Header(rom)
@@ -44,8 +44,6 @@ return function()
 
     beforeEach(function()
         bus = h.NewDebugBus()
-        testComplete = false
-        testResult = 0xFFFF
 
         cpu = m.New(
             require(inst_root.AddressingModes),
@@ -55,28 +53,16 @@ return function()
         -- Automation mode
         cpu.Registers.PC = 0xC000
 
-        local byte1Written, byte2Written = false, false
-
         local oldWrite = bus.Write
         bus.Write = function(i, v)
-            if not i then return end
+            -- if not i then return end
             _onWrite(i, v)
-
-            if i == 0x02 then
-                byte1Written = true
-            elseif i == 0x03 then
-                byte2Written = true
-            end
-            if byte1Written and byte2Written then
-                testComplete = true
-                testResult = LSHIFT(bus.Read(0x02), 8) + bus.Read(0x03)
-            end
             oldWrite(i, v)
         end
         
         local oldRead = bus.Read
         bus.Read = function(i)
-            if not i then return 0 end
+            -- if not i then return 0 end
             local romValue = NROM.CpuReadFromBuffer(i, rom, prgOffset, prgBanks)
             if romValue then return romValue end
             return oldRead(i)
@@ -89,65 +75,24 @@ return function()
         expect(bus.Read(0xC000)).to.equal(0x4c)
     end)
 
+    local _doCycle = function()
+        return pcall(m.Clock, cpu, bus)
+    end
 
     local function _runNesTest(
         maxCycles: number,
-        shouldCompareLogs: boolean,
-        _onError: ((T.CPU) -> ())?,
-        _onEnd: (() -> ())?     -- When PC reaches C663
-    )
-        local instructionNumber = 0
-        
-        local _getNextLog = Log.IterLogMultiple(LOGFILES)
-        local _onLogError = _onError or function() end
-
-        local lastPcLog: string = ""
-        local lastOpcode: number = 0
-
-        local _doPerInstruction = if shouldCompareLogs
-            then function()
-                local nextLog = _getNextLog()
-                assert(nextLog, "Logs finished without reaching completion!")
-                local s, r = Debug.CheckCpuLogsEqual(
-                    cpu, bus, instructionNumber, nextLog, _onLogError
-                )
-
-                if not s then
-                    _onLogError()
-                    error(r)
-                end
-            end
-            else function() end
-
-        local function _doCycle()
-            local s, e = pcall(function() m.Clock(cpu, bus) end)
-
-            if not s then
-                _onLogError(cpu)
-                local opcodeData = C.SlowOpcodeLookup[lastOpcode + 1]
-                error(`Lua Error! {e}\nLast PC: {lastPcLog}\nInstruction: {opcodeData.InstructionName}, {opcodeData.Instruction}, {opcodeData.AddressingMode}`)
-            end
-        end
-        
-        while cpu.ExecutionState.Clock < maxCycles and not testComplete do
-            if cpu.ExecutionState.Cycles == 0 then
-                instructionNumber += 1
-                lastPcLog = Log.GetLogPc(cpu.Registers.PC, bus)
-                lastOpcode = bus.Read(cpu.Registers.PC)
-                _doPerInstruction()
-
-                if cpu.Registers.PC == 0xC66E then
-                    _onEnd()
-                    break
-                end
-            end
-            _doCycle()
-        end
+        shouldCompareLogs: boolean
+    ): (boolean, string?)
+        return NestestUtil.RunNesTest(
+            maxCycles, shouldCompareLogs, cpu, bus,
+            _doCycle, _onEnd, function() return false end
+        )
     end
 
     it("Matches Nestest log up to illegal operations", function()
-        _runNesTest(15274, true) -- Full log is 26554 cycles long
-        -- expect(testComplete).to.equal(true)
+        local s, e = _runNesTest(15274, true) -- Full log is 26554 cycles long
+        assert(s, `{e}`)
+        -- expect(s).to.equal(true)
         -- expect(testResult).to.equal(0x0000)
     end)
 

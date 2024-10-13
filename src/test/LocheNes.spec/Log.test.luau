@@ -17,6 +17,7 @@ C5F9  86 10     STX $10 = 00                    A:00 X:00 Y:00 P:26 SP:FD PPU:  
 local LOG_LINE_WITH_ILLEGAL_NOP = "C6BD  04 A9    *NOP $A9 = 00                    A:AA X:97 Y:4E P:EF SP:F9 PPU:128, 89 CYC:14579"
 
 return function()
+    FOCUS()
     it("Generates PC logs as expected", function()
         local mem = h.NewDebugBus()
         mem.Write(0x0000, 0x4C)
@@ -46,12 +47,18 @@ return function()
         expect(log).to.equal("CYC:500")
     end)
 
+    it("Generates PPU logs as expected", function()
+        local log = m.GetLogPpu(5)
+        expect(log).to.equal("PPU:  0,  5")
+    end)
+
     it("Breaks down logs as expected: 3 bytes", function()
         local breakdown = m.BreakdownLog(
             "C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 21 CYC:7"
         )
         expect(breakdown.PC).to.equal("C000  4C F5 C5")
         expect(breakdown.Registers).to.equal("A:00 X:00 Y:00 P:24 SP:FD")
+        expect(breakdown.Ppu).to.equal("PPU:  0, 21")
         expect(breakdown.Cycles).to.equal("CYC:7")
     end)
 

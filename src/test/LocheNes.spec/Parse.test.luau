@@ -50,5 +50,6 @@ return function()
         local offset = Parse.ChrMemOffset(header.HasTrainer, 1, 0)
         expect(offset).to.equal(16 + (2^14))    -- 0x4010
         expect(RU8(rom, offset)).to.equal(0x00)
+        expect(RU8(rom, offset + 0x20)).to.equal(0x80)
     end)
 end

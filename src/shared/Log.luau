@@ -9,6 +9,9 @@ type u8 = T_H.u8
 type u16 = T_H.u16
 type Mem = T_H.Bus
 
+local Ppu = require(script.Parent.PPU)
+
+
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
 local m = {}
@@ -47,19 +50,28 @@ function m.GetLogCycles(cycles: number)
     return string.format("CYC:%d", cycles)
 end
 
+function m.GetLogPpu(cyclesThisFrame: number)
+    local dot, scanline =
+        Ppu.GetDotInFrame(cyclesThisFrame),
+        Ppu.GetScanlineInFrame(cyclesThisFrame)
+    return string.format("PPU:%3d,%3d", scanline, dot)
+end
+
 export type LogBreakdown = {
     PC: string,
     Registers: string,
+    Ppu: string,
     Cycles: string
 }
 function m.BreakdownLog(log: string): LogBreakdown
     local pc =  string.match(log, "(%x%x%x%x.-%x)%s-%*?%a%a%a")
     local registers = string.match(log, "(A:%x%x.-)%s-PPU")
+    local ppu = string.match(log, "(PPU:%s-%d+,%s-%d+)")
     local cycles = string.match(log, "(CYC:%d+)")
-    assert(pc and registers and cycles, "Improperly formatted log.")
+    assert(pc and registers and ppu and cycles, "Improperly formatted log.")
 
     return {
-        PC = pc, Registers = registers, Cycles = cycles
+        PC = pc, Registers = registers, Ppu = ppu, Cycles = cycles
     }
 end
 

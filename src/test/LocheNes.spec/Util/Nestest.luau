@@ -6,7 +6,7 @@ local Parse = require(root.Parse)
 local NROM = require(root.Mappers.NROM_000)
 
 local NESTEST_ROM = require(script.Parent.Parent["nestest.nes"])
-local LOGFILES = require(script.Parent.Parent.logfiles)
+local LOGFILES = require(script.Parent.NestestLogfiles)
 
 local C_CPU = require(root["CPU.constants"])
 

@@ -17,6 +17,7 @@ local T = require(root["NES.types"])
 type NES = T.NES
 type Cartridge = T.Cartridge
 
+
 local m = {}
 
 
@@ -24,8 +25,8 @@ local m = {}
 function m.Clock(nes: NES)
     Ppu.Clock(nes.Ppu, nes.PpuBus)
 
-    -- An offset of 2 allows for accurate syncronization.
-    if (nes.Clock + 2)%3 == 0 then
+    -- An offset of 1 allows for accurate syncronization.
+    if (nes.Clock + 1)%3 == 0 then
         Cpu.Clock(nes.Cpu, nes.CpuBus)
     end
 
@@ -66,6 +67,7 @@ function m.New(
         Ppu.NewVRam(cartridge.GetIsMirroringVertical),
         Ppu.NewPaletteControl(ppu.InternalState.Registers)
     )
+    cpu.Registers.PC = h.ReadAddressFromVector(cpuBus, 0xFFFC)
 
     nes = {
         Cpu = cpu,

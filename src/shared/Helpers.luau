@@ -108,7 +108,7 @@ function m.NewBitfieldFunctions<EValue>(
     local function _compose(vals: {[EValue]: number})
         local bitfield = 0
         for valueType, value in pairs(vals) do
-            _set(valueType, bitfield, value)
+            bitfield = _set(valueType, bitfield, value)
         end
         return bitfield
     end
@@ -118,6 +118,12 @@ function m.NewBitfieldFunctions<EValue>(
         GetBit = _getBit, SetBit = _setBit,
         Compose = _compose
     }
+end
+
+
+-- E.g, reset vector, in little endian.
+function m.ReadAddressFromVector(bus: Bus, vector: u16): u16
+    return bus.Read(vector) + LSHIFT(bus.Read(m.WrapU16(vector + 1)), 8)
 end
 
 

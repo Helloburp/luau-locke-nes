@@ -27,7 +27,7 @@ local StatusFlag = C.BITFIELD_UTIL.StatusFlag
 function m.NewRegisters(): Regs
     return {
         A = 0, X = 0, Y = 0,
-        PC = 0xFFFC, SP = 0xFD,
+        PC = 0x0000, SP = 0xFD,
         STATUS = 0b00100100     -- Interrupt and unused set to 1
     }
 end

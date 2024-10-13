@@ -4,7 +4,34 @@
 
 local m = require(script.Parent.Parent.Parent.Shared.Helpers)
 
+local TEST_MASKS = {
+    A = 0b11110000,
+    B = 0b00001000,
+    C = 0b00000111,
+}
+
 return function()
+    describe("Bitfield Arithmetic", function()
+        local Bitfield = m.NewBitfieldFunctions(TEST_MASKS)
+        local exampleBitfield = Bitfield.Compose{
+            A = 0b0101,
+            B = 0b0,
+            C = 0b011,
+        }
+
+        it("Compose", function()
+            expect(exampleBitfield).to.equal(0b01010011)
+        end)
+        it("Get", function()
+            expect(Bitfield.Get("A", exampleBitfield)).to.equal(0b0101)
+            expect(Bitfield.Get("B", exampleBitfield)).to.equal(0b0)
+            expect(Bitfield.Get("C", exampleBitfield)).to.equal(0b011)
+        end)
+        it("GetBit", function()
+            expect(Bitfield.GetBit("B", exampleBitfield)).to.equal(false)
+            expect(Bitfield.GetBit("A", exampleBitfield)).to.equal(true)
+        end)
+    end)
     describe("SetBit", function()
         it("Arithmetic", function()
             expect(m.SetBit(0, 0x00, true)).to.equal(0x01)

@@ -1,23 +1,8 @@
 local root = game.ReplicatedStorage.Shared
 local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
-local Nes = require(root.NES)
 local Parse = require(root.Parse)
-local Display = require(root.Display)
-local C_DISPLAY = require(root["Display.constants"])
-
-local SIZES = C_DISPLAY.RESOLUTIONS
-
-local screenView = Instance.new("EditableImage")
-screenView.Size = SIZES.SCREEN
-
-local screenBuffer = Display.NewDisplayBuffer(SIZES.SCREEN)
-
-function _onFrameComplete()
-end
-
-local _setPixelColorForCycle = Display.NewPlacePixelInFrame(screenBuffer)
-
+local UI = require(script.UI)
 
 local rom, header do
     local nestest = require(
@@ -28,48 +13,21 @@ local rom, header do
 end
 
 local myCartridge = require(root.Mappers.NROM_000).NewFromRom(rom, header)
+local myUi = UI.NewIrisHook(myCartridge)
 
-local myNes = Nes.New(
-    _onFrameComplete, _setPixelColorForCycle, myCartridge
-)
 
-local patternView = Instance.new("EditableImage")
-patternView.Size = SIZES.PATTERN_TABLE
-
-local patternBuffer = Display.NewDisplayBuffer(SIZES.PATTERN_TABLE)
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    for x = 1, 500 do
-        Nes.Clock(myNes)
-    end
-    Display.DrawPatternTableToBuffer(
-        myNes.PpuBus, patternBuffer, false, math.floor(tick())%8
-    )
-    patternView:WritePixelsBuffer(Vector2.new(), SIZES.PATTERN_TABLE, patternBuffer)
-    screenView:WritePixelsBuffer(Vector2.new(), SIZES.SCREEN, screenBuffer)
-end)
-
-Iris:Connect(function()
-    do
-        Iris.Window("Pattern Memory", {size = SIZES.PATTERN_TABLE})
-        local image = Iris.Image{
-            "rbxassetid://0", UDim2.new(0, 256, 0, 256)
-        }.Instance :: ImageLabel
-
-        patternView.Parent = image
-        image.ResampleMode = Enum.ResamplerMode.Pixelated
-        Iris.End()
-    end
-    do
-        Iris.Window("Screen", {size = SIZES.SCREEN})
-        local image = Iris.Image{
-            "rbxassetid://0", UDim2.new(0, SIZES.SCREEN.X, 0, SIZES.SCREEN.Y)
-        }.Instance :: ImageLabel
-
-        screenView.Parent = image
-        image.ResampleMode = Enum.ResamplerMode.Pixelated
-        Iris.End()
+-- Debugging
+do
+    local _myNes = myUi.Nes
+    for addr = 0x3F00, 0x3FFF do
+        myUi.PpuDebugger.WriteBreakpoints[addr] = true
     end
 
+    -- The drawing routine seems to be getting stuck writing
+    -- to PPU address 2002.
+    for addr = 0x2000, 0x23BF do
+        myUi.PpuDebugger.WriteBreakpoints[addr] = true
+    end
+end
 
-end)
+Iris:Connect(myUi.Iris)

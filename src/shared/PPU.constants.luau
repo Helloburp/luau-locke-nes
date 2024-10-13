@@ -25,10 +25,10 @@ local ATTR_ADDR_MASKS: {[T.EAttributeAddressComponent]: number} = {
 }
 
 local PATTERN_TABLE_ADDR_MASKS: {[T.EPatternTableAddressComponent]: number} = {
-    ["FineY"]               = 0b00000000000111,
-    ["BitPlane"]            = 0b00000000001000,
-    ["TileNumber"]          = 0b01111111110000,
-    ["Half"]                = 0b10000000000000,
+    ["FineY"]               = 0b0000000000111,
+    ["BitPlane"]            = 0b0000000001000,
+    ["TileNumber"]          = 0b0111111110000,
+    ["Half"]                = 0b1000000000000,
 }
 
 local PPUCTRL_MASKS: {[T.EPpuControlFlag]: number} = {

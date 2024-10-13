@@ -102,7 +102,7 @@ function _getAddressAfterIncrementHorizontal(vramAddr: u16): u16
             h.SetBit(0, n, not h.GetBit(0, n))
         )
     else
-        return VRamAddress.Set("X", VRamAddress.Get("X") + 1)
+        return VRamAddress.Set("X", vramAddr, VRamAddress.Get("X", vramAddr) + 1)
     end
 end
 
@@ -128,7 +128,7 @@ function _getAddressAfterIncrementVertical(vramAddr: u16)
 
         return VRamAddress.Set("Y", vramAddr, coarseY)
     else
-        return VRamAddress.Set("y", VRamAddress.Get("y") + 1)
+        return VRamAddress.Set("y", vramAddr, VRamAddress.Get("y", vramAddr) + 1)
     end
 end
 
@@ -178,13 +178,13 @@ function _fetchToLatchesBasedOnProgress(
         elseif backgroundFetchProgress == 4 then {
             "PatternTableTileLow",
             _getLowPatternTableAddress(
-                PpuControl.Get("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
+                PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
         elseif backgroundFetchProgress == 6 then {
             "PatternTableTileHigh",
             _getHighPatternTableAddress(
-                PpuControl.Get("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
+                PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
         else error("Invalid input")
@@ -241,7 +241,7 @@ function m.Clock(ppu: PPU, bus: Bus)
     
     -- Perform skip cycle if at the beginning of an odd frame & BG set
     if iState.FrameCounter%2 == 0 and ppu.ExecutionState.Cycles == 0 and
-        PpuMask.Get("b", iState.Registers.PPUMASK)
+        PpuMask.GetBit("b", iState.Registers.PPUMASK)
     then
         ppu.ExecutionState.Cycles += 1
     end
@@ -257,7 +257,7 @@ function m.Clock(ppu: PPU, bus: Bus)
 
     -- Perform NMI if applicable
     if dot == 1 and scanline == 241 and
-        PpuControl.Get("V", iState.Registers.PPUCTRL)
+        PpuControl.GetBit("V", iState.Registers.PPUCTRL)
     then
         ppu.TriggerNmi()
     end
@@ -329,7 +329,7 @@ function _cycleAndReturnPixel(
 
             bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
 
-            if PpuMask.Get("b", regs.PPUMASK) then
+            if PpuMask.GetBit("b", regs.PPUMASK) then
                 _shift(shifters)
             end
 
@@ -393,8 +393,8 @@ end
 
 function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
     return
-        (if h.GetBit(lo, fineX) then 1 else 0) +
-        (if h.GetBit(hi, fineX) then 2 else 0)
+        (if h.GetBit(fineX, lo) then 1 else 0) +
+        (if h.GetBit(fineX, hi) then 2 else 0)
 end
 
 
@@ -462,9 +462,9 @@ end
 
 function m.PpuAddrWrite(iRegs: InternalRegs, val: u8)
     if not iRegs.w then
-        iRegs.v = BAND(iRegs.v, 0x0F) + LSHIFT(BAND(val, 0x7F), 8)
+        iRegs.v = BAND(iRegs.v, 0x00FF) + LSHIFT(BAND(val, 0x7F), 8)
     else
-        iRegs.v = BAND(iRegs.v, 0xF0) + val
+        iRegs.v = BAND(iRegs.v, 0xFF00) + val
     end
 
     iRegs.w = not iRegs.w
@@ -518,7 +518,7 @@ function m.NewPaletteControl(regs: Regs): (Peripheral)
     local function _read(addr: u16)
         local offset = _offset(addr)
         
-        local isGreyscale = PpuMask.Get("Greyscale", regs.PPUMASK)
+        local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
         local color = RU8(b, offset)
         return if not isGreyscale then color else BAND(color, 0x30)
     end

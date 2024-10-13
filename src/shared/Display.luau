@@ -19,7 +19,9 @@ function m.NewPlacePixelInFrame(b: buffer)
             Ppu.GetScanlineInFrame(ppuCyclesInFrame)
 
         if not (dot < 256 and scanline < 240) then return end
-        m.WriteColorValueToDisplayBuffer(b, dot * scanline, color)
+        m.WriteColorValueToDisplayBuffer(
+            b, dot + scanline*256, color
+        )
     end
 end
 
@@ -34,10 +36,20 @@ function m.WriteColorValueToDisplayBuffer(b: buffer, i: number, color: u8)
 end
 
 
-function m.DrawPatternTableToBuffer(
-    ppuBus: Bus, b: buffer, right: boolean, palette: number
+function m.WriteColorValueToDisplayTable(t: {}, i: number, color: number)
+    local colorTable = C.COLORS[color]
+    t[i*4 + 1] = colorTable.r/255
+    t[i*4 + 2] = colorTable.g/255
+    t[i*4 + 3] = colorTable.b/255
+    t[i*4 + 4] = 1
+end
+
+
+function m.DrawPatternTable(
+    ppuBus: Bus, right: boolean, palette: number,
+    _setPixelColor: (i: number, color: u8) -> ()
 )
-    local attributeValue, isSprite = BAND(palette, 0x3), RSHIFT(palette, 2)
+    local attributeValue, isSprite = BAND(palette, 0x3), RSHIFT(palette, 2) == 1
 
     for fineY = 0, 7 do
         for tile = 0, 255 do
@@ -55,12 +67,11 @@ function m.DrawPatternTableToBuffer(
 
                 local color = Ppu.GetColorByPixelValue(pixel, ppuBus)
 
-                m.WriteColorValueToDisplayBuffer(
-                    b, fineX * tile * fineY, color
-                )
+                _setPixelColor(fineY*256*8 + tile*8 + fineX, color)
             end
         end
     end
+
 end
 
 

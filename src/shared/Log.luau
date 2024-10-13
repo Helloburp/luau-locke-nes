@@ -15,6 +15,9 @@ type Bus = T_H.Bus
 
 local T_PPU = require(script.Parent["PPU.types"])
 type PPU = T_PPU.PPU
+type PpuRegisters = T_PPU.Registers
+type PpuInternalRegisters = T_PPU.InternalRegisters
+
 
 
 local C_CPU = require(script.Parent["CPU.constants"])
@@ -22,8 +25,26 @@ local Ppu = require(script.Parent.PPU)
 
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
+local LSHIFT = bit32.lshift
 
 local m = {}
+
+function m.GetAssemblyLogPc(pc: u16, mem: Bus): string
+    local opcode = mem.Read(pc)
+    local opcodeData = C_CPU.SlowOpcodeLookup[opcode + 1]
+    local bytes = C_CPU.BytesPerAddressingMode[opcodeData.AddressingMode]
+    local arg1 = mem.Read(_u16(pc + 1))
+    local arg2 = mem.Read(_u16(pc + 2))
+
+    local argStr = if bytes == 0 then ""
+        elseif bytes == 1 then string.format(" 0x%.2X", arg1)
+        else string.format(" 0x%.4X", arg1 + LSHIFT(arg2, 8))
+    
+    return string.format(
+        "%.3s%.6s%s",
+        opcodeData.InstructionName, `({opcodeData.AddressingMode})`, argStr
+    )
+end
 
 function m.GetLogPc(pc: u16, mem: Bus): string
     local opcode = mem.Read(pc)
@@ -136,6 +157,23 @@ function m.ComparePpuLog(
     end
 
     return true
+end
+
+
+function m.GetPpuRegLog(regs: PpuRegisters)
+    return `{
+        _logValue("PPUCTRL", regs.PPUCTRL)} {
+        _logValue("PPUMASK", regs.PPUMASK) } {
+        _logValue("PPUSTATUS", regs.PPUSTATUS) } {
+        _logValue("OAMADDR", regs.OAMADDR)
+    }`
+end
+
+function m.GetPpuInternalRegLog(regs: PpuInternalRegisters)
+    return string.format(
+        "v:0x%.4X t:0x%.4X x:0x%.1X w:%s",
+        regs.v, regs.t, regs.x, tostring(regs.w)
+)
 end
 
 

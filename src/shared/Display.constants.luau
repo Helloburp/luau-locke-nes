@@ -37,6 +37,6 @@ return {
     COLORS_U32 = COLORS_U32,
     RESOLUTIONS = {
         SCREEN = Vector2.new(256,240),
-        PATTERN_TABLE = Vector2.new(256,256),
+        PATTERN_TABLE = Vector2.new(128,128),
     }
 }

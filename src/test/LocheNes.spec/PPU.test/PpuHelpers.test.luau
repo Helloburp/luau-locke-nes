@@ -70,17 +70,20 @@ return function()
         expect(m.GetPixelValue(0b01, 0b01, true))
             .to.equal(0b10101)
         
-        -- Pattern is 0, so falls back on background
         expect(m.GetPixelValue(0b00, 0b11, false))
-            .to.equal(0b00000)
+            .to.equal(0b01100)
         expect(m.GetPixelValue(0b00, 0b11, true))
-            .to.equal(0b00000)
+            .to.equal(0b11100)
     end)
     describe("GetColorByPixelValue", function()
         local bus = h.NewDebugBus()
         bus.Write(0x3F00, 0xEE)
 
         expect(m.GetColorByPixelValue(0, bus))
+            .to.equal(0xEE)
+
+        -- Pattern value is 0; falls to backdrop
+        expect(m.GetColorByPixelValue(0b01100, bus))
             .to.equal(0xEE)
     end)
 end

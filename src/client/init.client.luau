@@ -19,14 +19,16 @@ local myUi = UI.NewIrisHook(myCartridge)
 -- Debugging
 do
     local _myNes = myUi.Nes
+
+    -- myUi.CpuDebugger.WriteBreakpoints[0x2006] = true
     for addr = 0x3F00, 0x3FFF do
-        myUi.PpuDebugger.WriteBreakpoints[addr] = true
+        -- myUi.PpuDebugger.WriteBreakpoints[addr] = true
     end
 
     -- The drawing routine seems to be getting stuck writing
     -- to PPU address 2002.
     for addr = 0x2000, 0x23BF do
-        myUi.PpuDebugger.WriteBreakpoints[addr] = true
+        -- myUi.PpuDebugger.WriteBreakpoints[addr] = true
     end
 end
 

@@ -48,11 +48,10 @@ function _getScanline(cyclesThisFrame: number)
 end
 
 
--- If divisible by 4, falls back to the background color.
 function _getPixelValue(
     patternValue: number, attributeValue: number, isSprite: boolean
 )
-    return if patternValue == 0 then 0 else (
+    return (
         patternValue +
         LSHIFT(attributeValue, 2) + 
         LSHIFT(if isSprite then 1 else 0, 4)
@@ -199,6 +198,14 @@ function _shift(shifters: Shifters)
     shifters.AttributeLo = RSHIFT(shifters.AttributeLo, 1)
     shifters.PatternHi = RSHIFT(shifters.PatternHi, 1)
     shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
+end
+
+
+function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
+    return (
+        VRamAddress.Get("X", vramAddr)%2 +
+        VRamAddress.Get("Y", vramAddr)%2 * 2
+    ) * 2
 end
 
 function _reloadShifters(
@@ -386,8 +393,9 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
 end
 
 
+-- If divisible by 4, falls back to the background color.
 function _getColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(0x3F00 + index)
+    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
 
@@ -473,7 +481,7 @@ end
 
 function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
     local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
-    iRegs.v = BAND(iRegs.v + inc, 0x7F)
+    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
 end
 
 
@@ -511,7 +519,7 @@ function m.NewPaletteControl(regs: Regs): (Peripheral)
 
     local function _offset(addr: u16)
         local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
-        offset = if offset%4 == 0 then 0 else offset
+        -- offset = if offset%4 == 0 then 0 else offset
         return offset
     end
 
@@ -621,11 +629,14 @@ function m.New(
 end
 
 m.GetPixelValue = _getPixelValue
+m.GetTileAddressFromVRamAddress = _getTileAddressFromVRamAddress
+m.GetAttributeAddressFromVRamAddress = _getAttributeAddressFromVRamAddress
 m.GetLowPatternTableAddress = _getLowPatternTableAddress
 m.GetHighPatternTableAddress = _getHighPatternTableAddress
 m.GetColorByPixelValue = _getColorByPixelValue
 m.GetPatternValueFromBitPlanes = _getPatternValueFromBitPlanes
 m.GetDotInFrame = _getDot
 m.GetScanlineInFrame = _getScanline
+m.GetOffsetInAttributeByteFromVRamAddress = _getOffsetInAttributeByteFromVRamAddress
 
 return m

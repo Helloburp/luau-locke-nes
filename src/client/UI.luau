@@ -1,11 +1,15 @@
 local root = game.ReplicatedStorage.Shared
 local T_NES = require(root["NES.types"])
 local T_DEBUG = require(root["Debug.types"])
+local T_H = require(root["Helpers.types"])
+
 
 type NES = T_NES.NES
 type Cartridge = T_NES.Cartridge
 type DebugLog = T_DEBUG.DebugLog
 type Debugger = T_DEBUG.Debugger
+type Bus = T_H.Bus
+
 
 type EmulationState = {
     Running: boolean,
@@ -26,22 +30,67 @@ local h = require(root.Helpers)
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
+function _irisEditableImage(
+    editableImage: EditableImage, size: Vector2, arguments: {any}?
+)
+    local _arguments = if arguments then table.clone(arguments) else {}
+    table.insert(_arguments, "rbxassetid://0")
+    table.insert(_arguments, UDim2.fromOffset(size.X, size.Y))
 
-local function _patternMemory(patternView: EditableImage)
-    Iris.Window("Pattern Memory", {size = SIZES.PATTERN_TABLE})
-    local image = Iris.Image{
-        "rbxassetid://0", UDim2.new(0, 256, 0, 256)
-    }.Instance :: ImageLabel
-
-    patternView.Parent = image
+    local image = Iris.Image(_arguments).Instance :: ImageLabel
+    editableImage.Parent = image
     image.ResampleMode = Enum.ResamplerMode.Pixelated
+end
+
+
+function _ppuViewer(
+    patternView: EditableImage,
+    paletteView: EditableImage,
+    nametableViews: {EditableImage}
+)
+    local function _patternTables()
+        Iris.Text("Pattern Tables")
+        _irisEditableImage(patternView, SIZES.PATTERN_TABLE*2)
+    end
+
+    local function _palattes()
+        Iris.Text("Palettes")
+        _irisEditableImage(paletteView, SIZES.PALETTES*10)
+    end
+
+    local function _nametables()
+        Iris.Text("Nametables")
+        Iris.SameLine()
+        _irisEditableImage(nametableViews[0], SIZES.NAMETABLE)
+        _irisEditableImage(nametableViews[1], SIZES.NAMETABLE)
+        Iris.End()
+        Iris.SameLine()
+        _irisEditableImage(nametableViews[2], SIZES.NAMETABLE)
+        _irisEditableImage(nametableViews[3], SIZES.NAMETABLE)
+        Iris.End()
+    end
+
+    Iris.Window("PPU Viewer", {size = SIZES.PATTERN_TABLE*2})
+    Iris.SameLine()
+
+    Iris.Group()
+    _patternTables()
+    _palattes()
+    Iris.End()
+
+    Iris.Group()
+    _nametables()
+    Iris.End()
+
+    Iris.End()
+
     Iris.End()
 end
 
-local function _screen(screenView: EditableImage)
+function _screen(screenView: EditableImage)
     Iris.Window("Screen", {size = SIZES.SCREEN})
     local image = Iris.Image{
-        "rbxassetid://0", UDim2.new(0, SIZES.SCREEN.X, 0, SIZES.SCREEN.Y)
+        "rbxassetid://0", UDim2.fromOffset(SIZES.SCREEN.X, SIZES.SCREEN.Y)
     }.Instance :: ImageLabel
 
     screenView.Parent = image
@@ -50,7 +99,7 @@ local function _screen(screenView: EditableImage)
 end
 
 
-local function _execution(
+function _execution(
     myNes: NES, myLog: DebugLog, state: EmulationState,
     _myClock: (NES) -> ()
 )
@@ -99,6 +148,34 @@ local function _execution(
     Iris.End()
 end
 
+
+function _refreshNametable(
+    b: buffer, image: EditableImage, ppuBus: Bus, nametable: number
+)
+    Display.DrawNametable(
+        ppuBus, nametable, Display.NewWriteColorValueToBuffer(b)
+    )
+    Display.WriteBufferToImage(b, image)
+end
+
+
+function _refreshPatternTable(
+    b: buffer, image: EditableImage, ppuBus: Bus, right: boolean
+)
+    Display.DrawPatternTable(
+        ppuBus, right, 0, Display.NewWriteColorValueToBuffer(b)
+    )
+    Display.WriteBufferToImage(b, image)
+end
+
+
+function _refreshPalette(b: buffer, image: EditableImage, ppuBus: Bus)
+    Display.DrawPalettes(ppuBus, Display.NewWriteColorValueToBuffer(b))
+    Display.WriteBufferToImage(b, image)
+end
+
+
+
 function m.NewIrisHook(
     myCartridge: Cartridge
 ): {
@@ -111,24 +188,28 @@ function m.NewIrisHook(
         BreakComment = ""
     }
 
-    local screenBuffer, patternBuffer, screenView, patternView do
-        screenView = Instance.new("EditableImage")
-        screenView.Size = SIZES.SCREEN
+    local screenBuffer, screenView = Display.NewBufferImagePair(
+        C_DISPLAY.RESOLUTIONS.SCREEN
+    )
+    local patternBuffer, patternView = Display.NewBufferImagePair(
+        C_DISPLAY.RESOLUTIONS.PATTERN_TABLE
+    )
+    local paletteBuffer, paletteView = Display.NewBufferImagePair(
+        C_DISPLAY.RESOLUTIONS.PALETTES
+    )
 
-        patternView = Instance.new("EditableImage")
-        patternView.Size = SIZES.PATTERN_TABLE
-
-        patternBuffer = Display.NewDisplayBuffer(SIZES.PATTERN_TABLE)
-
-        screenBuffer = Display.NewDisplayBuffer(SIZES.SCREEN)
+    local nametableBuffers, nametableViews = {}, {}
+    for nt = 0, 3 do
+        nametableBuffers[nt], nametableViews[nt] = Display.NewBufferImagePair(
+            SIZES.NAMETABLE
+        )
     end
 
-
-    local function _onFrameComplete() end
-    local _setPixelColorForCycle = Display.NewPlacePixelInFrame(screenBuffer)
-
     local myNes = Nes.New(
-        _onFrameComplete, _setPixelColorForCycle, myCartridge
+        function() end, Display.NewPlacePixelInFrame(
+            Display.NewWriteColorValueToBuffer(screenBuffer)
+        ),
+        myCartridge
     )
 
     local CpuDebugger = Debug.Debugger(function(context)
@@ -153,26 +234,24 @@ function m.NewIrisHook(
             if not state.Running then continue end
             _myClock(myNes)
         end
-        Display.DrawPatternTable(
-            myNes.PpuBus, false, 0,
-            function(i, color)
-                Display.WriteColorValueToDisplayBuffer(
-                    patternBuffer, i, color
-                )
-            end
-        )
-        patternView:WritePixelsBuffer(
-            Vector2.new(), SIZES.PATTERN_TABLE, patternBuffer
-        )
-        screenView:WritePixelsBuffer(
-            Vector2.new(), SIZES.SCREEN, screenBuffer
-        )
+
+        _refreshPatternTable(patternBuffer, patternView, myNes.PpuBus, false)
+        _refreshPalette(paletteBuffer, paletteView, myNes.PpuBus)
+
+        for nt = 0, 0 do -- Debug
+            _refreshNametable(
+                nametableBuffers[nt], nametableViews[nt], myNes.PpuBus, nt
+            )
+        end
+
+
+        Display.WriteBufferToImage(screenBuffer, screenView)
     end)
 
 
     return {
         Iris = function()
-            _patternMemory(patternView)
+            _ppuViewer(patternView, paletteView, nametableViews)
             _screen(screenView)
             _execution(myNes, myLog, state, _myClock)
         end,

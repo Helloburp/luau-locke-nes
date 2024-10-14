@@ -36,7 +36,9 @@ return {
     COLORS_COLOR3 = COLORS_COLOR3,
     COLORS_U32 = COLORS_U32,
     RESOLUTIONS = {
-        SCREEN = Vector2.new(256,240),
-        PATTERN_TABLE = Vector2.new(128,128),
+        SCREEN = Vector2.new(32*8,30*8),
+        PATTERN_TABLE = Vector2.new(16*8,16*8),
+        PALETTES = Vector2.new(4*4,2),
+        NAMETABLE = Vector2.new(32*8,30*8)
     }
 }

@@ -2,7 +2,12 @@ local T_H = require(script.Parent["Helpers.types"])
 
 local C = require(script.Parent["Display.constants"])
 
+local h = require(script.Parent.Helpers)
+
 local Ppu = require(script.Parent.PPU)
+local C_PPU = require(script.Parent["PPU.constants"])
+local VRamAddress = C_PPU.BITFIELD_UTIL.VRamAddress
+
 
 local m = {}
 
@@ -12,16 +17,14 @@ type Bus = T_H.Bus
 local RSHIFT, BAND = bit32.rshift, bit32.band
 
 
-function m.NewPlacePixelInFrame(b: buffer)
+function m.NewPlacePixelInFrame(_setColor: (i: number, color: u8) -> ())
     return function(ppuCyclesInFrame: number, color: u8)
         local dot, scanline =
             Ppu.GetDotInFrame(ppuCyclesInFrame),
             Ppu.GetScanlineInFrame(ppuCyclesInFrame)
 
         if not (dot < 256 and scanline < 240) then return end
-        m.WriteColorValueToDisplayBuffer(
-            b, dot + scanline*256, color
-        )
+        _setColor(dot + scanline*256, color)
     end
 end
 
@@ -31,17 +34,96 @@ function m.NewDisplayBuffer(imageSize: Vector2): buffer
 end
 
 
-function m.WriteColorValueToDisplayBuffer(b: buffer, i: number, color: u8)
-    buffer.writeu32(b, i*4, C.COLORS_U32[color] or C.COLORS_U32[0x28])
+function m.NewWriteColorValueToBuffer(b: buffer): (i: number, color: u8) -> ()
+    return function(i: number, color: u8)
+        buffer.writeu32(b, i*4, C.COLORS_U32[color] or C.COLORS_U32[0x28])
+    end
 end
 
 
-function m.WriteColorValueToDisplayTable(t: {}, i: number, color: number)
-    local colorTable = C.COLORS[color]
-    t[i*4 + 1] = colorTable.r/255
-    t[i*4 + 2] = colorTable.g/255
-    t[i*4 + 3] = colorTable.b/255
-    t[i*4 + 4] = 1
+function m.NewWriteColorValueToDisplayTable(t: {})
+    return function(i: number, color: u8)
+        local colorTable = C.COLORS[color]
+        t[i*4 + 1] = colorTable.r/255
+        t[i*4 + 2] = colorTable.g/255
+        t[i*4 + 3] = colorTable.b/255
+        t[i*4 + 4] = 1
+    end
+end
+
+
+function m.DrawNametable(
+    ppuBus: Bus, nametable: number,
+    _setPixelColor: (i: number, color: u8) -> ()
+)
+    for tileY = 0, 29 do
+        for fineY = 0, 7 do
+            for tileX = 0, 31 do
+                local addr = VRamAddress.Compose{
+                    ["N"] = nametable,
+                    ["X"] = tileX,
+                    ["Y"] = tileY,
+                }
+                local tile, attr =
+                    ppuBus.Read(
+                        Ppu.GetTileAddressFromVRamAddress(addr)
+                    ),
+                    ppuBus.Read(
+                        Ppu.GetAttributeAddressFromVRamAddress(addr)
+                    )
+                
+                local attrOffset =
+                    Ppu.GetOffsetInAttributeByteFromVRamAddress(addr)
+                
+                local palette =
+                    (if h.GetBit(attrOffset, attr) then 1 else 0) +
+                    (if h.GetBit(attrOffset + 1, attr) then 2 else 0)
+
+                local lo, hi = _getLowAndHighPatternValues(
+                    ppuBus, false, tile, fineY
+                )
+
+                m.RenderTileStrip(
+                    ppuBus, lo, hi, palette, false,
+                    function(fineX: number, color: u8)
+                        _setPixelColor(
+                            tileY*8*32*8 + fineY*32*8 + tileX*8 + fineX,
+                            color
+                        )
+                    end
+                )
+            end
+        end
+    end
+end
+
+
+function m.RenderTileStrip(
+    ppuBus: Bus, patternLo: u8, patternHi: u8,
+    attr: number, isSprite: boolean,
+    _setFineXColor: (fineX: number, color: u8) -> ()
+)
+    for fineX = 0, 7 do
+        local patternValue = Ppu.GetPatternValueFromBitPlanes(
+            patternLo, patternHi, fineX
+        )
+        local pixel = Ppu.GetPixelValue(
+            patternValue, attr, isSprite
+        )
+
+        local color = Ppu.GetColorByPixelValue(pixel, ppuBus)
+
+        _setFineXColor(7 - fineX, color)
+    end
+end
+
+
+function m.DrawPalettes(
+    ppuBus: Bus, _setPixelColor: (i: number, color: u8) -> ()
+)
+    for offset = 0x00, 0x1F do
+        _setPixelColor(offset, ppuBus.Read(0x3F00 + offset))
+    end
 end
 
 
@@ -51,28 +133,49 @@ function m.DrawPatternTable(
 )
     local attributeValue, isSprite = BAND(palette, 0x3), RSHIFT(palette, 2) == 1
 
-    for fineY = 0, 7 do
-        for tile = 0, 255 do
-            local lo, hi =
-                ppuBus.Read(Ppu.GetLowPatternTableAddress(right, tile, fineY)),
-                ppuBus.Read(Ppu.GetHighPatternTableAddress(right, tile, fineY))
-            
-            for fineX = 0, 7 do
-                local patternValue = Ppu.GetPatternValueFromBitPlanes(
-                    lo, hi, fineX
+    for tileY = 0, 15 do
+        for fineY = 0, 7 do
+            for tileX = 0, 15 do
+                local lo, hi = _getLowAndHighPatternValues(
+                    ppuBus, right, tileY * 16 + tileX, fineY
                 )
-                local pixel = Ppu.GetPixelValue(
-                    patternValue, attributeValue, isSprite
+                m.RenderTileStrip(
+                    ppuBus, lo, hi, attributeValue, isSprite,
+                    function(fineX: number, color: u8)
+                        _setPixelColor(
+                            tileY*8*16*8 + fineY*16*8 + tileX*8 + fineX,
+                            color
+                        )
+                    end
                 )
-
-                local color = Ppu.GetColorByPixelValue(pixel, ppuBus)
-
-                _setPixelColor(fineY*256*8 + tile*8 + fineX, color)
             end
         end
     end
-
 end
 
+
+function m.NewBufferImagePair(size: Vector2): (buffer, EditableImage)
+    local b = m.NewDisplayBuffer(size)
+    local editableImage = Instance.new("EditableImage")
+    editableImage.Size = size
+
+    return b, editableImage
+end
+
+
+function m.WriteBufferToImage(b: buffer, image: EditableImage)
+    image:WritePixelsBuffer(Vector2.new(), image.Size, b)
+end
+
+function _getLowAndHighPatternValues(
+    ppuBus: Bus, right: boolean, tileNumber: number, fineY: number
+)
+    return ppuBus.Read(
+            Ppu.GetLowPatternTableAddress(right, tileNumber, fineY)
+        ),
+        ppuBus.Read(
+            Ppu.GetHighPatternTableAddress(right, tileNumber, fineY)
+        )
+end
 
 return m

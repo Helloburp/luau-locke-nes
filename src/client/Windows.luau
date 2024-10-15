@@ -1,3 +1,4 @@
+--!optimize 2
 
 local root = game.ReplicatedStorage.Shared
 local T_NES = require(root["NES.types"])

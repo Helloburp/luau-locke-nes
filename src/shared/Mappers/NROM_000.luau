@@ -1,3 +1,4 @@
+--!optimize 2
 local inst_root = script.Parent.Parent
 
 local T_P = require(inst_root["Parse.types"])

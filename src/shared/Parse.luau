@@ -48,7 +48,7 @@ function m.Header(rom: buffer): Header
     
     flags.NametableArrangement = if _getBit(3, flags6)
         then "Alternative"
-        else (if _getBit(0, flags6) then "Horizontal" else "Vertical")
+        else (if _getBit(0, flags6) then "Vertical" else "Horizontal")
     
     flags.MapperId = RSHIFT(flags6, 4) + BAND(flags7, 0xF0)
 

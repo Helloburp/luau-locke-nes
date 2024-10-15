@@ -75,7 +75,7 @@ function m.NewPpuRegisters(ppu: PPU, bus: Bus): (Peripheral)
 
         if offset == 0 then
             local shouldNmi = Ppu.PpuCtrlWriteAndReturnNmi(
-                regs, val, cyclesThisFrame
+                regs, iRegs, val, cyclesThisFrame
             )
             if shouldNmi then
                 _nmi()

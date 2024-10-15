@@ -74,13 +74,15 @@ end
 
 
 function m.PpuCtrlWriteAndReturnNmi(
-    regs: Regs, val: u8, cyclesThisFrame: number
+    regs: Regs, iRegs: InternalRegs, val: u8, cyclesThisFrame: number
 ): boolean
     local oldNmi, newNmi =
         PpuControl.Get("V", regs.PPUCTRL),
         PpuControl.Get("V", val)
     local inVBlank = _isInVBlank(_getScanline(cyclesThisFrame))
     regs.PPUCTRL = val
+
+    iRegs.t = VRamAddress.Set("N", iRegs.t, BAND(val, 0x03))
 
     return oldNmi == 0 and newNmi == 1 and inVBlank
 end
@@ -137,9 +139,10 @@ end
 
 function m.PpuAddrWrite(iRegs: InternalRegs, val: u8)
     if not iRegs.w then
-        iRegs.v = BAND(iRegs.v, 0x00FF) + LSHIFT(BAND(val, 0x7F), 8)
+        iRegs.t = BAND(iRegs.t, 0x00FF) + LSHIFT(BAND(val, 0x7F), 8)
     else
-        iRegs.v = BAND(iRegs.v, 0xFF00) + val
+        iRegs.t = BAND(iRegs.t, 0xFF00) + val
+        iRegs.v = iRegs.t
     end
 
     iRegs.w = not iRegs.w
@@ -214,7 +217,7 @@ function m.NewVRam(_getIsMirroringVertical: () -> boolean): (Peripheral)
             if addr < 0x2800 then
                 offset = h.UnmirrorAddress(addr, 0x2000, 0x400)
             else
-                offset = h.UnmirrorAddress(addr, 0x2800, 0x400)
+                offset = 0x400 + h.UnmirrorAddress(addr, 0x2800, 0x400)
             end
         end
         return offset
@@ -567,6 +570,11 @@ function _cycleAndReturnPixel(
             if isRenderingEnabled and dot == 257 then
                 iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
             end
+            if isRenderingEnabled and dot >= 280 and dot <= 304 then
+                if isPreRenderLine then
+                    iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
+                end
+            end
 
             if isRenderingEnabled then
                 regs.OAMADDR = 0x00
@@ -579,10 +587,6 @@ function _cycleAndReturnPixel(
                 - Pattern table tile low
                 - Pattern table tile high
             ]]
-        elseif dot >= 280 and dot <= 304 then
-            if isRenderingEnabled and isPreRenderLine then
-                iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
-            end
         elseif dot == 337 or dot == 339 then
             _fetchToLatchesBasedOnProgress(
                 bus, regs.PPUCTRL, iRegs.v, latches,

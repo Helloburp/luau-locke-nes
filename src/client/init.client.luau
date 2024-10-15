@@ -15,6 +15,7 @@ end
 local myCartridge = require(root.Mappers.NROM_000).NewFromRom(rom, header)
 local myUi = UI.NewIrisHook(myCartridge)
 
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 
 -- Debugging
 do

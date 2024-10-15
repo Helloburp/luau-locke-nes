@@ -52,6 +52,32 @@ function m.NewWriteColorValueToDisplayTable(t: {})
 end
 
 
+function m.RefreshNametable(
+    b: buffer, image: EditableImage, ppuBus: Bus, nametable: number
+)
+    m.DrawNametable(
+        ppuBus, nametable, m.NewWriteColorValueToBuffer(b)
+    )
+    m.WriteBufferToImage(b, image)
+end
+
+
+function m.RefreshPatternTable(
+    b: buffer, image: EditableImage, ppuBus: Bus, right: boolean
+)
+    m.DrawPatternTable(
+        ppuBus, right, 0, m.NewWriteColorValueToBuffer(b)
+    )
+    m.WriteBufferToImage(b, image)
+end
+
+
+function m.RefreshPalette(b: buffer, image: EditableImage, ppuBus: Bus)
+    m.DrawPalettes(ppuBus, m.NewWriteColorValueToBuffer(b))
+    m.WriteBufferToImage(b, image)
+end
+
+
 function m.DrawNametable(
     ppuBus: Bus, nametable: number,
     _setPixelColor: (i: number, color: u8) -> ()

@@ -20,6 +20,10 @@ game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 -- Debugging
 do
     local _myNes = myUi.Nes
+    myUi.WindowStates.Screen:set(true)
+    myUi.WindowStates.Execution:set(true)
+    -- myUi.Renderers.Nametables[0].State:set(true)
+    -- myUi.Renderers.PatternTables[0].State:set(true)
 
     -- myUi.CpuDebugger.WriteBreakpoints[0x2006] = true
     for addr = 0x3F00, 0x3FFF do

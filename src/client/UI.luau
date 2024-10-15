@@ -31,11 +31,7 @@ local SIZES = C_DISPLAY.RESOLUTIONS
 
 function m.NewIrisHook(
     myCartridge: Cartridge
-): {
-    Iris: () -> (),
-    CpuDebugger: Debugger, PpuDebugger: Debugger,
-    Nes: NES
-}
+)
     local myNes: NES
     local state: EmulationState = {
         Running = false,
@@ -43,9 +39,9 @@ function m.NewIrisHook(
     }
     
     local windowStates = {
-        PpuViewer = Iris.State(true),
+        PpuViewer = Iris.State(false),
         Screen = Iris.State(false),
-        Execution = Iris.State(true)
+        Execution = Iris.State(false)
     }
 
     local statelyBufferData = {}
@@ -166,7 +162,12 @@ function m.NewIrisHook(
         end,
         CpuDebugger = CpuDebugger,
         PpuDebugger = PpuDebugger,
-        Nes = myNes
+        Nes = myNes,
+        Renderers = {
+            Screen = screen, PatternTables = patternTables,
+            Nametables = nametables, Palette = palette
+        },
+        WindowStates = windowStates
     }
 end
 

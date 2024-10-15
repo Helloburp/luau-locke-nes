@@ -1,3 +1,4 @@
+--!optimize 2
 
 local Ppu = require(script.Parent.PPU)
 local h = require(script.Parent.Helpers)

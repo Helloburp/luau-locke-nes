@@ -1,3 +1,5 @@
+--!optimize 2
+
 local T = require(script.Parent["Log.types"])
 type LogBreakdown = T.LogBreakdown
 

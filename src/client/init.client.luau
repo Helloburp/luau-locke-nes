@@ -1,3 +1,4 @@
+--!optimize 2
 local root = game.ReplicatedStorage.Shared
 local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 

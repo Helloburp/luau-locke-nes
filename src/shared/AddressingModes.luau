@@ -1,3 +1,4 @@
+--!optimize 2
 
 --[[ Sources:
     https://www.nesdev.org/wiki/CPU_addressing_modes

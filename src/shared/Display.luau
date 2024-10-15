@@ -1,3 +1,4 @@
+--!optimize 2
 local T_H = require(script.Parent["Helpers.types"])
 
 local C = require(script.Parent["Display.constants"])

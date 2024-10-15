@@ -1,3 +1,4 @@
+--!optimize 2
 local root = script.Parent
 
 local Ppu = require(root.PPU)

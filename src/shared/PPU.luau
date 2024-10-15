@@ -1,3 +1,4 @@
+--!optimize 2
 local C = require(script.Parent["PPU.constants"])
 local h = require(script.Parent.Helpers)
 

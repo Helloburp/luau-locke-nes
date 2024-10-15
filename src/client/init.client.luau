@@ -4,11 +4,13 @@ local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 local Parse = require(root.Parse)
 local UI = require(script.UI)
 
+local ROM_NAME = "IceClimber.nes"
+
 local rom, header do
-    local nestest = require(
-        game.ReplicatedStorage.Test["LocheNes.spec"]["nestest.nes"]
-    )
-    rom = Parse.HexStrToBuffer(nestest)
+    local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
+    assert(romModule, `Unable to find rom "{ROM_NAME}!"`)
+    local romStr = require(romModule)
+    rom = Parse.HexStrToBuffer(romStr)
     header = Parse.Header(rom)
 end
 

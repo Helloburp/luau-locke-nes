@@ -12,6 +12,9 @@
       },
       "Test": {
         "$path": "src/test"
+      },
+      "Roms": {
+        "$path": "roms"
       }
     },
 

@@ -37,14 +37,273 @@ local RU8, WU8 = buffer.readu8, buffer.writeu8
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
 
+function m.Clock(ppu: PPU, bus: Bus)
+    local iState = ppu.InternalState
+    
+    -- Perform skip cycle if at the beginning of an odd frame & BG set
+    if iState.FrameCounter%2 == 0 and ppu.ExecutionState.Cycles == 0 and
+        PpuMask.GetBit("b", iState.Registers.PPUMASK)
+    then
+        ppu.ExecutionState.Cycles += 1
+    end
+
+    local cycles = ppu.ExecutionState.Cycles
+    local dot, scanline = _getDot(cycles), _getScanline(cycles)
+
+    -- Perform main arithmetic and return pixel for this cycle
+    local pixel = _cycleAndReturnPixel(
+        bus, ppu.InternalState, dot, scanline
+    )
+    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
+
+    -- Perform NMI if applicable
+    if dot == 1 and scanline == 241 and
+        PpuControl.GetBit("V", iState.Registers.PPUCTRL)
+    then
+        ppu.TriggerNmi()
+    end
+
+    ppu.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
+    ppu.ExecutionState.Clock += 1
+
+    if ppu.ExecutionState.Cycles < cycles then
+        ppu.OnFrameComplete()
+        iState.FrameCounter += 1
+    end
+end
+
+
+function m.PpuCtrlWriteAndReturnNmi(
+    regs: Regs, val: u8, cyclesThisFrame: number
+): boolean
+    local oldNmi, newNmi =
+        PpuControl.Get("V", regs.PPUCTRL),
+        PpuControl.Get("V", val)
+    local inVBlank = _isInVBlank(_getScanline(cyclesThisFrame))
+    regs.PPUCTRL = val
+
+    return oldNmi == 0 and newNmi == 1 and inVBlank
+end
+
+
+function m.PpuMaskWrite(regs: Regs, val: u8)
+    regs.PPUMASK = val
+end
+
+
+function m.PpuStatusRead(regs: Regs, internalRegs: InternalRegs)
+    local oldStatus = regs.PPUSTATUS
+    regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
+    internalRegs.w = false
+    return oldStatus   -- Todo: Consider making bits 0-4 "open bus"
+end
+
+
+function m.OamAddrWrite(regs: Regs, val: u8)
+    regs.OAMADDR  = val
+end
+
+
+function m.OamDataRead(regs: Regs, OAM: buffer)
+    return RU8(OAM, regs.OAMADDR)
+end
+
+
+function m.OamDataWrite(
+    regs: Regs, val: u8, cyclesThisFrame: number, oam: buffer
+)
+    if not _isInVBlank(_getScanline(cyclesThisFrame))
+        and _isRenderingEnabled(regs.PPUMASK) then
+        return
+    end
+    
+    WU8(oam, regs.OAMADDR, val)
+    regs.OAMADDR = _u8(regs.OAMADDR, regs.OAMADDR + 1)
+end
+
+
+function m.PpuScrollWrite(iRegs: InternalRegs, val: u8)
+    if not iRegs.w then
+        iRegs.t = VRamAddress.Set("X", iRegs.t, RSHIFT(val, 3))
+        iRegs.x = BAND(val, 0x07)
+    else
+        iRegs.t = VRamAddress.Set("Y", iRegs.t, RSHIFT(val, 3))
+        iRegs.t = VRamAddress.Set("y", iRegs.t, BAND(val, 0x07))
+    end
+
+    iRegs.w = not iRegs.w
+end
+
+
+function m.PpuAddrWrite(iRegs: InternalRegs, val: u8)
+    if not iRegs.w then
+        iRegs.v = BAND(iRegs.v, 0x00FF) + LSHIFT(BAND(val, 0x7F), 8)
+    else
+        iRegs.v = BAND(iRegs.v, 0xFF00) + val
+    end
+
+    iRegs.w = not iRegs.w
+end
+
+
+function m.PpuDataRead(bus: Bus, regs: Regs, iRegs: InternalRegs)
+    local oldRead = regs.PPUDATA
+    local oldAddr = iRegs.v
+    regs.PPUDATA = bus.Read(iRegs.v)
+
+    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
+
+    -- Palette ram on later PPUs returned instantly
+    if oldAddr >= 0x3F00 and oldAddr <= 0x3FFF then
+        return regs.PPUDATA
+    end
+
+    return oldRead
+end
+
+
+function m.PpuDataWrite(bus: Bus, regs: Regs, iRegs: InternalRegs, val: u8)
+    bus.Write(iRegs.v, val)
+    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
+end
+
+
+function m.OamDmaWrite()
+    -- Writing XX will upload 256 bytes from the CPU page XX00-XXFF to OAM.
+    -- CPU is delayed for 513 cycles + 1 if on a 'put' cycle (?)
+        -- Put and Get cycles alternate; initial state is random
+end
+
+
+function m.NewPaletteControl(regs: Regs): (Peripheral)
+    local b = buffer.create(0x20)
+
+    local function _offset(addr: u16)
+        local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
+        -- offset = if offset%4 == 0 then 0 else offset
+        return offset
+    end
+
+    local function _read(addr: u16)
+        local offset = _offset(addr)
+        
+        local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
+        local color = RU8(b, offset)
+        return if not isGreyscale then color else BAND(color, 0x30)
+    end
+
+    local function _write(addr: u16, val: u8)
+        WU8(b, _offset(addr), val)
+    end
+
+    return {
+        Read = _read,
+        Write = _write
+    }
+end
+
+
+function m.NewVRam(_getIsMirroringVertical: () -> boolean): (Peripheral)
+    local b = buffer.create(0x800)
+
+    local function _offset(addr: u16)
+        local offset
+        if _getIsMirroringVertical() then
+            offset = h.UnmirrorAddress(addr, 0x2000, 0x800)
+        else
+            if addr < 0x2800 then
+                offset = h.UnmirrorAddress(addr, 0x2000, 0x400)
+            else
+                offset = h.UnmirrorAddress(addr, 0x2800, 0x400)
+            end
+        end
+        return offset
+    end
+
+    local function _read(addr: u16)
+        return RU8(b, _offset(addr))
+    end
+
+    local function _write(addr: u16, val: u8)
+        WU8(b, _offset(addr), val)
+    end
+
+    return {
+        Read = _read,
+        Write = _write
+    }
+end
+
+
+function m.MapPeripherals(
+    bus: Bus,
+    vram: Peripheral,
+    paletteControl: Peripheral
+)
+    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x2FFF), vram)
+    h.MapPeripheral(bus, NumberRange.new(0x3F00, 0x3FFF), paletteControl)
+end
+
+
+function m.NewOAM()
+    return buffer.create(0x40)
+end
+
+
+function m.New(
+    _nmi: () -> (),
+    _onFrameComplete: () -> (),
+    _setPixelColorForCycle: (i: number, color: u8) -> ()
+): PPU
+    return {
+        InternalState = _newInternalState(),
+        ExecutionState = {Clock = 0, Cycles = 0},
+
+        TriggerNmi = _nmi,
+        OnFrameComplete = _onFrameComplete,
+        SetPixelForCycle = _setPixelColorForCycle
+    }
+end
+
 
 function _getDot(cyclesThisFrame: number)
     return cyclesThisFrame%C.DOTS_PER_SCANLINE
 end
 
+
 function _getScanline(cyclesThisFrame: number)
     return (cyclesThisFrame - cyclesThisFrame%C.DOTS_PER_SCANLINE)
         / C.DOTS_PER_SCANLINE
+end
+
+
+function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
+    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
+    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
+end
+
+
+function _newInternalState(): InternalState
+    return {
+        Registers = {
+            PPUCTRL = 0x00, PPUMASK = 0x00, PPUSTATUS = 0xA0, PPUDATA = 0x00,
+            OAMADDR = 0x00,
+        },
+        InternalRegisters = {
+            v = 0x0000, t = 0x0000,
+            x = 0x000,  w = false
+        },
+        Latches = {
+            Nametable = 0x00, AttributeTable = 0x00, 
+            PatternTableTileLow = 0x00, PatternTableTileHigh = 0x00
+        },
+        Shifters = {
+            PatternLo = 0x00,   PatternHi = 0x00,
+            AttributeLo = 0x00, AttributeHi = 0x00
+        },
+        OAM = buffer.create(0x40),
+        FrameCounter = 0
+    }
 end
 
 
@@ -236,46 +495,10 @@ function _reloadShifters(
         )
 
     shifters.PatternLo = BAND(shifters.PatternLo, 0x00FF) +
-        LSHIFT(latches.PatternTableTileLow, 8)
+        LSHIFT(h.ReverseBitOrderU8(latches.PatternTableTileLow), 8)
 
     shifters.PatternHi = BAND(shifters.PatternHi, 0x00FF) +
-        LSHIFT(latches.PatternTableTileHigh, 8)
-end
-
-
-function m.Clock(ppu: PPU, bus: Bus)
-    local iState = ppu.InternalState
-    
-    -- Perform skip cycle if at the beginning of an odd frame & BG set
-    if iState.FrameCounter%2 == 0 and ppu.ExecutionState.Cycles == 0 and
-        PpuMask.GetBit("b", iState.Registers.PPUMASK)
-    then
-        ppu.ExecutionState.Cycles += 1
-    end
-
-    local cycles = ppu.ExecutionState.Cycles
-    local dot, scanline = _getDot(cycles), _getScanline(cycles)
-
-    -- Perform main arithmetic and return pixel for this cycle
-    local pixel = _cycleAndReturnPixel(
-        bus, ppu.InternalState, dot, scanline
-    )
-    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
-
-    -- Perform NMI if applicable
-    if dot == 1 and scanline == 241 and
-        PpuControl.GetBit("V", iState.Registers.PPUCTRL)
-    then
-        ppu.TriggerNmi()
-    end
-
-    ppu.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
-    ppu.ExecutionState.Clock += 1
-
-    if ppu.ExecutionState.Cycles < cycles then
-        ppu.OnFrameComplete()
-        iState.FrameCounter += 1
-    end
+        LSHIFT(h.ReverseBitOrderU8(latches.PatternTableTileHigh), 8)
 end
 
 
@@ -382,12 +605,12 @@ end
 
 function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
     local patternValue = 
-        (if h.GetBit(shifters.PatternLo, fineX) then 1 else 0) +
-        (if h.GetBit(shifters.PatternHi, fineX) then 2 else 0)
+        (if h.GetBit(fineX, shifters.PatternLo) then 1 else 0) +
+        (if h.GetBit(fineX, shifters.PatternHi) then 2 else 0)
 
     local attributeValue = 
-        (if h.GetBit(shifters.AttributeLo, fineX) then 1 else 0) +
-        (if h.GetBit(shifters.AttributeHi, fineX) then 2 else 0)
+        (if h.GetBit(fineX, shifters.AttributeLo) then 1 else 0) +
+        (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
     return _getPixelValue(patternValue, attributeValue, false)
 end
@@ -405,228 +628,6 @@ function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
         (if h.GetBit(fineX, hi) then 2 else 0)
 end
 
-
-function m.PpuCtrlWriteAndReturnNmi(
-    regs: Regs, val: u8, cyclesThisFrame: number
-): boolean
-    local oldNmi, newNmi =
-        PpuControl.Get("V", regs.PPUCTRL),
-        PpuControl.Get("V", val)
-    local inVBlank = _isInVBlank(_getScanline(cyclesThisFrame))
-    regs.PPUCTRL = val
-
-    return oldNmi == 0 and newNmi == 1 and inVBlank
-end
-
-
-function m.PpuMaskWrite(regs: Regs, val: u8)
-    regs.PPUMASK = val
-end
-
-
-function m.PpuStatusRead(regs: Regs, internalRegs: InternalRegs)
-    local oldStatus = regs.PPUSTATUS
-    regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
-    internalRegs.w = false
-    return oldStatus   -- Todo: Consider making bits 0-4 "open bus"
-end
-
-
-function m.OamAddrWrite(regs: Regs, val: u8)
-    regs.OAMADDR  = val
-end
-
-
-function m.OamDataRead(regs: Regs, OAM: buffer)
-    return RU8(OAM, regs.OAMADDR)
-end
-
-
-function m.OamDataWrite(
-    regs: Regs, val: u8, cyclesThisFrame: number, oam: buffer
-)
-    if not _isInVBlank(_getScanline(cyclesThisFrame))
-        and _isRenderingEnabled(regs.PPUMASK) then
-        return
-    end
-    
-    WU8(oam, regs.OAMADDR, val)
-    regs.OAMADDR = _u8(regs.OAMADDR, regs.OAMADDR + 1)
-end
-
-
-function m.PpuScrollWrite(iRegs: InternalRegs, val: u8)
-    if not iRegs.w then
-        iRegs.t = VRamAddress.Set("X", iRegs.t, RSHIFT(val, 3))
-        iRegs.x = BAND(val, 0x07)
-    else
-        iRegs.t = VRamAddress.Set("Y", iRegs.t, RSHIFT(val, 3))
-        iRegs.t = VRamAddress.Set("y", iRegs.t, BAND(val, 0x07))
-    end
-
-    iRegs.w = not iRegs.w
-end
-
-
-function m.PpuAddrWrite(iRegs: InternalRegs, val: u8)
-    if not iRegs.w then
-        iRegs.v = BAND(iRegs.v, 0x00FF) + LSHIFT(BAND(val, 0x7F), 8)
-    else
-        iRegs.v = BAND(iRegs.v, 0xFF00) + val
-    end
-
-    iRegs.w = not iRegs.w
-end
-
-
-function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
-    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
-    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
-end
-
-
-function m.PpuDataRead(bus: Bus, regs: Regs, iRegs: InternalRegs)
-    local oldRead = regs.PPUDATA
-    local oldAddr = iRegs.v
-    regs.PPUDATA = bus.Read(iRegs.v)
-
-    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
-
-    -- Palette ram on later PPUs returned instantly
-    if oldAddr >= 0x3F00 and oldAddr <= 0x3FFF then
-        return regs.PPUDATA
-    end
-
-    return oldRead
-end
-
-
-function m.PpuDataWrite(bus: Bus, regs: Regs, iRegs: InternalRegs, val: u8)
-    bus.Write(iRegs.v, val)
-    _incrementVRamAddressAfterCpuAccess(regs, iRegs)
-end
-
-
-function m.OamDmaWrite()
-    -- Writing XX will upload 256 bytes from the CPU page XX00-XXFF to OAM.
-    -- CPU is delayed for 513 cycles + 1 if on a 'put' cycle (?)
-        -- Put and Get cycles alternate; initial state is random
-end
-
-
-function m.NewPaletteControl(regs: Regs): (Peripheral)
-    local b = buffer.create(0x20)
-
-    local function _offset(addr: u16)
-        local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
-        -- offset = if offset%4 == 0 then 0 else offset
-        return offset
-    end
-
-    local function _read(addr: u16)
-        local offset = _offset(addr)
-        
-        local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
-        local color = RU8(b, offset)
-        return if not isGreyscale then color else BAND(color, 0x30)
-    end
-
-    local function _write(addr: u16, val: u8)
-        WU8(b, _offset(addr), val)
-    end
-
-    return {
-        Read = _read,
-        Write = _write
-    }
-end
-
-
-function m.NewVRam(_getIsMirroringVertical: () -> boolean): (Peripheral)
-    local b = buffer.create(0x800)
-
-    local function _offset(addr: u16)
-        local offset
-        if _getIsMirroringVertical() then
-            offset = h.UnmirrorAddress(addr, 0x2000, 0x800)
-        else
-            if addr < 0x2800 then
-                offset = h.UnmirrorAddress(addr, 0x2000, 0x400)
-            else
-                offset = h.UnmirrorAddress(addr, 0x2800, 0x400)
-            end
-        end
-        return offset
-    end
-
-    local function _read(addr: u16)
-        return RU8(b, _offset(addr))
-    end
-
-    local function _write(addr: u16, val: u8)
-        WU8(b, _offset(addr), val)
-    end
-
-    return {
-        Read = _read,
-        Write = _write
-    }
-end
-
-
-function m.MapPeripherals(
-    bus: Bus,
-    vram: Peripheral,
-    paletteControl: Peripheral
-)
-    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x2FFF), vram)
-    h.MapPeripheral(bus, NumberRange.new(0x3F00, 0x3FFF), paletteControl)
-end
-
-
-function m.NewOAM()
-    return buffer.create(0x40)
-end
-
-
-function _newInternalState(): InternalState
-    return {
-        Registers = {
-            PPUCTRL = 0x00, PPUMASK = 0x00, PPUSTATUS = 0xA0, PPUDATA = 0x00,
-            OAMADDR = 0x00,
-        },
-        InternalRegisters = {
-            v = 0x0000, t = 0x0000,
-            x = 0x000,  w = false
-        },
-        Latches = {
-            Nametable = 0x00, AttributeTable = 0x00, 
-            PatternTableTileLow = 0x00, PatternTableTileHigh = 0x00
-        },
-        Shifters = {
-            PatternLo = 0x00,   PatternHi = 0x00,
-            AttributeLo = 0x00, AttributeHi = 0x00
-        },
-        OAM = buffer.create(0x40),
-        FrameCounter = 0
-    }
-end
-
-
-function m.New(
-    _nmi: () -> (),
-    _onFrameComplete: () -> (),
-    _setPixelColorForCycle: (i: number, color: u8) -> ()
-): PPU
-    return {
-        InternalState = _newInternalState(),
-        ExecutionState = {Clock = 0, Cycles = 0},
-
-        TriggerNmi = _nmi,
-        OnFrameComplete = _onFrameComplete,
-        SetPixelForCycle = _setPixelColorForCycle
-    }
-end
 
 m.GetPixelValue = _getPixelValue
 m.GetTileAddressFromVRamAddress = _getTileAddressFromVRamAddress

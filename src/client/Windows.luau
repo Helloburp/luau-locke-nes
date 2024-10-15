@@ -6,12 +6,6 @@ local T_DEBUG = require(root["Debug.types"])
 type NES = T_NES.NES
 type DebugLog = T_DEBUG.DebugLog
 
-
-export type EmulationState = {
-    Running: boolean,
-    BreakComment: string
-}
-
 local m = {}
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
@@ -19,6 +13,7 @@ local Iris = require(game.ReplicatedStorage.Packages.Iris)
 local Log = require(root.Log)
 local Debug = require(root.Debug)
 local C_DISPLAY = require(root["Display.constants"])
+local C_NES = require(root["NES.constants"])
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
@@ -100,7 +95,7 @@ end
 
 
 function m.Execution(
-    myNes: NES, myLog: DebugLog, state: EmulationState,
+    myNes: NES, myLog: DebugLog, state,
     _myClock: (NES) -> ()
 )
     Iris.Text{(function()
@@ -142,6 +137,18 @@ function m.Execution(
         if Iris.Button("Step to VBlank").clicked() then
             Debug.StepToVBlank(myNes, _myClock)
         end
+    end
+    Iris.End()
+    Iris.InputNum({"Clock speed (hz)", 500}, {number =  state.ClockSpeedState})
+    Iris.SameLine()
+    if Iris.Button("Realtime").clicked() then
+        state.ClockSpeedState:set(C_NES.MASTER_CLOCK_HZ_NTSC/60/4)
+    end
+    if Iris.Button("1/2 Realtime").clicked() then
+        state.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/2/4))
+    end
+    if Iris.Button("1/8 Realtime").clicked() then
+        state.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4))
     end
     Iris.End()
     if state.BreakComment ~= "" then

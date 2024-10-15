@@ -12,7 +12,6 @@ type Bus = T_H.Bus
 
 
 local Windows = require(script.Parent.Windows)
-export type EmulationState = Windows.EmulationState
 
 
 local m = {}
@@ -23,6 +22,8 @@ local Nes = require(root.NES)
 local Display = require(root.Display)
 local Debug = require(root.Debug)
 local C_DISPLAY = require(root["Display.constants"])
+local C_PPU = require(root["PPU.constants"])
+local C_NES = require(root["NES.constants"])
 local h = require(root.Helpers)
 local RunService = game:GetService("RunService")
 
@@ -33,9 +34,10 @@ function m.NewIrisHook(
     myCartridge: Cartridge
 )
     local myNes: NES
-    local state: EmulationState = {
+    local state = {
         Running = false,
-        BreakComment = ""
+        BreakComment = "",
+        ClockSpeedState = Iris.State(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4)
     }
     
     local windowStates = {
@@ -68,7 +70,12 @@ function m.NewIrisHook(
         for nt = 0, 3 do
             t[nt] = _addStatelyRenderBuffer(
                 SIZES.NAMETABLE, function(b, image)
-                    Display.RefreshNametable(b, image, myNes.PpuBus, nt)
+                    Display.RefreshNametable(
+                        b, image, myNes.PpuBus, nt,
+                        C_PPU.BITFIELD_UTIL.PpuControl.GetBit(
+                            "B", myNes.Ppu.InternalState.Registers.PPUCTRL
+                        )
+                    )
                 end
             )
         end
@@ -120,7 +127,7 @@ function m.NewIrisHook(
 
 
     RunService.Heartbeat:Connect(function()
-        for x = 1, 2500 do
+        for x = 1, state.ClockSpeedState:get() do
             if not state.Running then continue end
             _myClock(myNes)
         end

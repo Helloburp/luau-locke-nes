@@ -55,6 +55,15 @@ function m.UnmirrorAddress(
 end
 
 
+-- Credit: https://stackoverflow.com/q/2602823
+function m.ReverseBitOrderU8(w: u8)
+    w = RSHIFT(BAND(w, 0xF0), 4) + LSHIFT(BAND(w, 0x0F), 4)
+    w = RSHIFT(BAND(w, 0xCC), 2) + LSHIFT(BAND(w, 0x33), 2)
+    w = RSHIFT(BAND(w, 0xAA), 1) + LSHIFT(BAND(w, 0x55), 1)
+    return w
+end
+
+
 --[[
     Counts the numbers of trailing zeroes for a binary number
 ]]

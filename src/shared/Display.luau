@@ -53,10 +53,11 @@ end
 
 
 function m.RefreshNametable(
-    b: buffer, image: EditableImage, ppuBus: Bus, nametable: number
+    b: buffer, image: EditableImage, ppuBus: Bus,
+    nametable: number, rightPatternTable: boolean
 )
     m.DrawNametable(
-        ppuBus, nametable, m.NewWriteColorValueToBuffer(b)
+        ppuBus, nametable, rightPatternTable, m.NewWriteColorValueToBuffer(b)
     )
     m.WriteBufferToImage(b, image)
 end
@@ -79,7 +80,7 @@ end
 
 
 function m.DrawNametable(
-    ppuBus: Bus, nametable: number,
+    ppuBus: Bus, nametable: number, rightPatternTable: boolean,
     _setPixelColor: (i: number, color: u8) -> ()
 )
     for tileY = 0, 29 do
@@ -106,7 +107,7 @@ function m.DrawNametable(
                     (if h.GetBit(attrOffset + 1, attr) then 2 else 0)
 
                 local lo, hi = _getLowAndHighPatternValues(
-                    ppuBus, false, tile, fineY
+                    ppuBus, rightPatternTable, tile, fineY
                 )
 
                 m.RenderTileStrip(

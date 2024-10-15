@@ -120,4 +120,20 @@ return function()
             _newTest(0b1110, 0b0110, 1, 0b11)()
         end)
     end)
+
+    describe("U8 Reversal", function()
+        local function _newTest(w: number, result: number)
+            expect(m.ReverseBitOrderU8(w)).to.equal(result)
+        end
+
+        it("Arithmetic", function()
+            _newTest(0xFF, 0xFF)
+            _newTest(0xF0, 0x0F)
+            _newTest(0x0F, 0xF0)
+            _newTest(0x80, 0x01)
+            _newTest(0x08, 0x10)
+            _newTest(0b10101010, 0b01010101)
+            _newTest(0b01010101, 0b10101010)
+        end)
+    end)
 end

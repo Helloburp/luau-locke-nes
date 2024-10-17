@@ -172,23 +172,32 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     return {
         Iris = function()
             Windows.WindowControl(windowStates)
-            _stateWindow({"PPU Viewer"}, windowStates.PpuViewer, function()
-                Windows.PpuViewer({
-                    patternTables[0].Image, patternTables[1].Image
-                },
-                {
-                    nametables[0].Image, nametables[1].Image,
-                    nametables[2].Image, nametables[3].Image
-                },
-                palette.Image, _getStateByImage
+            _stateWindow(
+                {"PPU Viewer"}, Vector2.new(500, 700), windowStates.PpuViewer,
+                function()
+                    Windows.PpuViewer({
+                        patternTables[0].Image, patternTables[1].Image
+                    },
+                    {
+                        nametables[0].Image, nametables[1].Image,
+                        nametables[2].Image, nametables[3].Image
+                    },
+                    palette.Image, _getStateByImage
+                )
+                end
             )
-            end)
-            _stateWindow({"Screen"}, windowStates.Screen, function()
-                Windows.Screen(screen.Image)
-            end)
-            _stateWindow({"Execution"}, windowStates.Execution, function()
-                Windows.Execution(myNes, myLog, state, _myClock)
-            end)
+            _stateWindow(
+                {"Screen"}, SIZES.SCREEN, windowStates.Screen,
+                function()
+                    Windows.Screen(screen.Image)
+                end
+            )
+            _stateWindow(
+                {"Execution"}, nil, windowStates.Execution,
+                function()
+                    Windows.Execution(myNes, myLog, state, _myClock)
+                end
+            )
         end,
 
         Destroy = function()
@@ -206,14 +215,15 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
             Nametables = nametables, Palette = palette
         },
         WindowStates = windowStates,
+        RunningState = state
     }
 end
 
 
 function _stateWindow(
-    args, openState, _iris: () -> ()
+    args, size, openState, _iris: () -> ()
 )
-    Iris.Window(args, {isOpened = openState})
+    Iris.Window(args, {size = size, isOpened = openState})
     _iris()
     Iris.End()
 end

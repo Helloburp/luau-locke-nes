@@ -19,6 +19,9 @@ local C_NES = require(root["NES.constants"])
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+
 
 function m.WindowControl(states)
     for uiName, state in pairs(states) do
@@ -53,34 +56,69 @@ function m.PpuViewer(
         _irisEditableImage(paletteView, SIZES.PALETTES*10)
     end
 
-    local function _nametables()
-        Iris.SameLine()
-        for nt = 0, 3 do
-            Iris.Checkbox(
-                `NT {nt}`, {
-                    isChecked = _getIrisStateByImage(nametableViews[nt + 1])
-                }
-            )
-        end
-        Iris.End()
-        Iris.SameLine()
-        _irisEditableImage(nametableViews[1], SIZES.NAMETABLE)
-        _irisEditableImage(nametableViews[2], SIZES.NAMETABLE)
-        Iris.End()
-        Iris.SameLine()
-        _irisEditableImage(nametableViews[3], SIZES.NAMETABLE)
-        _irisEditableImage(nametableViews[4], SIZES.NAMETABLE)
-        Iris.End()
+
+    local function _getTileInNametableImage(guiObject: GuiObject): Vector2?
+        local mouse = UserInputService:GetMouseLocation()
+            - GuiService:GetGuiInset()
+        local relOffset = mouse - guiObject.AbsolutePosition
+        local size = guiObject.AbsoluteSize
+        if not (relOffset.X >= 0 and relOffset.Y >= 0) then return end
+        if not (relOffset.X < size.X and relOffset.Y < size.Y) then return end
+
+        local sizeRatio = Vector2.new(
+            SIZES.NAMETABLE.X/size.X,
+            SIZES.NAMETABLE.Y/size.Y
+        )
+
+        return Vector2.new(
+            math.floor(relOffset.X * sizeRatio.X/8),
+            math.floor(relOffset.Y * sizeRatio.Y/8)
+        )
     end
 
-    Iris.Tree("Pattern Tables")
+    local function _nametables()
+        Iris.SameLine()
+        do
+            for nt = 0, 3 do
+                Iris.Checkbox(
+                    `NT {nt}`, {
+                        isChecked = _getIrisStateByImage(nametableViews[nt + 1])
+                    }
+                )
+            end
+            for nt = 0,3 do
+                local view = nametableViews[nt + 1]
+                local parent = (view.Parent and view.Parent:IsA("GuiObject"))
+                    and view.Parent
+                    or nil
+                
+                if not parent then continue end
+                local offset = _getTileInNametableImage(parent)
+                if not offset then continue end
+                Iris.Text(`({offset.X}, {offset.Y})`)
+            end
+        end
+        Iris.End()
+        do
+            Iris.SameLine()
+            _irisEditableImage(nametableViews[1], SIZES.NAMETABLE)
+            _irisEditableImage(nametableViews[2], SIZES.NAMETABLE)
+            Iris.End()
+            Iris.SameLine()
+            _irisEditableImage(nametableViews[3], SIZES.NAMETABLE)
+            _irisEditableImage(nametableViews[4], SIZES.NAMETABLE)
+            Iris.End()
+        end
+    end
+
+    Iris.Tree("Pattern Tables", {isUncollapsed = true})
     do
         _patternTables()
         _palattes()
     end
     Iris.End()
 
-    Iris.Tree("Nametables")
+    Iris.Tree("Nametables", {isUncollapsed = true})
     _nametables()
     Iris.End()
 end
@@ -175,6 +213,8 @@ function _irisEditableImage(
     local image = Iris.Image(_arguments).Instance :: ImageLabel
     editableImage.Parent = image
     image.ResampleMode = Enum.ResamplerMode.Pixelated
+
+    return image
 end
 
 

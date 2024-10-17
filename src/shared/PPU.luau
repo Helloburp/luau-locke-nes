@@ -414,8 +414,8 @@ end
 
 function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
     return (
-        VRamAddress.Get("X", vramAddr)%2 +
-        VRamAddress.Get("Y", vramAddr)%2 * 2
+        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
+        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
     ) * 2
 end
 
@@ -423,11 +423,9 @@ function _reloadShifters(
     latches: Latches, shifters: Shifters, vramAddr: u16
 )
 
-    local offsetInAttributeByte = (
-        VRamAddress.Get("X", vramAddr)%2 +
-        VRamAddress.Get("Y", vramAddr)%2 * 2
-    ) * 2
-    
+    local offsetInAttributeByte =
+        _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
+
     shifters.AttributeLo = BAND(shifters.AttributeLo, 0x00FF) +
         LSHIFT(
             0xFF * if h.GetBit(

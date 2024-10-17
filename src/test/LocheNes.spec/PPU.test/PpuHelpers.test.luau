@@ -7,6 +7,8 @@ local m = require(root.PPU)
 local h = require(root.Helpers)
 
 local T = require(root["PPU.types"])
+local C = require(root["PPU.constants"])
+local VRamAddress = C.BITFIELD_UTIL.VRamAddress
 
 
 return function()
@@ -85,5 +87,23 @@ return function()
         -- Pattern value is 0; falls to backdrop
         expect(m.GetColorByPixelValue(0b01100, bus))
             .to.equal(0xEE)
+    end)
+
+    describe("AttributeAddress Computation", function()
+        expect(m.GetAttributeAddressFromVRamAddress(
+            0x2000
+        )).to.equal(0x23C0)
+        expect(m.GetAttributeAddressFromVRamAddress(
+            0x2001
+        )).to.equal(0x23C0)
+        expect(m.GetAttributeAddressFromVRamAddress(
+            0x2002
+        )).to.equal(0x23C0)
+        expect(m.GetAttributeAddressFromVRamAddress(
+            0x2009
+        )).to.equal(0x23C2)
+        expect(m.GetAttributeAddressFromVRamAddress(
+            0x200A
+        )).to.equal(0x23C2)
     end)
 end

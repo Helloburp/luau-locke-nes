@@ -6,8 +6,8 @@ local Parse = require(root.Parse)
 local UI = require(script.UI)
 local API = require(root.API)
 
-local ROM_NAME = "DK.nes"
-local SAVESTATE_NAME = "dk_demo"
+local ROM_NAME = "IceClimber.nes"
+local SAVESTATE_NAME = nil -- "dk_demo"
 
 local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
@@ -34,9 +34,10 @@ game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 -- Debugging
 do
     local _myNes = myUi.Nes
-    myUi.WindowStates.Screen:set(true)
-    myUi.WindowStates.Execution:set(true)
-
+    myUi.WindowStates.Screen:set(false)
+    myUi.WindowStates.Execution:set(false)
+    myUi.WindowStates.PpuViewer:set(true)
+    myUi.RunningState.Running = false
 end
 
 Iris:Connect(myUi.Iris)

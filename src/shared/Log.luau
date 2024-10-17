@@ -131,10 +131,11 @@ end
 function m.CompareCpuLog(
     cpu: CPU, cpuBus: Bus, goodLog: LogBreakdown
 ): (boolean, string?)
+    local state = cpu.State
     local pcLog, regLog, cycLog =
-        m.GetLogPc(cpu.Registers.PC, cpuBus),
-        m.GetLogRegs(cpu.Registers),
-        m.GetLogCycles(cpu.ExecutionState.Clock)
+        m.GetLogPc(state.Registers.PC, cpuBus),
+        m.GetLogRegs(state.Registers),
+        m.GetLogCycles(state.ExecutionState.Clock)
 
     if pcLog ~= goodLog.PC then 
         return false, `Expected PC to be {goodLog.PC}, got {pcLog} instead.`
@@ -153,7 +154,7 @@ end
 function m.ComparePpuLog(
     ppu: PPU, goodPpuLog: string
 ): (boolean, string?)
-    local ppuLog = m.GetLogPpu(ppu.ExecutionState.Cycles)
+    local ppuLog = m.GetLogPpu(ppu.State.ExecutionState.Cycles)
     if ppuLog ~= goodPpuLog then
         return false, `Expected Ppu to be {goodPpuLog}, got {ppuLog} instead.`
     end

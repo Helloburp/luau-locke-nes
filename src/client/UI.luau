@@ -5,8 +5,9 @@ local T_DEBUG = require(root["Debug.types"])
 local T_H = require(root["Helpers.types"])
 
 
-type NES = T_NES.NES
-type Cartridge = T_NES.Cartridge
+type NES<T> = T_NES.NES<T>
+type IDisplay = T_NES.IDisplay
+
 type DebugLog = T_DEBUG.DebugLog
 type Debugger = T_DEBUG.Debugger
 type Bus = T_H.Bus
@@ -27,14 +28,36 @@ local C_PPU = require(root["PPU.constants"])
 local C_NES = require(root["NES.constants"])
 local h = require(root.Helpers)
 local RunService = game:GetService("RunService")
+local API = require(root.API)
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
 
-function m.NewIrisHook(
-    myCartridge: Cartridge
-)
-    local myNes: NES
+function m.NewScreenBuffer()
+    return Display.NewDisplayBuffer(SIZES.SCREEN)
+end
+
+
+function m.NewBufferDisplayInterface(b: buffer): IDisplay
+    return {
+        OnFrameComplete = function() end,
+        SetPixelForPpuCycle = Display.NewPlacePixelInFrame(
+            Display.NewWriteColorValueToBuffer(b)
+        ),
+    }
+end
+
+
+function m.FromRom(rom: buffer, state)
+    local screenBuffer = m.NewScreenBuffer()
+    local display = m.NewBufferDisplayInterface(screenBuffer)
+    local myNes = API.Nes(rom, display, state)
+
+    return m.NewIrisHook(myNes, screenBuffer)
+end
+
+
+function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     local state = {
         Running = false,
         BreakComment = "",
@@ -48,8 +71,12 @@ function m.NewIrisHook(
     }
 
     local statelyBufferData = {}
-    local function _addStatelyRenderBuffer(size, _fn, defaultState)
-        local result = _newStateControlledRenderBuffer(size, _fn, defaultState)
+    local function _addStatelyRenderBuffer(
+        size, _fn, defaultState, existingBuffer
+    )
+        local result = _newStateControlledRenderBuffer(
+            size, _fn, defaultState, existingBuffer
+        )
         table.insert(statelyBufferData, result)
         return result
     end
@@ -63,7 +90,8 @@ function m.NewIrisHook(
     end
 
     local screen = _addStatelyRenderBuffer(
-        SIZES.SCREEN, Display.WriteBufferToImage, windowStates.Screen
+        SIZES.SCREEN, Display.WriteBufferToImage,
+        windowStates.Screen, screenBuffer
     )
 
     local nametables = (function()
@@ -74,7 +102,7 @@ function m.NewIrisHook(
                     Display.RefreshNametable(
                         b, image, myNes.PpuBus, nt,
                         C_PPU.BITFIELD_UTIL.PpuControl.GetBit(
-                            "B", myNes.Ppu.InternalState.Registers.PPUCTRL
+                            "B", myNes.Ppu.State.Registers.PPUCTRL
                         )
                     )
                 end
@@ -103,12 +131,6 @@ function m.NewIrisHook(
         end, true
     )
 
-    myNes = Nes.New(
-        function() end, Display.NewPlacePixelInFrame(
-            Display.NewWriteColorValueToBuffer(screen.Buffer)
-        ),
-        myCartridge
-    )
 
     local CpuDebugger = Debug.Debugger(function(context)
         state.Running = false
@@ -127,7 +149,7 @@ function m.NewIrisHook(
     local _myClock = Debug.LogClock(Nes.Clock, myLog, 5)
 
 
-    RunService.Heartbeat:Connect(function()
+    local con_heartbeat = RunService.Heartbeat:Connect(function()
         for x = 1, state.ClockSpeedState:get() do
             if not state.Running then continue end
             _myClock(myNes)
@@ -168,6 +190,14 @@ function m.NewIrisHook(
                 Windows.Execution(myNes, myLog, state, _myClock)
             end)
         end,
+
+        Destroy = function()
+            con_heartbeat:Disconnect()
+            for _, v in pairs(statelyBufferData) do
+                v.Image:Destroy()
+            end
+        end,
+
         CpuDebugger = CpuDebugger,
         PpuDebugger = PpuDebugger,
         Nes = myNes,
@@ -175,7 +205,7 @@ function m.NewIrisHook(
             Screen = screen, PatternTables = patternTables,
             Nametables = nametables, Palette = palette
         },
-        WindowStates = windowStates
+        WindowStates = windowStates,
     }
 end
 
@@ -190,9 +220,12 @@ end
 
 
 function _newStateControlledRenderBuffer(
-    size: Vector2, _render: (buffer, EditableImage) -> (), stateValue: boolean? | any?
+    size: Vector2,
+    _render: (buffer, EditableImage) -> (),
+    stateValue: boolean? | any?,
+    existingBuffer: buffer?
 )
-    local b, image = Display.NewBufferImagePair(size)
+    local b, image = Display.NewBufferImagePair(size, existingBuffer)
     local state = if stateValue == nil or typeof(stateValue == "boolean")
         then Iris.State(stateValue or false)
         else stateValue

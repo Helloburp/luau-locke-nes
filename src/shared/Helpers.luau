@@ -192,6 +192,13 @@ function m.MapPeripheral(
 end
 
 
+function m.CopyBuffer(b: buffer): buffer
+    local newBuffer = buffer.create(buffer.len(b))
+    buffer.copy(newBuffer, 0, b)
+    return newBuffer
+end
+
+
 function m.NewDebugBus(): Bus
     local t = {}
     return {

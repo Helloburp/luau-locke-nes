@@ -15,6 +15,9 @@
       },
       "Roms": {
         "$path": "roms"
+      },
+      "Savestates": {
+        "$path": "savestates"
       }
     },
 

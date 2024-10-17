@@ -4,6 +4,7 @@ local root = script.Parent
 local Ppu = require(root.PPU)
 local Cpu = require(root.CPU)
 local CpuPeripherals = require(root.CPUPeripherals)
+local PpuPeripherals = require(root.PPUPeripherals)
 
 local Instructions = require(root.Instructions)
 local AddressingModes = require(root.AddressingModes)
@@ -12,18 +13,23 @@ local h = require(root.Helpers)
 
 local T_H = require(root["Helpers.types"])
 type u8 = T_H.u8
+type u16 = T_H.u16
 type Peripheral = T_H.Peripheral
 
 local T = require(root["NES.types"])
-type NES = T.NES
-type Cartridge = T.Cartridge
+type NES<MapperState> = T.NES<MapperState>
+type Cartridge<MapperState> = T.Cartridge<MapperState>
+type State<MapperState> = T.State<MapperState>
+type IMapper<MapperState> = T.IMapper<MapperState>
+type IDisplay = T.IDisplay
+
 
 
 local m = {}
 
 
 -- Clock amounts divided by 4 (common denominator)
-function m.Clock(nes: NES)
+function m.Clock<T>(nes: NES<T>)
     Ppu.Clock(nes.Ppu, nes.PpuBus)
 
     -- An offset of 1 allows for accurate syncronization.
@@ -35,40 +41,69 @@ function m.Clock(nes: NES)
 end
 
 
-function m.New(
-    _onFrameComplete: () -> (),
-    _setPixelForPpuCycle: (cycleInFrame: number, color: u8) -> (),
-    cartridge: Cartridge
-): NES
-    local nes: NES
+function m.NewState<MapperState>( mapperState: MapperState): State<MapperState>
+    return {
+        Mapper = mapperState,
+        Cpu = Cpu.NewState(),
+        CpuPeripherals = CpuPeripherals.NewState(),
+        Ppu = Ppu.NewState(),
+        PpuPeripherals = PpuPeripherals.NewState()
+    }
+end
+
+
+function m.CopyState<MapperState>(
+    state: State<MapperState>,
+    _copyMapperState: (MapperState) -> MapperState
+): State<MapperState>
+    return {
+        Mapper = _copyMapperState(state.Mapper),
+        Cpu = Cpu.CopyState(state.Cpu),
+        CpuPeripherals = CpuPeripherals.CopyState(state.CpuPeripherals),
+        Ppu = Ppu.CopyState(state.Ppu),
+        PpuPeripherals = PpuPeripherals.CopyState(state.PpuPeripherals),
+    }
+end
+
+
+function m.New<MapperState>(
+    displayInterface: IDisplay,
+    mapperInterface: IMapper<MapperState>,
+    state: State<MapperState>
+): NES<MapperState>
+    local nes: NES<MapperState>
     local cpuBus = h.NewBus()
     local ppuBus = h.NewBus()
+
+    local cartridge = mapperInterface.NewCartridge(state.Mapper)
 
     -- The cartridge can effectively map & observe all reads and writes.
     h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
     h.MapPeripheral(ppuBus, nil, cartridge.PpuPeripheral)
 
     local function _nmi()
-        nes.Cpu.NMIInput = true
+        nes.Cpu.State.NMIInput = true
     end
 
 
-    local cpu = Cpu.New(AddressingModes, Instructions)
-    local ppu = Ppu.New(_nmi, _onFrameComplete, _setPixelForPpuCycle)
-
-    CpuPeripherals.MapPeripherals(
-        cpuBus,
-        CpuPeripherals.NewInternalRam(),
-        CpuPeripherals.NewPpuRegisters(ppu, ppuBus),
-        CpuPeripherals.NewOAMDMA(cpuBus, ppu.InternalState.OAM)
+    local cpu = Cpu.New(AddressingModes, Instructions, state.Cpu)
+    local ppu = Ppu.New(
+        _nmi,
+        displayInterface.OnFrameComplete,
+        displayInterface.SetPixelForPpuCycle,
+        state.Ppu
     )
 
-    Ppu.MapPeripherals(
+    CpuPeripherals.MapPeripheralsFromState(
+        cpuBus, ppuBus, ppu, state.Ppu.OAM, state.CpuPeripherals
+    )
+
+    PpuPeripherals.MapPeripheralsFromState(
         ppuBus,
-        Ppu.NewVRam(cartridge.GetIsMirroringVertical),
-        Ppu.NewPaletteControl(ppu.InternalState.Registers)
+        state.Ppu.Registers,
+        cartridge.GetIsMirroringVertical,
+        state.PpuPeripherals
     )
-    cpu.Registers.PC = h.ReadAddressFromVector(cpuBus, 0xFFFC)
 
     nes = {
         Cpu = cpu,
@@ -76,10 +111,19 @@ function m.New(
         CpuBus = cpuBus,
         PpuBus = ppuBus,
 
+        State = state,
+        Mapper = mapperInterface,
+
         Clock = 0
     }
 
     return nes
+end
+
+
+-- Not complete/accurate. Just used for starting programs
+function m.Reset<T>(nes: NES<T>)
+    nes.Cpu.State.Registers.PC = h.ReadAddressFromVector(nes.CpuBus, 0xFFFC)
 end
 
 return m

@@ -58,12 +58,13 @@ function m.LogClock(
     _clock: (NES) -> (), log: DebugLog, maxLogHistory: number
 ): (NES) -> ()
     return function(nes: NES)
-        local oldCpuCycle = nes.Cpu.ExecutionState.Cycles
+        local cpuState = nes.Cpu.State
+        local oldCpuCycle = cpuState.ExecutionState.Cycles
         _clock(nes)
 
-        if nes.Cpu.ExecutionState.Cycles > oldCpuCycle then
-            table.insert(log.PCHistory, nes.Cpu.Registers.PC)
-            table.insert(log.RegsHistory, table.clone(nes.Cpu.Registers))
+        if cpuState.ExecutionState.Cycles > oldCpuCycle then
+            table.insert(log.PCHistory, cpuState.Registers.PC)
+            table.insert(log.RegsHistory, table.clone(cpuState.Registers))
             if #log.PCHistory <= maxLogHistory then return end
             table.remove(log.PCHistory, 1)
             table.remove(log.RegsHistory, 1)
@@ -73,21 +74,22 @@ end
 
 
 function m.StepCpuInstruction(nes: NES, _clock: (NES) -> ())
-    while nes.Cpu.ExecutionState.Cycles > 0 do
+    local cpuState = nes.Cpu.State
+    while cpuState.ExecutionState.Cycles > 0 do
         _clock(nes)
     end
-    local lastClock = nes.Cpu.ExecutionState.Clock
-    while nes.Cpu.ExecutionState.Clock == lastClock do
+    local lastClock = cpuState.ExecutionState.Clock
+    while cpuState.ExecutionState.Clock == lastClock do
         _clock(nes)
     end
 end
 
 function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
     local state = C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
-        "V", nes.Ppu.InternalState.Registers.PPUSTATUS
+        "V", nes.Ppu.State.Registers.PPUSTATUS
     ) 
     while state == C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
-        "V", nes.Ppu.InternalState.Registers.PPUSTATUS
+        "V", nes.Ppu.State.Registers.PPUSTATUS
     ) 
     do
         _clock(nes)

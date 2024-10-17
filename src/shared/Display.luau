@@ -29,9 +29,12 @@ function m.NewPlacePixelInFrame(_setColor: (i: number, color: u8) -> ())
     end
 end
 
+function _displayBufferSize(imageSize: Vector2): number
+    return imageSize.X * imageSize.Y * 4
+end
 
 function m.NewDisplayBuffer(imageSize: Vector2): buffer
-    return buffer.create(imageSize.X * imageSize.Y * 4)
+    return buffer.create(_displayBufferSize(imageSize))
 end
 
 
@@ -182,8 +185,12 @@ function m.DrawPatternTable(
 end
 
 
-function m.NewBufferImagePair(size: Vector2): (buffer, EditableImage)
-    local b = m.NewDisplayBuffer(size)
+function m.NewBufferImagePair(
+    size: Vector2, existingBuffer: buffer?
+): (buffer, EditableImage)
+    local b = existingBuffer or m.NewDisplayBuffer(size)
+    assert(buffer.len(b) == _displayBufferSize(size))
+
     local editableImage = Instance.new("EditableImage")
     editableImage.Size = size
 

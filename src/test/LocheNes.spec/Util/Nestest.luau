@@ -45,7 +45,7 @@ function m.RunNesTest(
     _onEnd: (() -> ()),  -- When PC reaches C663
     _shouldAbort: () -> (boolean)
 ): (boolean, string?)
-    local executionState, regs = cpu.ExecutionState, cpu.Registers
+    local executionState, regs = cpu.State.ExecutionState, cpu.State.Registers
     local _getNextLog = Log.IterLogMultiple(LOGFILES)
 
     local instructionNumber = 0
@@ -69,7 +69,7 @@ function m.RunNesTest(
         else function() return true end
 
     -- Enable automation mode
-    cpu.Registers.PC = 0xC000
+    cpu.State.Registers.PC = 0xC000
     
     while executionState.Clock < maxCycles and not _shouldAbort() do
         if executionState.Cycles == 0 then

@@ -16,6 +16,11 @@ type u8 = T_H.u8
 type u16 = T_H.u16
 
 
+local T = require(script.Parent["CPUPeripherals.types"])
+type State = T.State
+
+
+
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
@@ -34,6 +39,19 @@ function m.MapPeripherals(
 end
 
 
+function m.MapPeripheralsFromState(
+    cpuBus: Bus, ppuBus: Bus, ppu: PPU, oam: buffer,
+    state: State
+)
+    m.MapPeripherals(
+        cpuBus,
+        m.NewInternalRam(state.InternalRam),
+        m.NewPpuRegisters(ppu, ppuBus),
+        m.NewOAMDMA(cpuBus, oam)
+    )
+end
+
+
 function m.NewOAMDMA(cpuBus: Bus, oam: buffer): (Peripheral)
     local function _write(addr: u16, val: u8)
         return false
@@ -45,10 +63,10 @@ function m.NewOAMDMA(cpuBus: Bus, oam: buffer): (Peripheral)
 end
 
 
-function m.NewPpuRegisters(ppu: PPU, bus: Bus): (Peripheral)
+function m.NewPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
 
     local iState, executionState, _nmi =
-        ppu.InternalState, ppu.ExecutionState, ppu.TriggerNmi
+        ppu.State, ppu.State.ExecutionState, ppu.TriggerNmi
     
     local regs, iRegs =
         iState.Registers, iState.InternalRegisters
@@ -64,7 +82,7 @@ function m.NewPpuRegisters(ppu: PPU, bus: Bus): (Peripheral)
         elseif offset == 4 then
             return Ppu.OamDataRead(regs, iState.OAM)
         elseif offset == 7 then
-            return Ppu.PpuDataRead(bus, regs, iRegs)
+            return Ppu.PpuDataRead(ppuBus, regs, iRegs)
         end
 
         return nil
@@ -92,7 +110,7 @@ function m.NewPpuRegisters(ppu: PPU, bus: Bus): (Peripheral)
         elseif offset == 6 then
             Ppu.PpuAddrWrite(iRegs, val)
         elseif offset == 7 then
-            Ppu.PpuDataWrite(bus, regs, iRegs, val)
+            Ppu.PpuDataWrite(ppuBus, regs, iRegs, val)
         end
 
         return true
@@ -105,8 +123,8 @@ function m.NewPpuRegisters(ppu: PPU, bus: Bus): (Peripheral)
 end
 
 
-function m.NewInternalRam(): (Peripheral)
-    local b = buffer.create(0x800)
+function m.NewInternalRam(b: buffer): (Peripheral)
+    assert(buffer.len(b) == 0x800)
 
     local function _offset(addr: u16)
         return addr%0x800
@@ -124,6 +142,20 @@ function m.NewInternalRam(): (Peripheral)
     return {
         Read = _read,
         Write = _write
+    }
+end
+
+
+function m.NewState(): State
+    return {
+        InternalRam = buffer.create(0x800)
+    }
+end
+
+
+function m.CopyState(state: State): State
+    return {
+        InternalRam = h.CopyBuffer(state.InternalRam)
     }
 end
 

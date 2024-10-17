@@ -5,6 +5,8 @@ local T = require(script.Parent["CPU.types"])
 type CPU = T.CPU
 type Regs = T.Registers
 type StatusFlagFunctions = T.StatusFlagFunctions
+type State = T.State
+
 
 local T_H = require(script.Parent["Helpers.types"])
 
@@ -78,25 +80,26 @@ end
 
 
 function m.Clock(cpu: CPU, bus: Bus)
-    assert(cpu.ExecutionState.Cycles >= 0, "CPU cycles should be >= 0")
+    local state = cpu.State
+    assert(state.ExecutionState.Cycles >= 0, "CPU cycles should be >= 0")
 
-    if cpu.ExecutionState.Cycles == 0 then
-         cpu.ExecutionState.Cycles +=
-            if cpu.NMIInput then _nmi(cpu, bus)
+    if state.ExecutionState.Cycles == 0 then
+         state.ExecutionState.Cycles +=
+            if state.NMIInput then _nmi(cpu, bus)
 
-            elseif cpu.IRQInput and not StatusFlag.GetBit(
-                "I", cpu.Registers.STATUS
+            elseif state.IRQInput and not StatusFlag.GetBit(
+                "I", state.Registers.STATUS
             ) then _irq(cpu, bus)
 
             else m.RunInstructionAndReturnCycles(
-            cpu.Registers, bus,
+            state.Registers, bus,
             cpu.AddressingModes :: any,
             cpu.Instructions :: any
          )
     end
 
-    cpu.ExecutionState.Clock += 1
-    cpu.ExecutionState.Cycles -= 1
+    state.ExecutionState.Clock += 1
+    state.ExecutionState.Cycles -= 1
 end
 
 
@@ -108,22 +111,19 @@ end
 ]]
 
 function _nmi(cpu: CPU, bus: Bus): number
-    Instructions.Interrupt(cpu.Registers, 0xFFFA, bus, 0, false)
-    cpu.NMIInput = false
+    local state = cpu.State
+    Instructions.Interrupt(state.Registers, 0xFFFA, bus, 0, false)
+    state.NMIInput = false
     return 8
 end
 
 function _irq(cpu: CPU, bus: Bus): number
-    Instructions.Interrupt(cpu.Registers, 0xFFFE, bus, 0, false)
+    Instructions.Interrupt(cpu.State.Registers, 0xFFFE, bus, 0, false)
     return 7
 end
 
 
--- New CPU struct with values set to expected state at startup
-function m.New(
-    addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
-    instructions: {[T.EInstruction]: T.GenericInstruction}
-): CPU
+function m.NewState(): State
     return {
         Registers = m.NewRegisters(),
         ExecutionState = {
@@ -131,11 +131,32 @@ function m.New(
         },
         NMIInput = false,
         IRQInput = false,
+    }
+end
+
+
+function m.CopyState(state: State): State
+    return {
+        Registers = table.clone(state.Registers),
+        ExecutionState = table.clone(state.ExecutionState),
+        NMIInput = state.NMIInput,
+        IRQInput = state.IRQInput
+    }
+end
+
+
+-- New CPU struct with values set to expected state at startup
+function m.New(
+    addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
+    instructions: {[T.EInstruction]: T.GenericInstruction},
+    state: State?
+): CPU
+    return {
+        State = state or m.NewState(),
         AddressingModes = addressingModes,
         Instructions = instructions,
     }
 end
-
 
 
 return m

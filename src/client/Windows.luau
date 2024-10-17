@@ -4,7 +4,7 @@ local root = game.ReplicatedStorage.Shared
 local T_NES = require(root["NES.types"])
 local T_DEBUG = require(root["Debug.types"])
 
-type NES = T_NES.NES
+type NES<State> = T_NES.NES<State>
 type DebugLog = T_DEBUG.DebugLog
 
 local m = {}
@@ -13,6 +13,7 @@ local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
 local Log = require(root.Log)
 local Debug = require(root.Debug)
+local API = require(root.API)
 local C_DISPLAY = require(root["Display.constants"])
 local C_NES = require(root["NES.constants"])
 
@@ -95,9 +96,9 @@ function m.Screen(screenView: EditableImage)
 end
 
 
-function m.Execution(
-    myNes: NES, myLog: DebugLog, state,
-    _myClock: (NES) -> ()
+function m.Execution<T>(
+    myNes: NES<T>, myLog: DebugLog, state,
+    _myClock: (NES<T>) -> ()
 )
     Iris.Text{(function()
         local logTexts = {}
@@ -120,9 +121,9 @@ function m.Execution(
         return table.concat(logTexts, "\n")
     end)(), [Iris.Args.Text.RichText] = true}
 
-    Iris.Text(Log.GetLogRegs(myNes.Cpu.Registers))
-    Iris.Text(Log.GetPpuRegLog(myNes.Ppu.InternalState.Registers))
-    Iris.Text(Log.GetPpuInternalRegLog(myNes.Ppu.InternalState.InternalRegisters))
+    Iris.Text(Log.GetLogRegs(myNes.Cpu.State.Registers))
+    Iris.Text(Log.GetPpuRegLog(myNes.Ppu.State.Registers))
+    Iris.Text(Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters))
 
     Iris.SameLine()
     do
@@ -152,6 +153,9 @@ function m.Execution(
         state.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4))
     end
     Iris.End()
+    if Iris.Button("Print State").clicked() then
+        print(API.SerializeState(API.SaveState(myNes)))
+    end
     if state.BreakComment ~= "" then
         Iris.Text{
             `Breakpoint hit: {state.BreakComment}`,

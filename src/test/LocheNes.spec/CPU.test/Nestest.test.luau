@@ -33,8 +33,7 @@ return function()
 
         cpu = m.New(
             require(inst_root.AddressingModes),
-            require(inst_root.Instructions),
-            bus
+            require(inst_root.Instructions)
         )
         
         local oldRead = bus.Read

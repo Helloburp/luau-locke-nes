@@ -4,19 +4,30 @@ local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
 local Parse = require(root.Parse)
 local UI = require(script.UI)
+local API = require(root.API)
 
-local ROM_NAME = "IceClimber.nes"
+local ROM_NAME = "DK.nes"
+local SAVESTATE_NAME = "dk_demo"
 
-local rom, header do
+local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
     assert(romModule, `Unable to find rom "{ROM_NAME}!"`)
     local romStr = require(romModule)
     rom = Parse.HexStrToBuffer(romStr)
-    header = Parse.Header(rom)
 end
 
-local myCartridge = require(root.Mappers.NROM_000).NewFromRom(rom, header)
-local myUi = UI.NewIrisHook(myCartridge)
+local savestate do
+    if SAVESTATE_NAME then
+        local stateModule = game.ReplicatedStorage.Savestates
+            :FindFirstChild(SAVESTATE_NAME)
+        local stateStr = require(stateModule)
+        savestate = API.DeserializeState(stateStr)
+    else
+        savestate = nil
+    end
+end
+
+local myUi = UI.FromRom(rom, savestate)
 
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 
@@ -25,19 +36,7 @@ do
     local _myNes = myUi.Nes
     myUi.WindowStates.Screen:set(true)
     myUi.WindowStates.Execution:set(true)
-    -- myUi.Renderers.Nametables[0].State:set(true)
-    -- myUi.Renderers.PatternTables[0].State:set(true)
 
-    -- myUi.CpuDebugger.WriteBreakpoints[0x2006] = true
-    for addr = 0x3F00, 0x3FFF do
-        -- myUi.PpuDebugger.WriteBreakpoints[addr] = true
-    end
-
-    -- The drawing routine seems to be getting stuck writing
-    -- to PPU address 2002.
-    for addr = 0x2000, 0x23BF do
-        -- myUi.PpuDebugger.WriteBreakpoints[addr] = true
-    end
 end
 
 Iris:Connect(myUi.Iris)

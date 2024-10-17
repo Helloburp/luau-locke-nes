@@ -38,8 +38,9 @@ return function()
 
 
     local _doCycle = function()
-        local oldCpuClock = nes.Cpu.ExecutionState.Clock
-        while nes.Cpu.ExecutionState.Clock == oldCpuClock do
+        local state = nes.Cpu.State
+        local oldCpuClock = state.ExecutionState.Clock
+        while state.ExecutionState.Clock == oldCpuClock do
             local s, e = pcall(Nes.Clock, nes)
             if not s then return s, e end
         end

@@ -12,8 +12,7 @@ type BitfieldFunctions<T> = T.BitfieldFunctions<T>
 
 
 export type PPU = {
-    InternalState: InternalState,
-    ExecutionState: ExecutionState,
+    State: State,
 
     TriggerNmi: () -> (),
     SetPixelForCycle: (i: number, color: u8) -> (),
@@ -47,12 +46,15 @@ export type InternalRegisters = {
     w: boolean  -- 1st/second write toggle
 }
 
-export type InternalState = {
+export type State = {
+    ExecutionState: ExecutionState,
     Registers: Registers,
     InternalRegisters: InternalRegisters,
     Latches: Latches,
     Shifters: Shifters,
+
     OAM: buffer,
+
     FrameCounter: number,
 }
 

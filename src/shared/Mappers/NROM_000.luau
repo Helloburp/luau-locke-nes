@@ -10,6 +10,8 @@ type u16 = T_H.u16
 type Mem = T_H.Bus
 
 local T_NES = require(inst_root["NES.types"])
+type IMapper<State> = T_NES.IMapper<State>
+
 
 local ADDR_MIN, ADDR_MAX = 0x8000, 0xFFFF
 local ADDR_RANGE = ADDR_MAX - ADDR_MIN + 1
@@ -19,10 +21,21 @@ local RU8 = buffer.readu8
 local m = {}
 
 
+function m.MapperInterface(rom: buffer): IMapper<nil>
+    return {
+        NewCartridge = function(state: nil)
+            return m.NewFromRom(rom, Parse.Header(rom))
+        end,
+        CopyState = function(state: nil) return nil end,
+        NewState = function() return nil end
+    }
+end
+
+
 function m.NewFromRom(
     rom: buffer,
     header: T_P.Header
-): T_NES.Cartridge
+): T_NES.Cartridge<nil>
     local prgBank0, prgBanks = Parse.PrgRomOffset(
         header.HasTrainer, 0
     ), header.PrgRom16kBankCount
@@ -46,7 +59,7 @@ function m.NewFromRom(
         },
         GetIsMirroringVertical = function()
             return mirroringIsVertical
-        end
+        end,
     }
 end
 

@@ -21,13 +21,16 @@ export type Registers = {
     STATUS: u8,
 }
 
-
-export type CPU = {
+export type State = {
     ExecutionState: ExecutionState,
     Registers: Registers,
 
     NMIInput: boolean,
     IRQInput: boolean,
+}
+
+export type CPU = {
+    State: State,
 
     Instructions: {[EInstruction]: Instruction},
     AddressingModes: {[EAddressingMode]: AddressingMode},

@@ -1,10 +1,12 @@
 --!optimize 2
-local root = game.ReplicatedStorage.Shared
+local inst_root = game.ReplicatedStorage.Shared
 local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
-local Parse = require(root.Parse)
-local UI = require(script.UI)
-local API = require(root.API)
+local UI = require(inst_root.UI)
+
+local API = setmetatable({
+    Parse = require(inst_root.API.Parse)
+}, {__index = require(inst_root.API)})
 
 local ROM_NAME = "IceClimber.nes"
 local SAVESTATE_NAME = nil -- "dk_demo"
@@ -13,7 +15,7 @@ local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
     assert(romModule, `Unable to find rom "{ROM_NAME}!"`)
     local romStr = require(romModule)
-    rom = Parse.HexStrToBuffer(romStr)
+    rom = API.Parse.HexStrToBuffer(romStr)
 end
 
 local savestate do

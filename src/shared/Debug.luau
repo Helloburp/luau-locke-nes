@@ -1,6 +1,4 @@
 --!optimize 2
-local h = require(script.Parent.Helpers)
-
 
 local T_H = require(script.Parent["Helpers.types"])
 type u16 = T_H.u16
@@ -8,7 +6,7 @@ type Bus = T_H.Bus
 type Peripheral = T_H.Peripheral
 
 local T_NES = require(script.Parent["NES.types"])
-type NES = T_NES.NES
+type NES<MapperState> = T_NES.NES<MapperState>
 
 
 local T = require(script.Parent["Debug.types"])
@@ -55,9 +53,9 @@ function m.NewLog(): DebugLog
 end
 
 function m.LogClock(
-    _clock: (NES) -> (), log: DebugLog, maxLogHistory: number
-): (NES) -> ()
-    return function(nes: NES)
+    _clock: (NES<any>) -> (), log: DebugLog, maxLogHistory: number
+): (NES<any>) -> ()
+    return function(nes: NES<any>)
         local cpuState = nes.Cpu.State
         local oldCpuCycle = cpuState.ExecutionState.Cycles
         _clock(nes)
@@ -73,7 +71,7 @@ function m.LogClock(
 end
 
 
-function m.StepCpuInstruction(nes: NES, _clock: (NES) -> ())
+function m.StepCpuInstruction(nes: NES<any>, _clock: (NES<any>) -> ())
     local cpuState = nes.Cpu.State
     while cpuState.ExecutionState.Cycles > 0 do
         _clock(nes)
@@ -84,7 +82,7 @@ function m.StepCpuInstruction(nes: NES, _clock: (NES) -> ())
     end
 end
 
-function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
+function m.StepToVBlank(nes: NES<any>, _clock: (NES<any>) -> ())
     local state = C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
         "V", nes.Ppu.State.Registers.PPUSTATUS
     ) 

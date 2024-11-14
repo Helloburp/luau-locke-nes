@@ -1,8 +1,9 @@
 --!nolint UnknownGlobal
 --!nocheck
 
-local root = script.Parent.Parent.Parent.Parent.Parent.Shared
-local m = require(root.Instructions)
+local inst_root = script.Parent.Parent.Parent.Parent.Parent.Shared
+local inst_components = inst_root.Components
+local m = require(inst_components.CPU.Instructions)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 

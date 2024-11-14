@@ -2,14 +2,17 @@
 --!nocheck
 
 
-local root = script.Parent.Parent.Parent.Parent.Shared
-local Nes = require(root.NES)
-local NestestUtil = require(script.Parent.Parent.Util.Nestest)
+local inst_root = script.Parent.Parent.Parent.Parent.Shared
+local inst_core, inst_nes = inst_root.Core, inst_root.Nes
+local Nes = require(inst_nes.NES)
 
-local T_NES = require(root["NES.types"])
+local inst_util = script.Parent.Parent.Parent.Util
+local NestestUtil = require(inst_util.Nestest)
+
+local T_NES = require(inst_nes["NES.types"])
 type Nes = T_NES.Nes
 
-local T_H = require(root["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
 
 

@@ -3,7 +3,9 @@
     - https://www.nesdev.org/wiki/CPU_registers
 ]]
 
-local T = require(script.Parent["Helpers.types"])
+local inst_core = script.Parent.Parent.Core
+
+local T = require(inst_core["Helpers.types"])
 
 type u8 = T.u8
 type u16 = T.u16

@@ -1,11 +1,14 @@
 --!optimize 2
 
-local T_H = require(script.Parent["Helpers.types"])
+local inst_root = script.Parent.Parent
+local inst_core, inst_components, inst_nes = inst_root.Core, inst_root.Components, inst_root.Nes
+
+local T_H = require(inst_core["Helpers.types"])
 type u16 = T_H.u16
 type Bus = T_H.Bus
 type Peripheral = T_H.Peripheral
 
-local T_NES = require(script.Parent["NES.types"])
+local T_NES = require(inst_nes["NES.types"])
 type NES<MapperState> = T_NES.NES<MapperState>
 
 
@@ -14,7 +17,7 @@ type Debugger = T.Debugger
 type DebugLog = T.DebugLog
 
 
-local C_PPU = require(script.Parent["PPU.constants"])
+local C_PPU = require(inst_components["PPU.constants"])
 
 
 local m = {}

@@ -1,12 +1,16 @@
 --!optimize 2
-local T_H = require(script.Parent["Helpers.types"])
+
+local inst_root = script.Parent.Parent
+local inst_core, inst_components, inst_nes = inst_root.Core, inst_root.Components, inst_root.Nes
+
+local T_H = require(inst_core["Helpers.types"])
 
 local C = require(script.Parent["Display.constants"])
 
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 
-local Ppu = require(script.Parent.PPU)
-local C_PPU = require(script.Parent["PPU.constants"])
+local Ppu = require(inst_components.PPU)
+local C_PPU = require(inst_components["PPU.constants"])
 local VRamAddress = C_PPU.BITFIELD_UTIL.VRamAddress
 
 local AssetService = game:GetService("AssetService")

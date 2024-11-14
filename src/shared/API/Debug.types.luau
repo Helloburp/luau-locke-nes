@@ -1,8 +1,11 @@
-local T = require(script.Parent["Helpers.types"])
+local inst_root = script.Parent.Parent
+local inst_core, inst_components = inst_root.Core, inst_root.Components
+
+local T = require(inst_core["Helpers.types"])
 type Peripheral = T.Peripheral
 type u16 = T.u16
 
-local T_CPU = require(script.Parent["CPU.types"])
+local T_CPU = require(inst_components["CPU.types"])
 
 
 

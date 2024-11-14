@@ -1,8 +1,15 @@
 --!optimize 2
-local root = game.ReplicatedStorage.Shared
-local T_NES = require(root["NES.types"])
-local T_DEBUG = require(root["Debug.types"])
-local T_H = require(root["Helpers.types"])
+
+local inst_root = script.Parent
+local inst_core, inst_components, inst_nes, inst_api =
+    inst_root.Core,
+    inst_root.Components,
+    inst_root.Nes,
+    inst_root.API
+
+local T_NES = require(inst_nes["NES.types"])
+local T_DEBUG = require(inst_api["Debug.types"])
+local T_H = require(inst_core["Helpers.types"])
 
 
 type NES<T> = T_NES.NES<T>
@@ -13,36 +20,39 @@ type Debugger = T_DEBUG.Debugger
 type Bus = T_H.Bus
 
 
-local Windows = require(script.Parent.Windows)
+local Windows = require(script.Windows)
 
 
 local m = {}
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
-local Nes = require(root.NES)
-local Display = require(root.Display)
-local Debug = require(root.Debug)
-local C_DISPLAY = require(root["Display.constants"])
-local C_PPU = require(root["PPU.constants"])
-local C_NES = require(root["NES.constants"])
-local h = require(root.Helpers)
-local RunService = game:GetService("RunService")
-local API = require(root.API)
+local Nes = require(inst_nes.NES)
+local C_DISPLAY = require(inst_api["Display.constants"])
+local C_PPU = require(inst_components["PPU.constants"])
+local C_NES = require(inst_nes["NES.constants"])
+local h = require(inst_core.Helpers)
+
+local API = setmetatable({
+    Display = require(inst_api.Display),
+    Debug = require(inst_api.Debug),
+}, {__index = require(inst_root.API)})
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
+local RunService = game:GetService("RunService")
+
 
 function m.NewScreenBuffer()
-    return Display.NewDisplayBuffer(SIZES.SCREEN)
+    return API.Display.NewDisplayBuffer(SIZES.SCREEN)
 end
 
 
 function m.NewBufferDisplayInterface(b: buffer): IDisplay
     return {
         OnFrameComplete = function() end,
-        SetPixelForPpuCycle = Display.NewPlacePixelInFrame(
-            Display.NewWriteColorValueToBuffer(b)
+        SetPixelForPpuCycle = API.Display.NewPlacePixelInFrame(
+            API.Display.NewWriteColorValueToBuffer(b)
         ),
     }
 end
@@ -90,7 +100,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     end
 
     local screen = _addStatelyRenderBuffer(
-        SIZES.SCREEN, Display.WriteBufferToImage,
+        SIZES.SCREEN, API.Display.WriteBufferToImage,
         windowStates.Screen, screenBuffer
     )
 
@@ -99,7 +109,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
         for nt = 0, 3 do
             t[nt] = _addStatelyRenderBuffer(
                 SIZES.NAMETABLE, function(b, image)
-                    Display.RefreshNametable(
+                    API.Display.RefreshNametable(
                         b, image, myNes.PpuBus, nt,
                         C_PPU.BITFIELD_UTIL.PpuControl.GetBit(
                             "B", myNes.Ppu.State.Registers.PPUCTRL
@@ -116,7 +126,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
         for pt = 0, 1 do
             t[pt] = _addStatelyRenderBuffer(
                 SIZES.PATTERN_TABLE, function(b, image)
-                    Display.RefreshPatternTable(
+                    API.Display.RefreshPatternTable(
                         b, image, myNes.PpuBus, pt == 1
                     )
                 end
@@ -127,17 +137,17 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
 
     local palette = _addStatelyRenderBuffer(
         SIZES.PALETTES, function(b, image)
-            Display.RefreshPalette(b, image, myNes.PpuBus)
+            API.Display.RefreshPalette(b, image, myNes.PpuBus)
         end, true
     )
 
 
-    local CpuDebugger = Debug.Debugger(function(context)
+    local CpuDebugger = API.Debug.Debugger(function(context)
         state.Running = false
         state.BreakComment = `CPU {context}`
     end)
 
-    local PpuDebugger = Debug.Debugger(function(context)
+    local PpuDebugger = API.Debug.Debugger(function(context)
         state.Running = false
         state.BreakComment = `PPU {context}`
     end)
@@ -145,8 +155,8 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     h.MapPeripheral(myNes.CpuBus, nil, CpuDebugger.Peripherpal)
     h.MapPeripheral(myNes.PpuBus, nil, PpuDebugger.Peripherpal)
 
-    local myLog = Debug.NewLog()
-    local _myClock = Debug.LogClock(Nes.Clock, myLog, 5)
+    local myLog = API.Debug.NewLog()
+    local _myClock = API.Debug.LogClock(Nes.Clock, myLog, 5)
 
 
     local con_heartbeat = RunService.Heartbeat:Connect(function()
@@ -235,7 +245,7 @@ function _newStateControlledRenderBuffer(
     stateValue: boolean? | any?,
     existingBuffer: buffer?
 )
-    local b, image = Display.NewBufferImagePair(size, existingBuffer)
+    local b, image = API.Display.NewBufferImagePair(size, existingBuffer)
     local state = if stateValue == nil or typeof(stateValue == "boolean")
         then Iris.State(stateValue or false)
         else stateValue

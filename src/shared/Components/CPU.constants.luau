@@ -1,6 +1,7 @@
+local inst_core = script.Parent.Parent.Core
+
 local T = require(script.Parent["CPU.types"])
-local T_H = require(script.Parent["Helpers.types"])
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 
 local LSHIFT = bit32.lshift
 

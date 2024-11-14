@@ -1,15 +1,19 @@
 --!optimize 2
 
-local Ppu = require(script.Parent.PPU)
-local h = require(script.Parent.Helpers)
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+local inst_components = inst_root.Components
 
-local T_CPU = require(script.Parent["CPU.types"])
+local Ppu = require(inst_components.PPU)
+local h = require(inst_core.Helpers)
+
+local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 
-local T_PPU = require(script.Parent["PPU.types"])
+local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type Peripheral = T_H.Peripheral
 type Bus = T_H.Bus
 type u8 = T_H.u8

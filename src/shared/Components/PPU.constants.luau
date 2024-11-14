@@ -1,9 +1,11 @@
-local h = require(script.Parent.Helpers)
+local inst_core = script.Parent.Parent.Core
+
+local h = require(inst_core.Helpers)
 local _bff = h.NewBitfieldFunctions
 
 local T = require(script.Parent["PPU.types"])
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>

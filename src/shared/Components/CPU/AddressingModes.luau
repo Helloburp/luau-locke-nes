@@ -5,15 +5,18 @@
     https://www.nesdev.org/obelisk-6502-guide/addressing.html
 ]]
 
-local T = require(script.Parent["CPU.types"])
+local inst_components = script.Parent.Parent
+local inst_core = script.Parent.Parent.Parent.Core
+
+local T = require(inst_components["CPU.types"])
 type Regs = T.Registers
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Mem = T_H.Bus
 
-local Helpers = require(script.Parent.Helpers)
+local Helpers = require(inst_core.Helpers)
 local _u8, _u16 = Helpers.WrapU8, Helpers.WrapU16
 local _s8ToS16 = Helpers.Signed8ToSigned16
 

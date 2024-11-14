@@ -2,9 +2,10 @@
 --!nocheck
 
 local _newCommon = require(script.Parent._COMMON)
-local root = script.Parent.Parent.Parent.Parent.Shared
-local m = require(root.AddressingModes)
-local T = require(root["CPU.types"])
+local inst_root = script.Parent.Parent.Parent.Parent.Shared
+local inst_components = inst_root.Components
+local m = require(inst_components.CPU.AddressingModes)
+local T = require(inst_components["CPU.types"])
 
 return function()
     local c = _newCommon(expect)

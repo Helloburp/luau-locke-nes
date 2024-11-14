@@ -5,11 +5,14 @@
     https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
 ]]
 
-local T = require(script.Parent["CPU.types"])
-local C = require(script.Parent["CPU.constants"])
+local inst_components = script.Parent.Parent
+local inst_core = script.Parent.Parent.Parent.Core
+
+local T = require(inst_components["CPU.types"])
+local C = require(inst_components["CPU.constants"])
 type Regs = T.Registers
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Bus = T_H.Bus
@@ -19,7 +22,7 @@ local BAND, BXOR, BNOT, BOR =
     bit32.band, bit32.bxor, bit32.bnot, bit32.bor
 local LSHIFT, RSHIFT = bit32.lshift, bit32.rshift
 
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 local _getBit, _setBit = h.GetBit, h.SetBit
 local _u8, _u16 = h.WrapU8, h.WrapU16
 local _s8ToS16 = h.Signed8ToSigned16

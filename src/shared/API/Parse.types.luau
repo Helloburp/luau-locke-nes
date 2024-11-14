@@ -1,4 +1,7 @@
-local T = require(script.Parent["Helpers.types"])
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+
+local T = require(inst_core["Helpers.types"])
 type u8 = T.u8
 
 export type Header = {

@@ -2,11 +2,12 @@
 --!nocheck
 
 
-local root = script.Parent.Parent.Parent.Parent.Shared
-local cpu = require(root.CPU)
-local h = require(root.Helpers)
-local C = require(root["CPU.constants"])
-local T = require(root["CPU.types"])
+local inst_root = script.Parent.Parent.Parent.Parent.Shared
+local inst_core, inst_components = inst_root.Core, inst_root.Components
+local cpu = require(inst_components.CPU)
+local h = require(inst_core.Helpers)
+local C = require(inst_components["CPU.constants"])
+local T = require(inst_components["CPU.types"])
 type u8 = T.u8
 
 local BAND, BXOR, BNOT =

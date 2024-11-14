@@ -1,29 +1,32 @@
 --!optimize 2
 
+local inst_root = script.Parent.Parent
+local inst_core, inst_components = inst_root.Core, inst_root.Components
+
 local T = require(script.Parent["Log.types"])
 type LogBreakdown = T.LogBreakdown
 
 
-local T_CPU = require(script.Parent["CPU.types"])
+local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 type Regs = T_CPU.Registers
 
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Bus = T_H.Bus
 
-local T_PPU = require(script.Parent["PPU.types"])
+local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
 type PpuRegisters = T_PPU.Registers
 type PpuInternalRegisters = T_PPU.InternalRegisters
 
 
 
-local C_CPU = require(script.Parent["CPU.constants"])
-local Ppu = require(script.Parent.PPU)
+local C_CPU = require(inst_components["CPU.constants"])
+local Ppu = require(inst_components.PPU)
 
 
 local _u8, _u16 = h.WrapU8, h.WrapU16

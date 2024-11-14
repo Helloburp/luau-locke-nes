@@ -1,8 +1,11 @@
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+
 local T_PARSE = require(script.Parent["Parse.types"])
 type Header = T_PARSE.Header
 
-local T = require(script.Parent["Helpers.types"])
-local h = require(script.Parent.Helpers)
+local T = require(inst_core["Helpers.types"])
+local h = require(inst_core.Helpers)
 local m = {}
 
 local _getBit = h.GetBit

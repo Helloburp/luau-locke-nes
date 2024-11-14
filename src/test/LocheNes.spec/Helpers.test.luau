@@ -2,7 +2,8 @@
 --!nolint UnknownGlobal
 --!nocheck
 
-local m = require(script.Parent.Parent.Parent.Shared.Helpers)
+local inst_root = script.Parent.Parent.Parent.Shared
+local m = require(inst_root.Core.Helpers)
 
 local TEST_MASKS = {
     A = 0b11110000,

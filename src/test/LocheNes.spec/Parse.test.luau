@@ -2,21 +2,22 @@
 --!nocheck
 
 local inst_root = script.Parent.Parent.Parent.Shared
-local Parse = require(inst_root.Parse)
+local Parse = require(inst_root.API.Parse)
 
-local NesTest = require(script.Parent["nestest.nes"])
+local inst_util = script.Parent.Parent.Util
+local NESTEST_ROM = require(inst_util["Nestest.constants"]).ROM
 
-local RU8, WU8 = buffer.readu8, buffer.writeu8
+local RU8 = buffer.readu8
 
 return function()
 
     it("Converts string to buffer as expected", function()
-        local rom = Parse.HexStrToBuffer(NesTest)
+        local rom = Parse.HexStrToBuffer(NESTEST_ROM)
         expect(buffer.len(rom)).to.equal((0x6010))
         expect(RU8(rom, 0)).to.equal(0x4E)
     end)
 
-    local rom = Parse.HexStrToBuffer(NesTest)
+    local rom = Parse.HexStrToBuffer(NESTEST_ROM)
 
     it("Computes header as expected", function()
         local header = Parse.Header(rom)

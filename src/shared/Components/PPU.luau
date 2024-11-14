@@ -1,6 +1,8 @@
 --!optimize 2
 local C = require(script.Parent["PPU.constants"])
-local h = require(script.Parent.Helpers)
+
+local inst_core = script.Parent.Parent.Core
+local h = require(inst_core.Helpers)
 
 
 local T = require(script.Parent["PPU.types"])
@@ -11,7 +13,7 @@ type Shifters = T.Shifters
 type State = T.State
 type PPU = T.PPU
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Bus = T_H.Bus

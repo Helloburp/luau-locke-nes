@@ -1,8 +1,15 @@
 --!optimize 2
 
+local inst_root = script.Parent.Parent
+local inst_core, inst_components, inst_nes, inst_api =
+    inst_root.Core,
+    inst_root.Components,
+    inst_root.Nes,
+    inst_root.API
+
 local root = game.ReplicatedStorage.Shared
-local T_NES = require(root["NES.types"])
-local T_DEBUG = require(root["Debug.types"])
+local T_NES = require(inst_nes["NES.types"])
+local T_DEBUG = require(inst_api["Debug.types"])
 
 type NES<State> = T_NES.NES<State>
 type DebugLog = T_DEBUG.DebugLog
@@ -11,11 +18,13 @@ local m = {}
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
-local Log = require(root.Log)
-local Debug = require(root.Debug)
-local API = require(root.API)
-local C_DISPLAY = require(root["Display.constants"])
-local C_NES = require(root["NES.constants"])
+local API = setmetatable({
+    Log = require(inst_api.Log),
+    Debug = require(inst_api.Debug)
+}, {__index = require(root.API)})
+
+local C_DISPLAY = require(inst_api["Display.constants"])
+local C_NES = require(inst_nes["NES.constants"])
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
@@ -129,7 +138,7 @@ function m.Screen(screenView: EditableImage)
         "rbxassetid://0", UDim2.fromOffset(SIZES.SCREEN.X, SIZES.SCREEN.Y)
     }.Instance :: ImageLabel
 
-    screenView.Parent = image
+    image.ImageContent = Content.fromObject(screenView)
     image.ResampleMode = Enum.ResamplerMode.Pixelated
 end
 
@@ -147,8 +156,8 @@ function m.Execution<T>(
 
             local text = string.format(
                 "%s%-20s%-20s", prefixText,
-                Log.GetLogPc(pc, myNes.CpuBus),
-                Log.GetAssemblyLogPc(pc, myNes.CpuBus)
+                API.Log.GetLogPc(pc, myNes.CpuBus),
+                API.Log.GetAssemblyLogPc(pc, myNes.CpuBus)
             )
             if isCurrentCommand then
                 text = `<font color="rgb(127,255,127)">{text}</font>`
@@ -159,9 +168,9 @@ function m.Execution<T>(
         return table.concat(logTexts, "\n")
     end)(), [Iris.Args.Text.RichText] = true}
 
-    Iris.Text(Log.GetLogRegs(myNes.Cpu.State.Registers))
-    Iris.Text(Log.GetPpuRegLog(myNes.Ppu.State.Registers))
-    Iris.Text(Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters))
+    Iris.Text(API.Log.GetLogRegs(myNes.Cpu.State.Registers))
+    Iris.Text(API.Log.GetPpuRegLog(myNes.Ppu.State.Registers))
+    Iris.Text(API.Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters))
 
     Iris.SameLine()
     do
@@ -172,10 +181,10 @@ function m.Execution<T>(
             state.Running = not state.Running
         end
         if Iris.Button("Step").clicked() then
-            Debug.StepCpuInstruction(myNes, _myClock)
+            API.Debug.StepCpuInstruction(myNes, _myClock)
         end
         if Iris.Button("Step to VBlank").clicked() then
-            Debug.StepToVBlank(myNes, _myClock)
+            API.Debug.StepToVBlank(myNes, _myClock)
         end
     end
     Iris.End()
@@ -211,7 +220,7 @@ function _irisEditableImage(
     table.insert(_arguments, UDim2.fromOffset(size.X, size.Y))
 
     local image = Iris.Image(_arguments).Instance :: ImageLabel
-    editableImage.Parent = image
+    image.ImageContent = Content.fromObject(editableImage)
     image.ResampleMode = Enum.ResamplerMode.Pixelated
 
     return image

@@ -1,9 +1,10 @@
 --!nolint UnknownGlobal
 --!nocheck
 
-local root = script.Parent.Parent.Parent.Parent.Parent.Shared
-local h = require(root.Helpers)
-local m = require(root.Instructions)
+local inst_root = script.Parent.Parent.Parent.Parent.Parent.Shared
+local inst_core, inst_components = inst_root.Core, inst_root.Components
+local m = require(inst_components.CPU.Instructions)
+local h = require(inst_core.Helpers)
 local _newCommon = require(script.Parent.Parent._COMMON)
 
 local LSHIFT, RSHIFT, BAND = bit32.lshift, bit32.rshift, bit32.band

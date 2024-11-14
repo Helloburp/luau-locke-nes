@@ -1,22 +1,27 @@
 --!optimize 2
-local root = script.Parent
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+local inst_components = inst_root.Components
 
-local Ppu = require(root.PPU)
-local Cpu = require(root.CPU)
-local CpuPeripherals = require(root.CPUPeripherals)
-local PpuPeripherals = require(root.PPUPeripherals)
+local Ppu = require(inst_components.PPU)
 
-local Instructions = require(root.Instructions)
-local AddressingModes = require(root.AddressingModes)
+local Cpu = setmetatable({
+    Instructions = require(inst_components.CPU.Instructions),
+    AddressingModes = require(inst_components.CPU.AddressingModes)
+}, {__index = require(inst_components.CPU)}) 
 
-local h = require(root.Helpers)
+local CpuPeripherals = require(script.Parent.CPUPeripherals)
+local PpuPeripherals = require(script.Parent.PPUPeripherals)
 
-local T_H = require(root["Helpers.types"])
+
+local h = require(inst_core.Helpers)
+
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Peripheral = T_H.Peripheral
 
-local T = require(root["NES.types"])
+local T = require(script.Parent["NES.types"])
 type NES<MapperState> = T.NES<MapperState>
 type Cartridge<MapperState> = T.Cartridge<MapperState>
 type State<MapperState> = T.State<MapperState>
@@ -86,7 +91,7 @@ function m.New<MapperState>(
     end
 
 
-    local cpu = Cpu.New(AddressingModes, Instructions, state.Cpu)
+    local cpu = Cpu.New(Cpu.AddressingModes, Cpu.Instructions, state.Cpu)
     local ppu = Ppu.New(
         _nmi,
         displayInterface.OnFrameComplete,

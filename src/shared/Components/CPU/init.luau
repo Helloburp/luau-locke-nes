@@ -7,17 +7,18 @@ type Regs = T.Registers
 type StatusFlagFunctions = T.StatusFlagFunctions
 type State = T.State
 
+local inst_core = script.Parent.Parent.Core
 
-local T_H = require(script.Parent["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 
 type u8 = T_H.u8
 type Bus = T_H.Bus
 
 
 local C = require(script.Parent["CPU.constants"])
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 
-local Instructions = require(script.Parent.Instructions)
+local Instructions = require(script.Instructions)
 
 local m = {}
 

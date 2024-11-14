@@ -1,13 +1,17 @@
-local T_CPU = require(script.Parent["CPU.types"])
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+local inst_components = inst_root.Components
+
+local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 type CPUState = T_CPU.State
 
-local T_PPU = require(script.Parent["PPU.types"])
+local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
 type PPUState = T_PPU.State
 
 
-local T = require(script.Parent["Helpers.types"])
+local T = require(inst_core["Helpers.types"])
 type Bus = T.Bus
 type Peripheral = T.Peripheral
 type u8 = T.u8

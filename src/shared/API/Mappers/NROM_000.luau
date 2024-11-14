@@ -1,15 +1,16 @@
 --!optimize 2
-local inst_root = script.Parent.Parent
+local inst_root = script.Parent.Parent.Parent
+local inst_core, inst_nes, inst_api = inst_root.Core, inst_root.Nes, inst_root.API
 
-local T_P = require(inst_root["Parse.types"])
-local Parse = require(inst_root.Parse)
+local T_P = require(inst_api["Parse.types"])
+local Parse = require(inst_api.Parse)
 
-local T_H = require(inst_root["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 type Mem = T_H.Bus
 
-local T_NES = require(inst_root["NES.types"])
+local T_NES = require(inst_nes["NES.types"])
 type IMapper<State> = T_NES.IMapper<State>
 
 

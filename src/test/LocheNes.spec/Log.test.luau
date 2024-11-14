@@ -2,10 +2,11 @@
 --!nocheck
 
 local inst_root = script.Parent.Parent.Parent.Shared
+local inst_core, inst_components, inst_api = inst_root.Core, inst_root.Components, inst_root.API
 
-local m = require(inst_root.Log)
-local h = require(inst_root.Helpers)
-local cpu = require(inst_root.CPU)
+local m = require(inst_api.Log)
+local h = require(inst_core.Helpers)
+local cpu = require(inst_components.CPU)
 
 local LOGFILE = [[
 C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 21 CYC:7

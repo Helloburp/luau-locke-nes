@@ -1,20 +1,24 @@
-local T_H = require(script.Parent["Helpers.types"])
+local inst_root = script.Parent.Parent
+local inst_core = inst_root.Core
+local inst_components = inst_root.Components
+
+local T_H = require(inst_core["Helpers.types"])
 type Peripheral = T_H.Peripheral
 type u16 = T_H.u16
 type u8 = T_H.u8
 type Bus = T_H.Bus
 
 
-local T_PPU = require(script.Parent["PPU.types"])
+local T_PPU = require(inst_components["PPU.types"])
 type Regs = T_PPU.Registers
 
 local T = require(script.Parent["PPUPeripherals.types"])
 type State = T.State
 
 
-local C_PPU = require(script.Parent["PPU.constants"])
+local C_PPU = require(inst_components["PPU.constants"])
 local PpuMask = C_PPU.BITFIELD_UTIL.PpuMask
-local h = require(script.Parent.Helpers)
+local h = require(inst_core.Helpers)
 
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 local BAND = bit32.band

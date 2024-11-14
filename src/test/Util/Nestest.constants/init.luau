@@ -8,4 +8,7 @@ local LOGFILES = {
     require(inst_logfiles["nestest.log.part5of5"]),
 }
 
-return LOGFILES
+return {
+    LOGFILES = LOGFILES,
+    ROM = require(script["nestest.nes"])
+}

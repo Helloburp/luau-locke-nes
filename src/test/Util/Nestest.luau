@@ -1,28 +1,32 @@
-local root = script.Parent.Parent.Parent.Parent.Shared
+local inst_root = script.Parent.Parent.Parent.Shared
+local inst_core, inst_components, inst_nes, inst_api =
+    inst_root.Core,
+    inst_root.Components,
+    inst_root.Nes,
+    inst_root.API
 
-local Log = require(root.Log)
-local Parse = require(root.Parse)
-local NROM = require(root.Mappers.NROM_000)
+local Log = require(inst_api.Log)
+local Parse = require(inst_api.Parse)
+local NROM = require(inst_api.Mappers.NROM_000)
 
-local NESTEST_ROM = require(script.Parent.Parent["nestest.nes"])
-local LOGFILES = require(script.Parent.NestestLogfiles)
+local C_NESTEST = require(script.Parent["Nestest.constants"])
 
-local C_CPU = require(root["CPU.constants"])
+local C_CPU = require(inst_components["CPU.constants"])
 
 
-local T_CPU = require(root["CPU.types"])
+local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 
-local T_PPU = require(root["PPU.types"])
+local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
 
 
-local T_H = require(root["Helpers.types"])
+local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
 type Peripheral = T_H.Peripheral
 
-local T_NES = require(root["NES.types"])
-type Cartridge = T_NES.Cartridge
+local T_NES = require(inst_nes["NES.types"])
+type Cartridge<MapperState> = T_NES.Cartridge<MapperState>
 
 
 local LSHIFT = bit32.lshift
@@ -30,8 +34,8 @@ local LSHIFT = bit32.lshift
 local m = {}
 
 
-function m.Cartridge(): Cartridge
-    local rom = Parse.HexStrToBuffer(NESTEST_ROM)
+function m.Cartridge<T>(): Cartridge<T>
+    local rom = Parse.HexStrToBuffer(C_NESTEST.ROM)
     local header = Parse.Header(rom)
 
     return NROM.NewFromRom(rom, header)
@@ -46,7 +50,7 @@ function m.RunNesTest(
     _shouldAbort: () -> (boolean)
 ): (boolean, string?)
     local executionState, regs = cpu.State.ExecutionState, cpu.State.Registers
-    local _getNextLog = Log.IterLogMultiple(LOGFILES)
+    local _getNextLog = Log.IterLogMultiple(C_NESTEST.LOGFILES)
 
     local instructionNumber = 0
     local lastPcLog: string = ""

@@ -1,15 +1,17 @@
-local T = require(script.Parent["API.types"])
+local inst_root = script.Parent
+local inst_nes = inst_root.Nes
+
 local C = require(script.Parent["API.constants"])
 
-local T_NES = require(script.Parent["NES.types"])
+local T_NES = require(inst_nes["NES.types"])
 type NesState<MapperState> = T_NES.State<MapperState>
 type NES<State> = T_NES.NES<State>
 type IDisplay = T_NES.IDisplay
 type IMapper<State> = T_NES.IMapper<State>
 
 
-local Parse = require(script.Parent.Parse)
-local Nes = require(script.Parent.NES)
+local Parse = require(script.Parse)
+local Nes = require(inst_nes.NES)
 
 local HttpService = game:GetService("HttpService")
 

@@ -1,14 +1,11 @@
 --!nolint UnknownGlobal
 --!nocheck
 
-local root = script.Parent.Parent.Parent.Parent.Shared
+local inst_root = script.Parent.Parent.Parent.Parent.Shared
+local inst_core, inst_components = inst_root.Core, inst_root.Components
 
-local m = require(root.PPU)
-local h = require(root.Helpers)
-
-local T = require(root["PPU.types"])
-local C = require(root["PPU.constants"])
-local VRamAddress = C.BITFIELD_UTIL.VRamAddress
+local m = require(inst_components.PPU)
+local h = require(inst_core.Helpers)
 
 
 return function()

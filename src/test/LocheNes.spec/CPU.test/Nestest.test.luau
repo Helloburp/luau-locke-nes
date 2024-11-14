@@ -4,17 +4,19 @@
 -- Source for error codes: https://www.qmtpro.com/~nes/misc/nestest.txt
 
 local inst_root = script.Parent.Parent.Parent.Parent.Shared
-local T = require(inst_root["CPU.types"])
-local h = require(inst_root.Helpers)
-local m = require(inst_root.CPU)
+local inst_core, inst_components, inst_api = inst_root.Core, inst_root.Components, inst_root.API
+local T = require(inst_components["CPU.types"])
+local h = require(inst_core.Helpers)
+local m = require(inst_components.CPU)
 
 
-local Parse = require(inst_root.Parse)
-local NROM = require(inst_root.Mappers.NROM_000)
+local Parse = require(inst_api.Parse)
+local NROM = require(inst_api.Mappers.NROM_000)
 
-local NestestUtil = require(script.Parent.Parent.Util.Nestest)
+local inst_util = script.Parent.Parent.Parent.Util
+local NestestUtil = require(inst_util.Nestest)
 
-local NESTEST_ROM = require(script.Parent.Parent["nestest.nes"])
+local NESTEST_ROM = require(inst_util["Nestest.constants"]).ROM
 
 
 type u16 = T.u16

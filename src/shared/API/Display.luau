@@ -1,7 +1,7 @@
 --!optimize 2
 
 local inst_root = script.Parent.Parent
-local inst_core, inst_components, inst_nes = inst_root.Core, inst_root.Components, inst_root.Nes
+local inst_core, inst_components = inst_root.Core, inst_root.Components
 
 local T_H = require(inst_core["Helpers.types"])
 

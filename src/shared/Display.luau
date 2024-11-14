@@ -9,6 +9,8 @@ local Ppu = require(script.Parent.PPU)
 local C_PPU = require(script.Parent["PPU.constants"])
 local VRamAddress = C_PPU.BITFIELD_UTIL.VRamAddress
 
+local AssetService = game:GetService("AssetService")
+
 
 local m = {}
 
@@ -191,8 +193,11 @@ function m.NewBufferImagePair(
     local b = existingBuffer or m.NewDisplayBuffer(size)
     assert(buffer.len(b) == _displayBufferSize(size))
 
-    local editableImage = Instance.new("EditableImage")
-    editableImage.Size = size
+    local editableImage = AssetService:CreateEditableImage{
+        Size = size
+    } :: EditableImage
+
+    assert(editableImage, "DEVICE OUT OF MEMORY!")
 
     return b, editableImage
 end

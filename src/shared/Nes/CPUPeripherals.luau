@@ -98,7 +98,7 @@ function m.NewPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
 
         if offset == 0 then
             local shouldNmi = Ppu.PpuCtrlWriteAndReturnNmi(
-                regs, iRegs, val, cyclesThisFrame
+                regs, iRegs, val, Ppu.GetScanlineInFrame(cyclesThisFrame)
             )
             if shouldNmi then
                 _nmi()
@@ -108,7 +108,7 @@ function m.NewPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
         elseif offset == 3 then
             Ppu.OamAddrWrite(regs, val)
         elseif offset == 4 then
-            Ppu.OamDataWrite(regs, val, cyclesThisFrame, iState.OAM)
+            Ppu.OamDataWrite(regs, val, Ppu.GetScanlineInFrame(cyclesThisFrame), iState.OAM)
         elseif offset == 5 then
             Ppu.PpuScrollWrite(iRegs, val)
         elseif offset == 6 then

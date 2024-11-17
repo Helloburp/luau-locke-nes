@@ -51,13 +51,13 @@ function m.Clock(ppu: PPU, bus: Bus)
     end
 
     local cycles = state.ExecutionState.Cycles
-    local dot, scanline = _getDot(cycles), _getScanline(cycles)
+    local dot, scanline = m.GetDotInFrame(cycles), m.GetScanlineInFrame(cycles)
 
     -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
         bus, state, dot, scanline
     )
-    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
+    ppu.SetPixelForCycle(cycles, m.GetColorByPixelValue(pixel, bus))
 
     -- Perform NMI if applicable
     if dot == 1 and scanline == 241 and
@@ -119,12 +119,12 @@ end
 
 
 function m.PpuCtrlWriteAndReturnNmi(
-    regs: Regs, iRegs: InternalRegs, val: u8, cyclesThisFrame: number
+    regs: Regs, iRegs: InternalRegs, val: u8, scanlineCount: number
 ): boolean
     local oldNmi, newNmi =
         PpuControl.Get("V", regs.PPUCTRL),
         PpuControl.Get("V", val)
-    local inVBlank = _isInVBlank(_getScanline(cyclesThisFrame))
+    local inVBlank = _isInVBlank(scanlineCount)
     regs.PPUCTRL = val
 
     iRegs.t = VRamAddress.Set("N", iRegs.t, BAND(val, 0x03))
@@ -157,9 +157,9 @@ end
 
 
 function m.OamDataWrite(
-    regs: Regs, val: u8, cyclesThisFrame: number, oam: buffer
+    regs: Regs, val: u8, scanlineCount: number, oam: buffer
 )
-    if not _isInVBlank(_getScanline(cyclesThisFrame))
+    if not _isInVBlank(scanlineCount)
         and _isRenderingEnabled(regs.PPUMASK) then
         return
     end
@@ -244,12 +244,12 @@ function m.New(
 end
 
 
-function _getDot(cyclesThisFrame: number)
+function m.GetDotInFrame(cyclesThisFrame: number)
     return cyclesThisFrame%C.DOTS_PER_SCANLINE
 end
 
 
-function _getScanline(cyclesThisFrame: number)
+function m.GetScanlineInFrame(cyclesThisFrame: number)
     return (cyclesThisFrame - cyclesThisFrame%C.DOTS_PER_SCANLINE)
         / C.DOTS_PER_SCANLINE
 end
@@ -261,7 +261,7 @@ function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
 end
 
 
-function _getPixelValue(
+function m.GetPixelValue(
     patternValue: number, attributeValue: number, isSprite: boolean
 )
     return (
@@ -273,11 +273,11 @@ end
 
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-function _getTileAddressFromVRamAddress(v: u16)
+function m.GetTileAddressFromVRamAddress(v: u16)
     return 0x2000 + VRamAddress.Set("y", v, 0)
 end
 
-function _getAttributeAddressFromVRamAddress(v: u16)
+function m.GetAttributeAddressFromVRamAddress(v: u16)
     local attrAddr = AttributeAddress.Compose{
         ["N"] = VRamAddress.Get("N", v),
         ["AttributeOffset"] = 0b1111,
@@ -287,7 +287,7 @@ function _getAttributeAddressFromVRamAddress(v: u16)
     return 0x2000 + attrAddr
 end
 
-function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
+function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
     return PatternTableAddress.Compose{
         ["FineY"] = row,
         ["BitPlane"] = 0,
@@ -296,9 +296,9 @@ function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
     }
 end
 
-function _getHighPatternTableAddress(right, tileNumber, row)
+function m.GetHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
-        "BitPlane", _getLowPatternTableAddress(right, tileNumber, row), 1
+        "BitPlane", m.GetLowPatternTableAddress(right, tileNumber, row), 1
     )
 end
 
@@ -382,20 +382,20 @@ function _fetchToLatchesBasedOnProgress(
 
     local latchName, addr = unpack(
         if backgroundFetchProgress == 0 then {
-            "Nametable", _getTileAddressFromVRamAddress(vramAddr)
+            "Nametable", m.GetTileAddressFromVRamAddress(vramAddr)
         }
         elseif backgroundFetchProgress == 2 then {
-            "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
+            "AttributeTable", m.GetAttributeAddressFromVRamAddress(vramAddr)
         }
         elseif backgroundFetchProgress == 4 then {
             "PatternTableTileLow",
-            _getLowPatternTableAddress(
+            m.GetLowPatternTableAddress(
                 PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
         elseif backgroundFetchProgress == 6 then {
             "PatternTableTileHigh",
-            _getHighPatternTableAddress(
+            m.GetHighPatternTableAddress(
                 PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
             )
         }
@@ -414,7 +414,7 @@ function _shift(shifters: Shifters)
 end
 
 
-function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
+function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
     return (
         (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
         (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
@@ -426,7 +426,7 @@ function _reloadShifters(
 )
 
     local offsetInAttributeByte =
-        _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
+        m.GetOffsetInAttributeByteFromVRamAddress(vramAddr)    
 
     shifters.AttributeLo = BAND(shifters.AttributeLo, 0x00FF) +
         LSHIFT(
@@ -565,32 +565,21 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if h.GetBit(fineX, shifters.AttributeLo) then 1 else 0) +
         (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
-    return _getPixelValue(patternValue, attributeValue, false)
+    return m.GetPixelValue(patternValue, attributeValue, false)
 end
 
 
 -- If divisible by 4, falls back to the background color.
-function _getColorByPixelValue(index: number, bus: Bus)
+function m.GetColorByPixelValue(index: number, bus: Bus)
     return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
 
-function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
+function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
     return
         (if h.GetBit(fineX, lo) then 1 else 0) +
         (if h.GetBit(fineX, hi) then 2 else 0)
 end
 
-
-m.GetPixelValue = _getPixelValue
-m.GetTileAddressFromVRamAddress = _getTileAddressFromVRamAddress
-m.GetAttributeAddressFromVRamAddress = _getAttributeAddressFromVRamAddress
-m.GetLowPatternTableAddress = _getLowPatternTableAddress
-m.GetHighPatternTableAddress = _getHighPatternTableAddress
-m.GetColorByPixelValue = _getColorByPixelValue
-m.GetPatternValueFromBitPlanes = _getPatternValueFromBitPlanes
-m.GetDotInFrame = _getDot
-m.GetScanlineInFrame = _getScanline
-m.GetOffsetInAttributeByteFromVRamAddress = _getOffsetInAttributeByteFromVRamAddress
 
 return m

@@ -7,6 +7,8 @@ local inst_components = inst_root.Components
 local Ppu = require(inst_components.PPU)
 local h = require(inst_core.Helpers)
 
+local Cpu = require(inst_components.CPU)
+
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 
@@ -22,9 +24,10 @@ type u16 = T_H.u16
 
 local T = require(script.Parent["CPUPeripherals.types"])
 type State = T.State
+type ActiveDMAState = T.ActiveDMAState
 
 
-
+local LSHIFT = bit32.lshift
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
@@ -44,26 +47,72 @@ end
 
 
 function m.MapPeripheralsFromState(
-    cpuBus: Bus, ppuBus: Bus, ppu: PPU, oam: buffer,
-    state: State
+    cpuBus: Bus, ppuBus: Bus, ppu: PPU, state: State
 )
     m.MapPeripherals(
         cpuBus,
         m.NewInternalRam(state.InternalRam),
         m.NewPpuRegisters(ppu, ppuBus),
-        m.NewOAMDMA(cpuBus, oam)
+        m.NewOAMDMA(state)
     )
 end
 
 
-function m.NewOAMDMA(cpuBus: Bus, oam: buffer): (Peripheral)
-    local function _write(addr: u16, val: u8)
+function m.ClockDmaAndReturnIfFinished(
+    dmaState: ActiveDMAState,
+    isCpuClockEven: boolean,
+    cpuBus: Bus,
+    oam: buffer
+): boolean
+    if not dmaState.IdleCycleComplete then
+        if not isCpuClockEven then
+            dmaState.IdleCycleComplete = true
+        end
         return false
+    end
+
+    if isCpuClockEven then
+        dmaState.LastRead = cpuBus.Read(
+            LSHIFT(dmaState.Page, 8) + dmaState.OAMAddr
+        )
+        return false
+    else
+        RU8(oam, dmaState.OAMAddr, dmaState.LastRead)
+        dmaState.OAMAddr += 1
+        return dmaState.OAMAddr > 255
+    end
+end
+
+
+function m.NewOAMDMA(state: State): (Peripheral)
+    local function _write(addr: u16, val: u8)
+        state.ActiveDMA = {
+            IdleCycleComplete = false,
+            Page = val,
+            OAMAddr = 0x00,
+            LastRead = 0x00,
+        }
+        return true
     end
 
     return {
         Write = _write
     }
+end
+
+
+-- CPU clock with added DMA logic.
+function m.Clock2A03(state: State, cpu: CPU, cpuBus: Bus, oam: buffer)
+    if not state.ActiveDMA then
+        Cpu.Clock(cpu, cpuBus)
+    elseif m.ClockDmaAndReturnIfFinished(
+        state.ActiveDMA,
+        cpu.State.ExecutionState.Clock % 2 == 0,
+        cpuBus,
+        oam
+    ) then
+        state.ActiveDMA = nil
+    end
 end
 
 
@@ -152,7 +201,8 @@ end
 
 function m.NewState(): State
     return {
-        InternalRam = buffer.create(0x800)
+        InternalRam = buffer.create(0x800),
+        ActiveDMA = nil
     }
 end
 

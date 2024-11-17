@@ -13,12 +13,12 @@ local Cpu = setmetatable({
 local CpuPeripherals = require(script.Parent.CPUPeripherals)
 local PpuPeripherals = require(script.Parent.PPUPeripherals)
 
-
 local h = require(inst_core.Helpers)
 
 local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
+
 type Peripheral = T_H.Peripheral
 
 local T = require(script.Parent["NES.types"])
@@ -27,7 +27,6 @@ type Cartridge<MapperState> = T.Cartridge<MapperState>
 type State<MapperState> = T.State<MapperState>
 type IMapper<MapperState> = T.IMapper<MapperState>
 type IDisplay = T.IDisplay
-
 
 
 local m = {}
@@ -39,20 +38,20 @@ function m.Clock<T>(nes: NES<T>)
 
     -- An offset of 1 allows for accurate syncronization.
     if (nes.Clock + 1)%3 == 0 then
-        Cpu.Clock(nes.Cpu, nes.CpuBus)
+        CpuPeripherals.Clock2A03(nes.State.CpuPeripherals, nes.Cpu, nes.CpuBus, nes.State.Ppu.OAM)
     end
 
     nes.Clock += 1
 end
 
 
-function m.NewState<MapperState>( mapperState: MapperState): State<MapperState>
+function m.NewState<MapperState>(mapperState: MapperState): State<MapperState>
     return {
         Mapper = mapperState,
         Cpu = Cpu.NewState(),
         CpuPeripherals = CpuPeripherals.NewState(),
         Ppu = Ppu.NewState(),
-        PpuPeripherals = PpuPeripherals.NewState()
+        PpuPeripherals = PpuPeripherals.NewState(),
     }
 end
 
@@ -100,7 +99,7 @@ function m.New<MapperState>(
     )
 
     CpuPeripherals.MapPeripheralsFromState(
-        cpuBus, ppuBus, ppu, state.Ppu.OAM, state.CpuPeripherals
+        cpuBus, ppuBus, ppu, state.CpuPeripherals
     )
 
     PpuPeripherals.MapPeripheralsFromState(

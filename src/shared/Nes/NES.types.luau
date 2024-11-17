@@ -44,7 +44,7 @@ export type State<MapperState> = {
     Mapper: MapperState,
     Cpu: CPUState, Ppu: PPUState,
     CpuPeripherals: CPUPeripheralState,
-    PpuPeripherals: PPUPeripheralState
+    PpuPeripherals: PPUPeripheralState,
 }
 
 

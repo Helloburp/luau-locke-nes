@@ -2,6 +2,7 @@ local inst_core = script.Parent.Parent.Core
 
 local h = require(inst_core.Helpers)
 local _bff = h.NewBitfieldFunctions
+local _gib = h.NewGetInBufferWithAlignment
 
 local T = require(script.Parent["PPU.types"])
 
@@ -56,6 +57,18 @@ local PPUSTATUS_MASKS: {[T.EPpuStatusFlag]: number} = {
 }
 
 
+local OBJECT_TILENUMBER: {[T.EObjectTileNumber]: number} = {
+    ["TileNumber"]  = 0b11111110,
+    ["Bank"]        = 0b00000001
+}
+
+local OBJECT_ATTRIBUTE: {[T.EObjectAttribute]: number} = {
+    ["Palette"]     = 0b00000011,
+    ["Priority"]    = 0b00100000,
+    ["FlipX"]       = 0b01000000,
+    ["FlipY"]       = 0b10000000
+}
+
 
 local SCANLINES_PER_FRAME = 262
 local DOTS_PER_SCANLINE = 341
@@ -80,6 +93,14 @@ local m = {
         PpuStatus           = _bff(PPUSTATUS_MASKS) :: BitfieldFunctions<T.EPpuStatusFlag>,
         AttributeAddress    = _bff(ATTR_ADDR_MASKS) :: BitfieldFunctions<T.EAttributeAddressComponent>,
         PatternTableAddress = _bff(PATTERN_TABLE_ADDR_MASKS) :: BitfieldFunctions<T.EPatternTableAddressComponent>,
+        ObjectTileNumber    = _bff(OBJECT_TILENUMBER) :: BitfieldFunctions<T.EObjectTileNumber>,
+        ObjectAttribute     = _bff(OBJECT_ATTRIBUTE) :: BitfieldFunctions<T.EObjectAttribute>,
+        OAMGetters = {
+            Y           = _gib(4, 0),
+            TileNumber  = _gib(4, 1),
+            Attributes  = _gib(4, 2),
+            X           = _gib(4, 3)
+        }
     }
 }
 

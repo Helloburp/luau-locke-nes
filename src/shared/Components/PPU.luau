@@ -216,13 +216,6 @@ function m.PpuDataWrite(bus: Bus, regs: Regs, iRegs: InternalRegs, val: u8)
 end
 
 
-function m.OamDmaWrite()
-    -- Writing XX will upload 256 bytes from the CPU page XX00-XXFF to OAM.
-    -- CPU is delayed for 513 cycles + 1 if on a 'put' cycle (?)
-        -- Put and Get cycles alternate; initial state is random
-end
-
-
 function m.NewOAM()
     return buffer.create(0x40)
 end
@@ -252,12 +245,6 @@ end
 function m.GetScanlineInFrame(cyclesThisFrame: number)
     return (cyclesThisFrame - cyclesThisFrame%C.DOTS_PER_SCANLINE)
         / C.DOTS_PER_SCANLINE
-end
-
-
-function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
-    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
-    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
 end
 
 
@@ -300,6 +287,33 @@ function m.GetHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
         "BitPlane", m.GetLowPatternTableAddress(right, tileNumber, row), 1
     )
+end
+
+
+-- If divisible by 4, falls back to the background color.
+function m.GetColorByPixelValue(index: number, bus: Bus)
+    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
+end
+
+
+function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
+    return
+        (if h.GetBit(fineX, lo) then 1 else 0) +
+        (if h.GetBit(fineX, hi) then 2 else 0)
+end
+
+
+function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
+    return (
+        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
+        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
+    ) * 2
+end
+
+
+function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
+    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
+    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
 end
 
 
@@ -411,14 +425,6 @@ function _shift(shifters: Shifters)
     shifters.AttributeLo = RSHIFT(shifters.AttributeLo, 1)
     shifters.PatternHi = RSHIFT(shifters.PatternHi, 1)
     shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
-end
-
-
-function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
-    return (
-        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
-        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
-    ) * 2
 end
 
 function _reloadShifters(
@@ -566,19 +572,6 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
     return m.GetPixelValue(patternValue, attributeValue, false)
-end
-
-
--- If divisible by 4, falls back to the background color.
-function m.GetColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
-end
-
-
-function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
-    return
-        (if h.GetBit(fineX, lo) then 1 else 0) +
-        (if h.GetBit(fineX, hi) then 2 else 0)
 end
 
 

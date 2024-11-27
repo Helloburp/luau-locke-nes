@@ -12,6 +12,8 @@ type Peripheral = T.Peripheral
 local BAND, BOR, BNOT, LSHIFT, RSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
 
+local RU8 = buffer.readu8
+
 
 local m = {}
 
@@ -38,6 +40,16 @@ end
 
 function m.Signed8ToSigned16(val: u8): u16
     return if val > 127 then BOR(val, 0xFF00) else val
+end
+
+
+function m.NewGetInBufferWithAlignment(
+    alignmentSize: number,
+    offset: number
+): (b: buffer, objIndex: u8) -> (u8)
+    return function(b: buffer, objIndex: u8)
+        return RU8(b, objIndex * alignmentSize + offset)
+    end
 end
 
 

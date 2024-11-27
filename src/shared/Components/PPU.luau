@@ -22,23 +22,21 @@ type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>
 type Peripheral = T_H.Peripheral
 
 
+local BFU = C.BITFIELD_UTIL
 local VRamAddress, AttributeAddress, PatternTableAddress,
-    PpuControl, PpuMask, PpuStatus =
-    C.BITFIELD_UTIL.VRamAddress,
-    C.BITFIELD_UTIL.AttributeAddress,
-    C.BITFIELD_UTIL.PatternTableAddress,
-    C.BITFIELD_UTIL.PpuControl,
-    C.BITFIELD_UTIL.PpuMask,
-    C.BITFIELD_UTIL.PpuStatus
+    PpuControl, PpuMask, PpuStatus,
+    ObjectTileNumber, ObjectAttribute, OAMGetters =
+    BFU.VRamAddress, BFU.AttributeAddress, BFU.PatternTableAddress,
+    BFU.PpuControl, BFU.PpuMask, BFU.PpuStatus,
+    BFU.ObjectTileNumber, BFU.ObjectAttribute, BFU.OAMGetters
 
 
 local m = {}
 
 local LSHIFT, RSHIFT, BOR, BAND =
     bit32.lshift, bit32.rshift, bit32.bor, bit32.band
-local RU8, WU8 = buffer.readu8, buffer.writeu8
+local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
-
 
 function m.Clock(ppu: PPU, bus: Bus)
     local state = ppu.State
@@ -264,6 +262,7 @@ function m.GetTileAddressFromVRamAddress(v: u16)
     return 0x2000 + VRamAddress.Set("y", v, 0)
 end
 
+
 function m.GetAttributeAddressFromVRamAddress(v: u16)
     local attrAddr = AttributeAddress.Compose{
         ["N"] = VRamAddress.Get("N", v),
@@ -274,6 +273,7 @@ function m.GetAttributeAddressFromVRamAddress(v: u16)
     return 0x2000 + attrAddr
 end
 
+
 function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
     return PatternTableAddress.Compose{
         ["FineY"] = row,
@@ -282,6 +282,7 @@ function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number
         ["Half"] = if right then 1 else 0
     }
 end
+
 
 function m.GetHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
@@ -308,6 +309,84 @@ function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
         (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
         (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
     ) * 2
+end
+
+
+function m.InitializeSecondaryOAM(secondaryOam: buffer)
+    buffer.fill(secondaryOam, 0, 0xFF, 32*4 - 1)
+end
+
+
+function m.PutObjectsToDrawIntoSecondaryOamAndReturnIfOverflow(
+    scanline: number,
+    spriteSizeFlag: boolean,
+    oam: buffer,
+    secondaryOam: buffer
+): boolean
+    local spriteFoundCount = 0
+    local spriteSize = if spriteSizeFlag then 16 else 8
+
+    for i = 0, 63 do
+        local y = OAMGetters.Y(oam, i)
+        if not (y <= scanline and y + spriteSize > scanline) then continue end
+        
+        WU32(
+            secondaryOam,
+            spriteFoundCount,
+            RU32(oam, i * 4)
+        )
+
+        spriteFoundCount += 1
+        if spriteFoundCount > 7 then break end
+    end
+
+    return spriteFoundCount > 7
+end
+
+
+function m.SpriteIndexAtDot(
+    dot: number, secondaryOam: buffer
+): number?
+    for i = 0, 7 do
+        local x = OAMGetters.X(secondaryOam, i)
+        if dot > x and dot + 8 <= x then
+            return i
+        end
+    end
+
+    return nil
+end
+
+
+--[[
+    Todo:
+    - Look at & implement bank logic
+    - Implement 8x16 mode
+    - Implement flipping
+]]
+function m.SpritePixelAtScreenPosition(
+    objIndex: number, scanline: number, dot: number, secondaryOam: buffer
+): number
+    local tileNumber, attributes, x, y =
+        OAMGetters.TileNumber(secondaryOam, objIndex),
+        OAMGetters.Attributes(secondaryOam, objIndex),
+        OAMGetters.X(secondaryOam, objIndex),
+        OAMGetters.Y(secondaryOam, objIndex)
+    
+    local row = scanline - y
+    local column = dot - x
+
+    local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
+    local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
+
+    local lo = m.GetLowPatternTableAddress(isRightBank, tileIndex, row)
+    local hi = m.GetHighPatternTableAddress(isRightBank, tileIndex, row)
+
+
+    local patternValue = m.GetPatternValueFromBitPlanes(lo, hi, column)
+    local attributeValue = ObjectAttribute.Get("Palette", attributes)
+
+    return m.GetPixelValue(patternValue, attributeValue, true)
 end
 
 
@@ -494,6 +573,7 @@ function _cycleAndReturnPixel(
 
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
+        local spritePixel: u8 = 0b00000
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 

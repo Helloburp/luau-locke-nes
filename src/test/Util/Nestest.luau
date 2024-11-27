@@ -27,6 +27,8 @@ type Peripheral = T_H.Peripheral
 
 local T_NES = require(inst_nes["NES.types"])
 type Cartridge<MapperState> = T_NES.Cartridge<MapperState>
+type IMapper<MapperState> = T_NES.IMapper<MapperState>
+
 
 
 local LSHIFT = bit32.lshift
@@ -34,11 +36,9 @@ local LSHIFT = bit32.lshift
 local m = {}
 
 
-function m.Cartridge<T>(): Cartridge<T>
+function m.NewMapperInterface(): IMapper<nil>
     local rom = Parse.HexStrToBuffer(C_NESTEST.ROM)
-    local header = Parse.Header(rom)
-
-    return NROM.NewFromRom(rom, header)
+    return NROM.MapperInterface(rom)
 end
 
 

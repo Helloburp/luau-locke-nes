@@ -55,6 +55,8 @@ export type State = {
     Shifters: Shifters,
 
     OAM: buffer,
+    SecondaryOAM: buffer,
+    IsSprite0BeingDrawn: boolean,
 
     FrameCounter: number,
 }

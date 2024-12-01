@@ -95,7 +95,9 @@ function m.NewState(): State
             PatternLo = 0x00,   PatternHi = 0x00,
             AttributeLo = 0x00, AttributeHi = 0x00
         },
-        OAM = buffer.create(0x40),
+        OAM = buffer.create(0x100),
+        SecondaryOAM = buffer.create(0x40),
+        IsSprite0BeingDrawn = false,
         FrameCounter = 0
     }
 end
@@ -110,6 +112,8 @@ function m.CopyState(state: State): State
         Shifters = table.clone(state.Shifters),
 
         OAM = h.CopyBuffer(state.OAM),
+        SecondaryOAM = h.CopyBuffer(state.SecondaryOAM),
+        IsSprite0BeingDrawn = state.IsSprite0BeingDrawn,
 
         FrameCounter = state.FrameCounter
     }
@@ -248,7 +252,7 @@ end
 
 function m.GetPixelValue(
     patternValue: number, attributeValue: number, isSprite: boolean
-)
+): u8
     return (
         patternValue +
         LSHIFT(attributeValue, 2) + 
@@ -317,7 +321,7 @@ function m.InitializeSecondaryOAM(secondaryOam: buffer)
 end
 
 
-function m.PutObjectsToDrawIntoSecondaryOamAndReturnIfOverflow(
+function m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
     scanline: number,
     spriteSizeFlag: boolean,
     oam: buffer,
@@ -366,7 +370,7 @@ end
 ]]
 function m.SpritePixelAtScreenPosition(
     objIndex: number, scanline: number, dot: number, secondaryOam: buffer
-): number
+): u8
     local tileNumber, attributes, x, y =
         OAMGetters.TileNumber(secondaryOam, objIndex),
         OAMGetters.Attributes(secondaryOam, objIndex),
@@ -387,6 +391,18 @@ function m.SpritePixelAtScreenPosition(
     local attributeValue = ObjectAttribute.Get("Palette", attributes)
 
     return m.GetPixelValue(patternValue, attributeValue, true)
+end
+
+
+function m.ShouldSpriteBeRendered(
+    isBgTransparent: boolean,
+    isSpriteTransparent: boolean,
+    spritePriority: boolean
+): boolean
+    
+    return spritePriority
+        and not isSpriteTransparent
+        or (isBgTransparent and not isSpriteTransparent)
 end
 
 
@@ -569,11 +585,12 @@ function _cycleAndReturnPixel(
     if isPreRenderLine and dot == 1 then
         regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
         regs.PPUSTATUS = PpuStatus.Set("S", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = PpuStatus.Set("O", regs.PPUSTATUS, 0)
     end
 
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
-        local spritePixel: u8 = 0b00000
+        local spriteIndex = m.SpriteIndexAtDot(dot, iState.SecondaryOAM)
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
@@ -614,6 +631,7 @@ function _cycleAndReturnPixel(
             if isRenderingEnabled then
                 regs.OAMADDR = 0x00
             end
+
             --[[
                 Dots 257-320:
                 Data for sprites on next scanline are fetched. (2 dots each)
@@ -622,6 +640,23 @@ function _cycleAndReturnPixel(
                 - Pattern table tile low
                 - Pattern table tile high
             ]]
+            if dot == 320 then
+                local isSpriteOverflow, isSprite0BeingDrawn =
+                    m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+                    scanline + 1,
+                    PpuControl.GetBit("H", regs.PPUCTRL),
+                    iState.OAM,
+                    iState.SecondaryOAM
+                )
+                iState.IsSprite0BeingDrawn = isSprite0BeingDrawn
+
+                -- Technically this flag should only be set once per frame.
+                -- If bugs are apparent, make sure to change this.
+                if not PpuStatus.GetBit("O", regs.PPUSTATUS) then
+                    regs.PPUSTATUS = PpuStatus.SetBit("O", regs.PPUSTATUS, isSpriteOverflow)
+                end
+            end
+            
         elseif dot == 337 or dot == 339 then
             _fetchToLatchesBasedOnProgress(
                 bus, regs.PPUCTRL, iRegs.v, latches,
@@ -629,7 +664,36 @@ function _cycleAndReturnPixel(
             )
         end
 
-        returnedPixel = bgPixel
+        if spriteIndex then
+            local spritePixel = m.SpritePixelAtScreenPosition(
+                spriteIndex, scanline, dot, iState.SecondaryOAM
+            )
+
+            local isBgTransparent = BAND(bgPixel, 0b11) == 0
+            local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
+
+            local spriteAttributes = OAMGetters.Attributes(iState.SecondaryOAM, spriteIndex)
+            local spritePriority = ObjectAttribute.GetBit("Priority", spriteAttributes)
+            local shouldSpriteBeRendered = m.ShouldSpriteBeRendered(
+                isBgTransparent, isSpriteTransparent, spritePriority
+            )
+
+            -- Technically this flag should only be set once per frame.
+            -- If bugs are apparent, make sure to change this.
+            if not PpuStatus.GetBit("S", regs.PPUSTATUS) then
+                local isSprite0Hit = iState.IsSprite0BeingDrawn
+                    and spriteIndex == 0
+                    and not (isBgTransparent or isSpriteTransparent)
+
+                regs.PPUSTATUS = PpuStatus.SetBit("S", regs.PPUSTATUS, isSprite0Hit)
+            end
+            
+            returnedPixel = shouldSpriteBeRendered
+                and spritePixel
+                or bgPixel
+        else
+            returnedPixel = bgPixel
+        end
 
     elseif scanline >= 241 and scanline <= 261 then
         if scanline == 241 and dot == 1 then

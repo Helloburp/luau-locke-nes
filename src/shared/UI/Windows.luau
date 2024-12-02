@@ -86,6 +86,8 @@ function m.PpuViewer(
     end
 
     local function _nametables()
+        local hoveredNametableOffsetState = Iris.State(nil)
+
         Iris.SameLine()
         do
             for nt = 0, 3 do
@@ -95,28 +97,31 @@ function m.PpuViewer(
                     }
                 )
             end
-            for nt = 0,3 do
-                local view = nametableViews[nt + 1]
-                local parent = (view.Parent and view.Parent:IsA("GuiObject"))
-                    and view.Parent
-                    or nil
-                
-                if not parent then continue end
-                local offset = _getTileInNametableImage(parent)
-                if not offset then continue end
+
+            
+            local offset: Vector2? = hoveredNametableOffsetState:get()
+            if offset then
                 Iris.Text(`({offset.X}, {offset.Y})`)
             end
         end
         Iris.End()
+        local ntImageLabels = {}
         do
             Iris.SameLine()
-            _irisEditableImage(nametableViews[1], SIZES.NAMETABLE)
-            _irisEditableImage(nametableViews[2], SIZES.NAMETABLE)
+            table.insert(ntImageLabels, _irisEditableImage(nametableViews[1], SIZES.NAMETABLE))
+            table.insert(ntImageLabels, _irisEditableImage(nametableViews[2], SIZES.NAMETABLE))
             Iris.End()
             Iris.SameLine()
-            _irisEditableImage(nametableViews[3], SIZES.NAMETABLE)
-            _irisEditableImage(nametableViews[4], SIZES.NAMETABLE)
+            table.insert(ntImageLabels, _irisEditableImage(nametableViews[3], SIZES.NAMETABLE))
+            table.insert(ntImageLabels, _irisEditableImage(nametableViews[4], SIZES.NAMETABLE))
             Iris.End()
+        end
+
+        hoveredNametableOffsetState:set(nil)
+        for i, imageLabel in pairs(ntImageLabels) do
+            local offset = _getTileInNametableImage(imageLabel)
+            if not offset then continue end
+            hoveredNametableOffsetState:set(offset)
         end
     end
 

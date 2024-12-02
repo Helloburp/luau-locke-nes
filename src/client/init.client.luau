@@ -1,7 +1,7 @@
 --!optimize 2
 
 local ROM_NAME = "DK.nes"
-local SAVESTATE_NAME = nil -- "dk_demo"
+local SAVESTATE_NAME = "dk_demo"
 
 
 local inst_root = game.ReplicatedStorage.Shared

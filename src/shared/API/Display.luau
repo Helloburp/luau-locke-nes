@@ -35,10 +35,6 @@ function m.NewPlacePixelInFrame(_setColor: (i: number, color: u8) -> ())
     end
 end
 
-function _displayBufferSize(imageSize: Vector2): number
-    return imageSize.X * imageSize.Y * 4
-end
-
 function m.NewDisplayBuffer(imageSize: Vector2): buffer
     return buffer.create(_displayBufferSize(imageSize))
 end
@@ -220,6 +216,10 @@ function _getLowAndHighPatternValues(
         ppuBus.Read(
             Ppu.GetHighPatternTableAddress(right, tileNumber, fineY)
         )
+end
+
+function _displayBufferSize(imageSize: Vector2): number
+    return imageSize.X * imageSize.Y * 4
 end
 
 return m

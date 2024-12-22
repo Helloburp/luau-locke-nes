@@ -70,24 +70,6 @@ function m.PpuViewer(
     end
 
 
-    local function _getTileInNametableImage(guiObject: GuiObject): Vector2?
-        local mouse = UserInputService:GetMouseLocation()
-            - GuiService:GetGuiInset()
-        local relOffset = mouse - guiObject.AbsolutePosition
-        local size = guiObject.AbsoluteSize
-        if not (relOffset.X >= 0 and relOffset.Y >= 0) then return end
-        if not (relOffset.X < size.X and relOffset.Y < size.Y) then return end
-
-        local sizeRatio = Vector2.new(
-            SIZES.NAMETABLE.X/size.X,
-            SIZES.NAMETABLE.Y/size.Y
-        )
-
-        return Vector2.new(
-            math.floor(relOffset.X * sizeRatio.X/8),
-            math.floor(relOffset.Y * sizeRatio.Y/8)
-        )
-    end
 
     local function _nametables()
         local hoveredNametableOffsetState = Iris.State(nil)
@@ -123,13 +105,17 @@ function m.PpuViewer(
 
         hoveredNametableOffsetState:set(nil)
         for i, imageLabel in pairs(ntImageLabels) do
-            local offset = _getTileInNametableImage(imageLabel)
+            local offset = _getOffsetInImage(imageLabel, 8)
             if not offset then continue end
             hoveredNametableOffsetState:set(offset)
         end
     end
 
     local function _objects()
+        Iris.Text("Secondary OAM")
+        Iris.Text(logs.SecondaryOAM)
+        Iris.Separator()
+        Iris.Text("Primary OAM")
         Iris.Text(logs.OAM)
     end
 
@@ -151,12 +137,19 @@ end
 
 
 function m.Screen(content: Content)
+
     local image = Iris.Image{
         "rbxassetid://0", UDim2.fromOffset(SIZES.SCREEN.X, SIZES.SCREEN.Y)
     }.Instance :: ImageLabel
 
     image.ImageContent = content
     image.ResampleMode = Enum.ResamplerMode.Pixelated
+
+    local offset = _getOffsetInImage(image, 1)
+
+    if offset then
+        Iris.Text(`({offset.X}, {offset.Y})`)
+    end
 end
 
 
@@ -241,6 +234,26 @@ function _irisContentImage(
     image.ResampleMode = Enum.ResamplerMode.Pixelated
 
     return image
+end
+
+
+function _getOffsetInImage(guiObject: GuiObject, divisor: number): Vector2?
+    local mouse = UserInputService:GetMouseLocation()
+        - GuiService:GetGuiInset()
+    local relOffset = mouse - guiObject.AbsolutePosition
+    local size = guiObject.AbsoluteSize
+    if not (relOffset.X >= 0 and relOffset.Y >= 0) then return end
+    if not (relOffset.X < size.X and relOffset.Y < size.Y) then return end
+
+    local sizeRatio = Vector2.new(
+        SIZES.NAMETABLE.X/size.X,
+        SIZES.NAMETABLE.Y/size.Y
+    )
+
+    return Vector2.new(
+        math.floor(relOffset.X * sizeRatio.X/divisor),
+        math.floor(relOffset.Y * sizeRatio.Y/divisor)
+    )
 end
 
 

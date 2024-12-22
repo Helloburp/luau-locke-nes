@@ -81,7 +81,7 @@ function m.ClockDmaAndReturnIfFinished(
         )
         return false
     else
-        RU8(oam, dmaState.OAMAddr, dmaState.LastRead)
+        WU8(oam, dmaState.OAMAddr, dmaState.LastRead)
         dmaState.OAMAddr += 1
         return dmaState.OAMAddr > 255
     end

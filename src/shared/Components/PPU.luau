@@ -336,7 +336,7 @@ function m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
         
         WU32(
             secondaryOam,
-            spriteFoundCount,
+            spriteFoundCount * 4,
             RU32(oam, i * 4)
         )
 

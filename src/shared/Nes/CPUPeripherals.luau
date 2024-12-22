@@ -20,6 +20,7 @@ type Peripheral = T_H.Peripheral
 type Bus = T_H.Bus
 type u8 = T_H.u8
 type u16 = T_H.u16
+type ExecutionState = T_H.ExecutionState
 
 
 local T = require(script.Parent["CPUPeripherals.types"])
@@ -60,10 +61,13 @@ end
 
 function m.ClockDmaAndReturnIfFinished(
     dmaState: ActiveDMAState,
-    isCpuClockEven: boolean,
+    cpuExecutionState: ExecutionState,
     cpuBus: Bus,
     oam: buffer
 ): boolean
+    local isCpuClockEven = cpuExecutionState.Clock % 2 == 0
+    cpuExecutionState.Clock += 1
+
     if not dmaState.IdleCycleComplete then
         if not isCpuClockEven then
             dmaState.IdleCycleComplete = true
@@ -107,7 +111,7 @@ function m.Clock2A03(state: State, cpu: CPU, cpuBus: Bus, oam: buffer)
         Cpu.Clock(cpu, cpuBus)
     elseif m.ClockDmaAndReturnIfFinished(
         state.ActiveDMA,
-        cpu.State.ExecutionState.Clock % 2 == 0,
+        cpu.State.ExecutionState,
         cpuBus,
         oam
     ) then

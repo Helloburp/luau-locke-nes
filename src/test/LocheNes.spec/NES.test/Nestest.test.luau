@@ -20,9 +20,14 @@ return function()
     local nes: Nes
 
     beforeEach(function()
+        local iMapper = NestestUtil.NewMapperInterface()
         nes = Nes.New(
-            function() end, function() end,
-            NestestUtil.Cartridge()
+            {
+                OnFrameComplete = function() end,
+                SetPixelForPpuCycle = function() end
+            } :: T_NES.IDisplay,
+            iMapper,
+            Nes.NewState(iMapper.NewState())
         )
     end)
     

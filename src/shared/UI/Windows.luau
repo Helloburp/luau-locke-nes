@@ -40,10 +40,10 @@ end
 
 
 function m.PpuViewer(
-    patternViews: {EditableImage},
-    nametableViews: {EditableImage},
-    paletteView: EditableImage,
-    _getIrisStateByImage: (EditableImage) -> any
+    patternViews: {Content},
+    nametableViews: {Content},
+    paletteView: Content,
+    _getIrisStateByImage: (Content) -> any
 )
     local function _patternTables()
         Iris.SameLine()
@@ -56,13 +56,13 @@ function m.PpuViewer(
         end
         Iris.End()
         Iris.SameLine()
-        _irisEditableImage(patternViews[1], SIZES.PATTERN_TABLE)
-        _irisEditableImage(patternViews[2], SIZES.PATTERN_TABLE)
+        _irisContentImage(patternViews[1], SIZES.PATTERN_TABLE)
+        _irisContentImage(patternViews[2], SIZES.PATTERN_TABLE)
         Iris.End()
     end
 
     local function _palattes()
-        _irisEditableImage(paletteView, SIZES.PALETTES*10)
+        _irisContentImage(paletteView, SIZES.PALETTES*10)
     end
 
 
@@ -86,6 +86,8 @@ function m.PpuViewer(
     end
 
     local function _nametables()
+        local hoveredNametableOffsetState = Iris.State(nil)
+
         Iris.SameLine()
         do
             for nt = 0, 3 do
@@ -95,28 +97,31 @@ function m.PpuViewer(
                     }
                 )
             end
-            for nt = 0,3 do
-                local view = nametableViews[nt + 1]
-                local parent = (view.Parent and view.Parent:IsA("GuiObject"))
-                    and view.Parent
-                    or nil
-                
-                if not parent then continue end
-                local offset = _getTileInNametableImage(parent)
-                if not offset then continue end
+
+            
+            local offset: Vector2? = hoveredNametableOffsetState:get()
+            if offset then
                 Iris.Text(`({offset.X}, {offset.Y})`)
             end
         end
         Iris.End()
+        local ntImageLabels = {}
         do
             Iris.SameLine()
-            _irisEditableImage(nametableViews[1], SIZES.NAMETABLE)
-            _irisEditableImage(nametableViews[2], SIZES.NAMETABLE)
+            table.insert(ntImageLabels, _irisContentImage(nametableViews[1], SIZES.NAMETABLE))
+            table.insert(ntImageLabels, _irisContentImage(nametableViews[2], SIZES.NAMETABLE))
             Iris.End()
             Iris.SameLine()
-            _irisEditableImage(nametableViews[3], SIZES.NAMETABLE)
-            _irisEditableImage(nametableViews[4], SIZES.NAMETABLE)
+            table.insert(ntImageLabels, _irisContentImage(nametableViews[3], SIZES.NAMETABLE))
+            table.insert(ntImageLabels, _irisContentImage(nametableViews[4], SIZES.NAMETABLE))
             Iris.End()
+        end
+
+        hoveredNametableOffsetState:set(nil)
+        for i, imageLabel in pairs(ntImageLabels) do
+            local offset = _getTileInNametableImage(imageLabel)
+            if not offset then continue end
+            hoveredNametableOffsetState:set(offset)
         end
     end
 
@@ -133,12 +138,12 @@ function m.PpuViewer(
 end
 
 
-function m.Screen(screenView: EditableImage)
+function m.Screen(content: Content)
     local image = Iris.Image{
         "rbxassetid://0", UDim2.fromOffset(SIZES.SCREEN.X, SIZES.SCREEN.Y)
     }.Instance :: ImageLabel
 
-    image.ImageContent = Content.fromObject(screenView)
+    image.ImageContent = content
     image.ResampleMode = Enum.ResamplerMode.Pixelated
 end
 
@@ -212,15 +217,15 @@ function m.Execution<T>(
 end
 
 
-function _irisEditableImage(
-    editableImage: EditableImage, size: Vector2, arguments: {any}?
+function _irisContentImage(
+    content: Content, size: Vector2, arguments: {any}?
 )
     local _arguments = if arguments then table.clone(arguments) else {}
     table.insert(_arguments, "rbxassetid://0")
     table.insert(_arguments, UDim2.fromOffset(size.X, size.Y))
 
     local image = Iris.Image(_arguments).Instance :: ImageLabel
-    image.ImageContent = Content.fromObject(editableImage)
+    image.ImageContent = content
     image.ResampleMode = Enum.ResamplerMode.Pixelated
 
     return image

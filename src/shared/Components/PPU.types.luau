@@ -55,6 +55,8 @@ export type State = {
     Shifters: Shifters,
 
     OAM: buffer,
+    SecondaryOAM: buffer,
+    IsSprite0BeingDrawn: boolean,
 
     FrameCounter: number,
 }
@@ -67,6 +69,9 @@ export type EPatternTableAddressComponent = "FineY" | "BitPlane" | "TileNumber" 
 
 export type EVRamAddressComponent = "X" | "Y" | "N" | "y"
 export type EAttributeAddressComponent = "N" | "AttributeOffset" | "Y" | "X"
+
+export type EObjectTileNumber = "TileNumber" | "Bank"
+export type EObjectAttribute = "Palette" | "Priority" | "FlipX" | "FlipY"
 
 
 return {}

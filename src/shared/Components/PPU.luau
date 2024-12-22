@@ -22,23 +22,21 @@ type BitfieldFunctions<T> = T_H.BitfieldFunctions<T>
 type Peripheral = T_H.Peripheral
 
 
+local BFU = C.BITFIELD_UTIL
 local VRamAddress, AttributeAddress, PatternTableAddress,
-    PpuControl, PpuMask, PpuStatus =
-    C.BITFIELD_UTIL.VRamAddress,
-    C.BITFIELD_UTIL.AttributeAddress,
-    C.BITFIELD_UTIL.PatternTableAddress,
-    C.BITFIELD_UTIL.PpuControl,
-    C.BITFIELD_UTIL.PpuMask,
-    C.BITFIELD_UTIL.PpuStatus
+    PpuControl, PpuMask, PpuStatus,
+    ObjectTileNumber, ObjectAttribute, OAMGetters =
+    BFU.VRamAddress, BFU.AttributeAddress, BFU.PatternTableAddress,
+    BFU.PpuControl, BFU.PpuMask, BFU.PpuStatus,
+    BFU.ObjectTileNumber, BFU.ObjectAttribute, BFU.OAMGetters
 
 
 local m = {}
 
 local LSHIFT, RSHIFT, BOR, BAND =
     bit32.lshift, bit32.rshift, bit32.bor, bit32.band
-local RU8, WU8 = buffer.readu8, buffer.writeu8
+local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
-
 
 function m.Clock(ppu: PPU, bus: Bus)
     local state = ppu.State
@@ -97,7 +95,9 @@ function m.NewState(): State
             PatternLo = 0x00,   PatternHi = 0x00,
             AttributeLo = 0x00, AttributeHi = 0x00
         },
-        OAM = buffer.create(0x40),
+        OAM = buffer.create(0x100),
+        SecondaryOAM = buffer.create(0x40),
+        IsSprite0BeingDrawn = false,
         FrameCounter = 0
     }
 end
@@ -112,6 +112,8 @@ function m.CopyState(state: State): State
         Shifters = table.clone(state.Shifters),
 
         OAM = h.CopyBuffer(state.OAM),
+        SecondaryOAM = h.CopyBuffer(state.SecondaryOAM),
+        IsSprite0BeingDrawn = state.IsSprite0BeingDrawn,
 
         FrameCounter = state.FrameCounter
     }
@@ -216,13 +218,6 @@ function m.PpuDataWrite(bus: Bus, regs: Regs, iRegs: InternalRegs, val: u8)
 end
 
 
-function m.OamDmaWrite()
-    -- Writing XX will upload 256 bytes from the CPU page XX00-XXFF to OAM.
-    -- CPU is delayed for 513 cycles + 1 if on a 'put' cycle (?)
-        -- Put and Get cycles alternate; initial state is random
-end
-
-
 function m.NewOAM()
     return buffer.create(0x40)
 end
@@ -255,15 +250,9 @@ function m.GetScanlineInFrame(cyclesThisFrame: number)
 end
 
 
-function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
-    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
-    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
-end
-
-
 function m.GetPixelValue(
     patternValue: number, attributeValue: number, isSprite: boolean
-)
+): u8
     return (
         patternValue +
         LSHIFT(attributeValue, 2) + 
@@ -277,6 +266,7 @@ function m.GetTileAddressFromVRamAddress(v: u16)
     return 0x2000 + VRamAddress.Set("y", v, 0)
 end
 
+
 function m.GetAttributeAddressFromVRamAddress(v: u16)
     local attrAddr = AttributeAddress.Compose{
         ["N"] = VRamAddress.Get("N", v),
@@ -287,6 +277,7 @@ function m.GetAttributeAddressFromVRamAddress(v: u16)
     return 0x2000 + attrAddr
 end
 
+
 function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
     return PatternTableAddress.Compose{
         ["FineY"] = row,
@@ -296,10 +287,128 @@ function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number
     }
 end
 
+
 function m.GetHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
         "BitPlane", m.GetLowPatternTableAddress(right, tileNumber, row), 1
     )
+end
+
+
+-- If divisible by 4, falls back to the background color.
+function m.GetColorByPixelValue(index: number, bus: Bus)
+    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
+end
+
+
+function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
+    return
+        (if h.GetBit(fineX, lo) then 1 else 0) +
+        (if h.GetBit(fineX, hi) then 2 else 0)
+end
+
+
+function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
+    return (
+        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
+        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
+    ) * 2
+end
+
+
+function m.InitializeSecondaryOAM(secondaryOam: buffer)
+    buffer.fill(secondaryOam, 0, 0xFF, 32*4 - 1)
+end
+
+
+function m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+    scanline: number,
+    spriteSizeFlag: boolean,
+    oam: buffer,
+    secondaryOam: buffer
+): boolean
+    local spriteFoundCount = 0
+    local spriteSize = if spriteSizeFlag then 16 else 8
+
+    for i = 0, 63 do
+        local y = OAMGetters.Y(oam, i)
+        if not (y <= scanline and y + spriteSize > scanline) then continue end
+        
+        WU32(
+            secondaryOam,
+            spriteFoundCount,
+            RU32(oam, i * 4)
+        )
+
+        spriteFoundCount += 1
+        if spriteFoundCount > 7 then break end
+    end
+
+    return spriteFoundCount > 7
+end
+
+
+function m.SpriteIndexAtDot(
+    dot: number, secondaryOam: buffer
+): number?
+    for i = 0, 7 do
+        local x = OAMGetters.X(secondaryOam, i)
+        if dot > x and dot + 8 <= x then
+            return i
+        end
+    end
+
+    return nil
+end
+
+
+--[[
+    Todo:
+    - Look at & implement bank logic
+    - Implement 8x16 mode
+    - Implement flipping
+]]
+function m.SpritePixelAtScreenPosition(
+    objIndex: number, scanline: number, dot: number, secondaryOam: buffer
+): u8
+    local tileNumber, attributes, x, y =
+        OAMGetters.TileNumber(secondaryOam, objIndex),
+        OAMGetters.Attributes(secondaryOam, objIndex),
+        OAMGetters.X(secondaryOam, objIndex),
+        OAMGetters.Y(secondaryOam, objIndex)
+    
+    local row = scanline - y
+    local column = dot - x
+
+    local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
+    local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
+
+    local lo = m.GetLowPatternTableAddress(isRightBank, tileIndex, row)
+    local hi = m.GetHighPatternTableAddress(isRightBank, tileIndex, row)
+
+
+    local patternValue = m.GetPatternValueFromBitPlanes(lo, hi, column)
+    local attributeValue = ObjectAttribute.Get("Palette", attributes)
+
+    return m.GetPixelValue(patternValue, attributeValue, true)
+end
+
+
+function m.ShouldSpriteBeRendered(
+    isBgTransparent: boolean,
+    isSpriteTransparent: boolean,
+    spritePriority: boolean
+): boolean
+    
+    return spritePriority
+        and not isSpriteTransparent
+        or (isBgTransparent and not isSpriteTransparent)
+end
+
+
+function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
+    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
+    iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
 end
 
 
@@ -413,14 +522,6 @@ function _shift(shifters: Shifters)
     shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
 end
 
-
-function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
-    return (
-        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
-        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
-    ) * 2
-end
-
 function _reloadShifters(
     latches: Latches, shifters: Shifters, vramAddr: u16
 )
@@ -484,10 +585,12 @@ function _cycleAndReturnPixel(
     if isPreRenderLine and dot == 1 then
         regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
         regs.PPUSTATUS = PpuStatus.Set("S", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = PpuStatus.Set("O", regs.PPUSTATUS, 0)
     end
 
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
+        local spriteIndex = m.SpriteIndexAtDot(dot, iState.SecondaryOAM)
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
@@ -528,6 +631,7 @@ function _cycleAndReturnPixel(
             if isRenderingEnabled then
                 regs.OAMADDR = 0x00
             end
+
             --[[
                 Dots 257-320:
                 Data for sprites on next scanline are fetched. (2 dots each)
@@ -536,6 +640,23 @@ function _cycleAndReturnPixel(
                 - Pattern table tile low
                 - Pattern table tile high
             ]]
+            if dot == 320 then
+                local isSpriteOverflow, isSprite0BeingDrawn =
+                    m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+                    scanline + 1,
+                    PpuControl.GetBit("H", regs.PPUCTRL),
+                    iState.OAM,
+                    iState.SecondaryOAM
+                )
+                iState.IsSprite0BeingDrawn = isSprite0BeingDrawn
+
+                -- Technically this flag should only be set once per frame.
+                -- If bugs are apparent, make sure to change this.
+                if not PpuStatus.GetBit("O", regs.PPUSTATUS) then
+                    regs.PPUSTATUS = PpuStatus.SetBit("O", regs.PPUSTATUS, isSpriteOverflow)
+                end
+            end
+            
         elseif dot == 337 or dot == 339 then
             _fetchToLatchesBasedOnProgress(
                 bus, regs.PPUCTRL, iRegs.v, latches,
@@ -543,7 +664,36 @@ function _cycleAndReturnPixel(
             )
         end
 
-        returnedPixel = bgPixel
+        if spriteIndex then
+            local spritePixel = m.SpritePixelAtScreenPosition(
+                spriteIndex, scanline, dot, iState.SecondaryOAM
+            )
+
+            local isBgTransparent = BAND(bgPixel, 0b11) == 0
+            local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
+
+            local spriteAttributes = OAMGetters.Attributes(iState.SecondaryOAM, spriteIndex)
+            local spritePriority = ObjectAttribute.GetBit("Priority", spriteAttributes)
+            local shouldSpriteBeRendered = m.ShouldSpriteBeRendered(
+                isBgTransparent, isSpriteTransparent, spritePriority
+            )
+
+            -- Technically this flag should only be set once per frame.
+            -- If bugs are apparent, make sure to change this.
+            if not PpuStatus.GetBit("S", regs.PPUSTATUS) then
+                local isSprite0Hit = iState.IsSprite0BeingDrawn
+                    and spriteIndex == 0
+                    and not (isBgTransparent or isSpriteTransparent)
+
+                regs.PPUSTATUS = PpuStatus.SetBit("S", regs.PPUSTATUS, isSprite0Hit)
+            end
+            
+            returnedPixel = shouldSpriteBeRendered
+                and spritePixel
+                or bgPixel
+        else
+            returnedPixel = bgPixel
+        end
 
     elseif scanline >= 241 and scanline <= 261 then
         if scanline == 241 and dot == 1 then
@@ -566,19 +716,6 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
     return m.GetPixelValue(patternValue, attributeValue, false)
-end
-
-
--- If divisible by 4, falls back to the background color.
-function m.GetColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
-end
-
-
-function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
-    return
-        (if h.GetBit(fineX, lo) then 1 else 0) +
-        (if h.GetBit(fineX, hi) then 2 else 0)
 end
 
 

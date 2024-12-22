@@ -34,8 +34,8 @@ return function()
         bus = h.NewDebugBus()
 
         cpu = m.New(
-            require(inst_root.AddressingModes),
-            require(inst_root.Instructions)
+            require(inst_components.CPU.AddressingModes),
+            require(inst_components.CPU.Instructions)
         )
         
         local oldRead = bus.Read

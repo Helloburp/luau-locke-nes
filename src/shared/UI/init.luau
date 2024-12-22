@@ -91,9 +91,9 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
         return result
     end
 
-    local function _getStateByImage(image: EditableImage)
+    local function _getStateByImage(content: Content)
         for _, v in pairs(statelyBufferData) do
-            if v.Image ~= image then continue end
+            if v.Content ~= content then continue end
             return v.State
         end
         error("Unable to find state for EditableImage!")
@@ -186,20 +186,20 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
                 {"PPU Viewer"}, Vector2.new(500, 700), windowStates.PpuViewer,
                 function()
                     Windows.PpuViewer({
-                        patternTables[0].Image, patternTables[1].Image
+                        patternTables[0].Content, patternTables[1].Content
                     },
                     {
-                        nametables[0].Image, nametables[1].Image,
-                        nametables[2].Image, nametables[3].Image
+                        nametables[0].Content, nametables[1].Content,
+                        nametables[2].Content, nametables[3].Content
                     },
-                    palette.Image, _getStateByImage
+                    palette.Content, _getStateByImage
                 )
                 end
             )
             _stateWindow(
                 {"Screen"}, SIZES.SCREEN, windowStates.Screen,
                 function()
-                    Windows.Screen(screen.Image)
+                    Windows.Screen(screen.Content)
                 end
             )
             _stateWindow(
@@ -245,21 +245,22 @@ function _newStateControlledRenderBuffer(
     stateValue: boolean? | any?,
     existingBuffer: buffer?
 )
-    local b, image = API.Display.NewBufferImagePair(size, existingBuffer)
+    local b, editableImage = API.Display.NewBufferImagePair(size, existingBuffer)
     local state = if stateValue == nil or typeof(stateValue == "boolean")
         then Iris.State(stateValue or false)
         else stateValue
 
     return {
         Buffer = b,
-        Image = image,
+        Image = editableImage,
+        Content = Content.fromObject(editableImage),
         State = state,
         Render = function()
-            _render(b, image)
+            _render(b, editableImage)
         end,
         RenderIfState = function()
             if not state:get() then return end
-            _render(b, image)
+            _render(b, editableImage)
         end,
     }
 end

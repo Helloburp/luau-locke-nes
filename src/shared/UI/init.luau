@@ -36,6 +36,7 @@ local h = require(inst_core.Helpers)
 local API = setmetatable({
     Display = require(inst_api.Display),
     Debug = require(inst_api.Debug),
+    Log = require(inst_api.Log)
 }, {__index = require(inst_root.API)})
 
 local SIZES = C_DISPLAY.RESOLUTIONS
@@ -192,7 +193,12 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
                         nametables[0].Content, nametables[1].Content,
                         nametables[2].Content, nametables[3].Content
                     },
-                    palette.Content, _getStateByImage
+                    palette.Content,
+                    {
+                        OAM = API.Log.GetFullOAMLog(myNes.Ppu.State.OAM),
+                        SecondaryOAM = API.Log.GetSecondaryOAMLog(myNes.Ppu.State.SecondaryOAM)
+                    },
+                    _getStateByImage
                 )
                 end
             )

@@ -43,6 +43,10 @@ function m.PpuViewer(
     patternViews: {Content},
     nametableViews: {Content},
     paletteView: Content,
+    logs: {
+        OAM: string,
+        SecondaryOAM: string,
+    },
     _getIrisStateByImage: (Content) -> any
 )
     local function _patternTables()
@@ -125,15 +129,23 @@ function m.PpuViewer(
         end
     end
 
-    Iris.Tree("Pattern Tables", {isUncollapsed = true})
+    local function _objects()
+        Iris.Text(logs.OAM)
+    end
+
+    Iris.Tree("Pattern Tables", {isUncollapsed = false})
     do
         _patternTables()
         _palattes()
     end
     Iris.End()
 
-    Iris.Tree("Nametables", {isUncollapsed = true})
+    Iris.Tree("Nametables", {isUncollapsed = false})
     _nametables()
+    Iris.End()
+
+    Iris.Tree("Objects", {isUncollapsed = false})
+    _objects()
     Iris.End()
 end
 

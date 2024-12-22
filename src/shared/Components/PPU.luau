@@ -353,7 +353,7 @@ function m.SpriteIndexAtDot(
 ): number?
     for i = 0, 7 do
         local x = OAMGetters.X(secondaryOam, i)
-        if dot > x and dot + 8 <= x then
+        if dot <= x and dot + 8 > x then
             return i
         end
     end
@@ -368,29 +368,53 @@ end
     - Implement 8x16 mode
     - Implement flipping
 ]]
-function m.SpritePixelAtScreenPosition(
-    objIndex: number, scanline: number, dot: number, secondaryOam: buffer
+function _spritePixelAtScreenPosition(
+    bus: Bus, objIndex: number, scanline: number, dot: number, secondaryOam: buffer
 ): u8
-    local tileNumber, attributes, x, y =
-        OAMGetters.TileNumber(secondaryOam, objIndex),
+    local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
+        objIndex, scanline, secondaryOam
+    )
+
+    return _spritePixelFromProperties(
+        dot,
         OAMGetters.Attributes(secondaryOam, objIndex),
         OAMGetters.X(secondaryOam, objIndex),
+        bus.Read(m.GetLowPatternTableAddress(isRightBank, tileIndex, row)),
+        bus.Read(m.GetHighPatternTableAddress(isRightBank, tileIndex, row))
+    )
+end
+
+
+function _spritePixelFromProperties(
+    dot: number,
+    spriteAttributes: u8,
+    spriteX: u8,
+    lowPatternValue: u8,
+    highPatternValue: u8
+): u8
+    local column = dot - spriteX
+    local patternValue = m.GetPatternValueFromBitPlanes(
+        lowPatternValue, highPatternValue, column
+    )
+    local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
+
+    return m.GetPixelValue(patternValue, attributeValue, true)
+end
+
+
+function _getSpritePatternTablePropertiesAtScreenPosition(
+    objIndex: number, scanline: number, secondaryOam: buffer
+): (boolean, u8, number)
+    local tileNumber, y =
+        OAMGetters.TileNumber(secondaryOam, objIndex),
         OAMGetters.Y(secondaryOam, objIndex)
     
     local row = scanline - y
-    local column = dot - x
 
     local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
     local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
 
-    local lo = m.GetLowPatternTableAddress(isRightBank, tileIndex, row)
-    local hi = m.GetHighPatternTableAddress(isRightBank, tileIndex, row)
-
-
-    local patternValue = m.GetPatternValueFromBitPlanes(lo, hi, column)
-    local attributeValue = ObjectAttribute.Get("Palette", attributes)
-
-    return m.GetPixelValue(patternValue, attributeValue, true)
+    return isRightBank, tileIndex, row
 end
 
 
@@ -665,8 +689,8 @@ function _cycleAndReturnPixel(
         end
 
         if spriteIndex then
-            local spritePixel = m.SpritePixelAtScreenPosition(
-                spriteIndex, scanline, dot, iState.SecondaryOAM
+            local spritePixel = _spritePixelAtScreenPosition(
+                bus, spriteIndex, scanline, dot, iState.SecondaryOAM
             )
 
             local isBgTransparent = BAND(bgPixel, 0b11) == 0

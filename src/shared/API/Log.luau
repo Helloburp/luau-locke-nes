@@ -29,21 +29,21 @@ local C_CPU = require(inst_components["CPU.constants"])
 local Ppu = require(inst_components.PPU)
 
 local C_PPU = require(inst_components["PPU.constants"])
+local OAMGetters = C_PPU.BITFIELD_UTIL.OAMGetters
 
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 local LSHIFT = bit32.lshift
-local RU8 = buffer.readu8
 
 local m = {}
 
 
 function m.GetObjectLog(oam: buffer, objIndex: u8): string
     local yPos, tileIndex, attributes, xPos =
-        RU8(oam, objIndex * 4 + 0),
-        RU8(oam, objIndex * 4 + 1),
-        RU8(oam, objIndex * 4 + 2),
-        RU8(oam, objIndex * 4 + 3)
+        OAMGetters.Y(oam, objIndex),
+        OAMGetters.TileNumber(oam, objIndex),
+        OAMGetters.Attributes(oam, objIndex),
+        OAMGetters.X(oam, objIndex)
     
     return string.format(
         "%3d %10s tile:0x%.2X attr:0x%.2X",

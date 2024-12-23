@@ -317,7 +317,7 @@ end
 
 
 function m.InitializeSecondaryOAM(secondaryOam: buffer)
-    buffer.fill(secondaryOam, 0, 0xFF, 32*4 - 1)
+    buffer.fill(secondaryOam, 0, 0xFF, 8*4 - 1)
 end
 
 
@@ -332,7 +332,7 @@ function m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
 
     for i = 0, 63 do
         local y = OAMGetters.Y(oam, i)
-        if not (y <= scanline and y + spriteSize > scanline) then continue end
+        if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
         
         WU32(
             secondaryOam,
@@ -353,68 +353,12 @@ function m.SpriteIndexAtDot(
 ): number?
     for i = 0, 7 do
         local x = OAMGetters.X(secondaryOam, i)
-        if dot <= x and dot + 8 > x then
+        if dot > x and x + 8 >= dot then
             return i
         end
     end
 
     return nil
-end
-
-
---[[
-    Todo:
-    - Look at & implement bank logic
-    - Implement 8x16 mode
-    - Implement flipping
-]]
-function _spritePixelAtScreenPosition(
-    bus: Bus, objIndex: number, scanline: number, dot: number, secondaryOam: buffer
-): u8
-    local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        objIndex, scanline, secondaryOam
-    )
-
-    return _spritePixelFromProperties(
-        dot,
-        OAMGetters.Attributes(secondaryOam, objIndex),
-        OAMGetters.X(secondaryOam, objIndex),
-        bus.Read(m.GetLowPatternTableAddress(isRightBank, tileIndex, row)),
-        bus.Read(m.GetHighPatternTableAddress(isRightBank, tileIndex, row))
-    )
-end
-
-
-function _spritePixelFromProperties(
-    dot: number,
-    spriteAttributes: u8,
-    spriteX: u8,
-    lowPatternValue: u8,
-    highPatternValue: u8
-): u8
-    local column = dot - spriteX
-    local patternValue = m.GetPatternValueFromBitPlanes(
-        lowPatternValue, highPatternValue, column
-    )
-    local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
-
-    return m.GetPixelValue(patternValue, attributeValue, true)
-end
-
-
-function _getSpritePatternTablePropertiesAtScreenPosition(
-    objIndex: number, scanline: number, secondaryOam: buffer
-): (boolean, u8, number)
-    local tileNumber, y =
-        OAMGetters.TileNumber(secondaryOam, objIndex),
-        OAMGetters.Y(secondaryOam, objIndex)
-    
-    local row = scanline - y
-
-    local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
-    local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
-
-    return isRightBank, tileIndex, row
 end
 
 
@@ -665,6 +609,7 @@ function _cycleAndReturnPixel(
                 - Pattern table tile high
             ]]
             if dot == 320 then
+                m.InitializeSecondaryOAM(iState.SecondaryOAM)
                 local isSpriteOverflow, isSprite0BeingDrawn =
                     m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
                     scanline + 1,
@@ -740,6 +685,62 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
     return m.GetPixelValue(patternValue, attributeValue, false)
+end
+
+
+--[[
+    Todo:
+    - Look at & implement bank logic
+    - Implement 8x16 mode
+    - Implement flipping
+]]
+function _spritePixelAtScreenPosition(
+    bus: Bus, objIndex: number, scanline: number, dot: number, secondaryOam: buffer
+): u8
+    local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
+        objIndex, scanline, secondaryOam
+    )
+
+    return _spritePixelFromProperties(
+        dot,
+        OAMGetters.Attributes(secondaryOam, objIndex),
+        OAMGetters.X(secondaryOam, objIndex),
+        bus.Read(m.GetLowPatternTableAddress(isRightBank, tileIndex, row)),
+        bus.Read(m.GetHighPatternTableAddress(isRightBank, tileIndex, row))
+    )
+end
+
+
+function _spritePixelFromProperties(
+    dot: number,
+    spriteAttributes: u8,
+    spriteX: u8,
+    lowPatternValue: u8,
+    highPatternValue: u8
+): u8
+    local column = dot - spriteX
+    local patternValue = m.GetPatternValueFromBitPlanes(
+        lowPatternValue, highPatternValue, column
+    )
+    local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
+
+    return m.GetPixelValue(patternValue, attributeValue, true)
+end
+
+
+function _getSpritePatternTablePropertiesAtScreenPosition(
+    objIndex: number, scanline: number, secondaryOam: buffer
+): (boolean, u8, number)
+    local tileNumber, y =
+        OAMGetters.TileNumber(secondaryOam, objIndex),
+        OAMGetters.Y(secondaryOam, objIndex)
+    
+    local row = scanline - y
+
+    local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
+    local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
+
+    return isRightBank, tileIndex, row
 end
 
 

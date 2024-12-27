@@ -352,8 +352,13 @@ function m.SpriteIndexAtDot(
     dot: number, secondaryOam: buffer
 ): number?
     for i = 0, 7 do
-        local x = OAMGetters.X(secondaryOam, i)
-        if dot > x and x + 8 >= dot then
+        local x, y =
+            OAMGetters.X(secondaryOam, i),
+            OAMGetters.Y(secondaryOam, i)
+
+        if y >= 0xEF then continue end
+
+        if dot >= x and x + 8 > dot then
             return i
         end
     end
@@ -362,13 +367,13 @@ function m.SpriteIndexAtDot(
 end
 
 
-function m.ShouldSpriteBeRendered(
+function _shouldSpriteBeRendered(
     isBgTransparent: boolean,
     isSpriteTransparent: boolean,
     spritePriority: boolean
 ): boolean
     
-    return spritePriority
+    return (not spritePriority)
         and not isSpriteTransparent
         or (isBgTransparent and not isSpriteTransparent)
 end
@@ -635,7 +640,13 @@ function _cycleAndReturnPixel(
 
         if spriteIndex then
             local spritePixel = _spritePixelAtScreenPosition(
-                bus, spriteIndex, scanline, dot, iState.SecondaryOAM
+                bus,
+                spriteIndex,
+                scanline,
+                dot,
+                iState.SecondaryOAM,
+                PpuControl.GetBit("H", iState.Registers.PPUCTRL),
+                PpuControl.GetBit("S", iState.Registers.PPUCTRL)
             )
 
             local isBgTransparent = BAND(bgPixel, 0b11) == 0
@@ -643,7 +654,7 @@ function _cycleAndReturnPixel(
 
             local spriteAttributes = OAMGetters.Attributes(iState.SecondaryOAM, spriteIndex)
             local spritePriority = ObjectAttribute.GetBit("Priority", spriteAttributes)
-            local shouldSpriteBeRendered = m.ShouldSpriteBeRendered(
+            local shouldSpriteBeRendered = _shouldSpriteBeRendered(
                 isBgTransparent, isSpriteTransparent, spritePriority
             )
 
@@ -695,15 +706,28 @@ end
     - Implement flipping
 ]]
 function _spritePixelAtScreenPosition(
-    bus: Bus, objIndex: number, scanline: number, dot: number, secondaryOam: buffer
+    bus: Bus,
+    objIndex: number,
+    scanline: number,
+    dot: number,
+    secondaryOam: buffer,
+    ppuCtrlSpriteSize: boolean,
+    ppuCtrlSpriteBank: boolean
 ): u8
+    local spriteAttributes = OAMGetters.Attributes(secondaryOam, objIndex)
+
     local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        objIndex, scanline, secondaryOam
+        OAMGetters.TileNumber(secondaryOam, objIndex),
+        OAMGetters.Y(secondaryOam, objIndex),
+        ObjectAttribute.GetBit("FlipY", spriteAttributes),
+        scanline,
+        ppuCtrlSpriteSize,
+        ppuCtrlSpriteBank
     )
 
     return _spritePixelFromProperties(
         dot,
-        OAMGetters.Attributes(secondaryOam, objIndex),
+        spriteAttributes,
         OAMGetters.X(secondaryOam, objIndex),
         bus.Read(m.GetLowPatternTableAddress(isRightBank, tileIndex, row)),
         bus.Read(m.GetHighPatternTableAddress(isRightBank, tileIndex, row))
@@ -719,9 +743,16 @@ function _spritePixelFromProperties(
     highPatternValue: u8
 ): u8
     local column = dot - spriteX
+
+    column = if ObjectAttribute.GetBit("FlipX", spriteAttributes)
+        then column
+        else 7 - column
+    
+
     local patternValue = m.GetPatternValueFromBitPlanes(
         lowPatternValue, highPatternValue, column
     )
+
     local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
 
     return m.GetPixelValue(patternValue, attributeValue, true)
@@ -729,16 +760,29 @@ end
 
 
 function _getSpritePatternTablePropertiesAtScreenPosition(
-    objIndex: number, scanline: number, secondaryOam: buffer
+    spriteTileNumber: u8,
+    spriteY: u8,
+    spriteFlipY: boolean,
+    scanline: number,
+    ppuCtrlSpriteSize: boolean,
+    ppuCtrlSpriteBank: boolean
 ): (boolean, u8, number)
-    local tileNumber, y =
-        OAMGetters.TileNumber(secondaryOam, objIndex),
-        OAMGetters.Y(secondaryOam, objIndex)
     
-    local row = scanline - y
+    local row = scanline - spriteY
+    local isRightBank, tileIndex
 
-    local isRightBank = ObjectTileNumber.GetBit("Bank", tileNumber)
-    local tileIndex = ObjectTileNumber.Get("TileNumber", tileNumber)
+    if ppuCtrlSpriteSize then
+        isRightBank = ObjectTileNumber.GetBit("Bank", spriteTileNumber)
+        tileIndex = ObjectTileNumber.Get("TileNumber", spriteTileNumber)
+    else
+        isRightBank = ppuCtrlSpriteBank
+        tileIndex = spriteTileNumber
+    end
+
+    row = if spriteFlipY
+        then 7 - row
+        else row
+
 
     return isRightBank, tileIndex, row
 end

@@ -38,10 +38,10 @@ game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 -- Debugging
 do
     local _myNes = myUi.Nes
-    -- myUi.WindowStates.Screen:set(false)
-    -- myUi.WindowStates.Execution:set(false)
+    myUi.WindowStates.Screen:set(true)
+    -- myUi.WindowStates.Execution:set(true)
     -- myUi.WindowStates.PpuViewer:set(true)
-    myUi.RunningState.Running = false
+    myUi.RunningState.Running = true
 end
 
 Iris:Connect(myUi.Iris)

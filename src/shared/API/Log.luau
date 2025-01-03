@@ -7,6 +7,10 @@ local T = require(script.Parent["Log.types"])
 type LogBreakdown = T.LogBreakdown
 
 
+local T_CONTROLLER = require(script.Parent["Controller.types"])
+type EInput = T_CONTROLLER.EInput
+
+
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 type Regs = T_CPU.Registers
@@ -103,10 +107,6 @@ function m.GetLogPc(pc: u16, mem: Bus): string
         if bytes > 0 then string.format(" %.2X", arg1) else "",
         if bytes > 1 then string.format(" %.2X", arg2) else ""
     )
-end
-
-function _logValue(valName: string, val: u8): string
-    return string.format("%s:%.2X", valName, val)
 end
 
 function m.GetLogRegs(regs: Regs)
@@ -214,11 +214,37 @@ function m.GetPpuRegLog(regs: PpuRegisters)
     }`
 end
 
+
 function m.GetPpuInternalRegLog(regs: PpuInternalRegisters)
     return string.format(
         "v:0x%.4X t:0x%.4X x:0x%.1X w:%s",
         regs.v, regs.t, regs.x, tostring(regs.w)
 )
+end
+
+
+function m.GetInputLog(_getInput: (EInput) -> boolean)
+    local function _colorIf(str: string, input: EInput)
+        return if _getInput(input)
+            then `<font color="rgb(100,255,100)">{str}</font>`
+            else str
+    end
+    local strs = {
+        _colorIf("←", "Left"),
+        _colorIf("↑", "Up"),
+        _colorIf("↓", "Down"),
+        _colorIf("→", "Right"),
+        _colorIf("A", "A"),
+        _colorIf("B", "B"),
+        _colorIf("Start", "Start"),
+        _colorIf("Select", "Select")
+    }
+    return table.concat(strs, " ")
+end
+
+
+function _logValue(valName: string, val: u8): string
+    return string.format("%s:%.2X", valName, val)
 end
 
 

@@ -1,7 +1,7 @@
 --!optimize 2
 
 local ROM_NAME = "DK.nes"
-local SAVESTATE_NAME = "dk_demo"
+local SAVESTATE_NAME = "dk_start"
 
 
 local inst_root = game.ReplicatedStorage.Shared
@@ -9,9 +9,12 @@ local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
 local UI = require(inst_root.UI)
 
-local API = setmetatable({
-    Parse = require(inst_root.API.Parse)
-}, {__index = require(inst_root.API)})
+local API = {
+    Parse = require(inst_root.API.Parse),
+    Emulation = require(inst_root.API.Emulation)
+}
+
+local Players = game:GetService("Players")
 
 local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
@@ -25,23 +28,31 @@ local savestate do
         local stateModule = game.ReplicatedStorage.Savestates
             :FindFirstChild(SAVESTATE_NAME)
         local stateStr = require(stateModule)
-        savestate = API.DeserializeState(stateStr)
+        savestate = API.Emulation.DeserializeState(stateStr)
     else
         savestate = nil
     end
 end
 
-local myUi = UI.FromRom(rom, savestate)
+local myContext = UI.FromRom(rom, savestate)
+local myIrisHook = UI.NewIrisHook(myContext)
 
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 
 -- Debugging
 do
-    local _myNes = myUi.Nes
-    myUi.WindowStates.Screen:set(true)
-    -- myUi.WindowStates.Execution:set(true)
-    -- myUi.WindowStates.PpuViewer:set(true)
-    myUi.RunningState.Running = true
+    myIrisHook.WindowStates.Screen:set(true)
+    -- myUi.IrisHook.WindowStates.Execution:set(true)
+    -- myUi.IrisHook.WindowStates.PpuViewer:set(true)
+    myIrisHook.RunningState.Running = true
 end
 
-Iris:Connect(myUi.Iris)
+
+Iris:Connect(myIrisHook.Iris)
+
+
+Players.LocalPlayer.CharacterAdded:Connect(function(char)
+    local root = char:WaitForChild("HumanoidRootPart", 5)
+    if not (root and root:IsA("BasePart")) then return end
+    root.Anchored = true
+end)

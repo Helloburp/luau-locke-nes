@@ -1,27 +1,33 @@
 --!optimize 2
 
 local inst_root = script.Parent.Parent
-local inst_core, inst_components, inst_nes, inst_api =
-    inst_root.Core,
-    inst_root.Components,
+local inst_nes, inst_api =
     inst_root.Nes,
     inst_root.API
 
-local root = game.ReplicatedStorage.Shared
 local T_NES = require(inst_nes["NES.types"])
-local T_DEBUG = require(inst_api["Debug.types"])
+type NES = T_NES.NES
 
-type NES<State> = T_NES.NES<State>
+local T_DEBUG = require(inst_api["Debug.types"])
 type DebugLog = T_DEBUG.DebugLog
+
+local T_EMU = require(inst_api["Emulation.types"])
+type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
+
+
+local T_UI = require(inst_root["UI.types"])
+type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+
 
 local m = {}
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
-local API = setmetatable({
+local API = {
     Log = require(inst_api.Log),
-    Debug = require(inst_api.Debug)
-}, {__index = require(root.API)})
+    Debug = require(inst_api.Debug),
+    Emulation = require(inst_api.Emulation)
+}
 
 local C_DISPLAY = require(inst_api["Display.constants"])
 local C_NES = require(inst_nes["NES.constants"])
@@ -154,9 +160,13 @@ end
 
 
 function m.Execution<T>(
-    myNes: NES<T>, myLog: DebugLog, state,
-    _myClock: (NES<T>) -> ()
+    context: EmulationContext<T>,
+    myLog: DebugLog,
+    state: any,
+    _myClock: (NES) -> ()
 )
+    local myNes = context.Emulation.Nes
+
     Iris.Text{(function()
         local logTexts = {}
         for i = 1, #myLog.PCHistory do
@@ -211,8 +221,12 @@ function m.Execution<T>(
     end
     Iris.End()
     if Iris.Button("Print State").clicked() then
-        print(API.SerializeState(API.SaveState(myNes)))
+        print(API.Emulation.SerializeState(context.Emulation.State))
     end
+    Iris.Text{
+        API.Log.GetInputLog(context.IO.GetPort1ButtonDown),
+        [Iris.Args.Text.RichText] = true
+    }
     if state.BreakComment ~= "" then
         Iris.Text{
             `Breakpoint hit: {state.BreakComment}`,

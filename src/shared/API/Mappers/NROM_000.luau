@@ -10,8 +10,11 @@ type u8 = T_H.u8
 type u16 = T_H.u16
 type Mem = T_H.Bus
 
+local T_EMU = require(inst_api["Emulation.types"])
+type IMapper<State> = T_EMU.IMapper<State>
+
 local T_NES = require(inst_nes["NES.types"])
-type IMapper<State> = T_NES.IMapper<State>
+type Cartridge = T_NES.Cartridge
 
 
 local ADDR_MIN, ADDR_MAX = 0x8000, 0xFFFF
@@ -24,7 +27,7 @@ local m = {}
 
 function m.MapperInterface(rom: buffer): IMapper<nil>
     return {
-        NewCartridge = function(state: nil)
+        FromState = function(state: nil)
             return m.NewFromRom(rom, Parse.Header(rom))
         end,
         CopyState = function(state: nil) return nil end,
@@ -36,7 +39,7 @@ end
 function m.NewFromRom(
     rom: buffer,
     header: T_P.Header
-): T_NES.Cartridge<nil>
+): Cartridge
     local prgBank0, prgBanks = Parse.PrgRomOffset(
         header.HasTrainer, 0
     ), header.PrgRom16kBankCount

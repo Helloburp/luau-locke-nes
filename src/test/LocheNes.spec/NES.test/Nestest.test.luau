@@ -10,24 +10,26 @@ local inst_util = script.Parent.Parent.Parent.Util
 local NestestUtil = require(inst_util.Nestest)
 
 local T_NES = require(inst_nes["NES.types"])
-type Nes = T_NES.Nes
+type NES = T_NES.NES
 
 local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
 
 
 return function()
-    local nes: Nes
+    local nes: NES
 
     beforeEach(function()
+        local iPorts = NestestUtil.NewPortsInterface()
         local iMapper = NestestUtil.NewMapperInterface()
         nes = Nes.New(
             {
                 OnFrameComplete = function() end,
                 SetPixelForPpuCycle = function() end
-            } :: T_NES.IDisplay,
-            iMapper,
-            Nes.NewState(iMapper.NewState())
+            } :: T_NES.Display,
+            iPorts.FromState(nil),
+            iMapper.FromState(nil),
+            Nes.NewState()
         )
     end)
     

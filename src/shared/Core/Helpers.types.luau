@@ -29,4 +29,13 @@ export type BitfieldFunctions<EValue> = {
     Compose: ({[EValue]: number}) -> (number)
 }
 
+
+export type IState<T,State> = {
+    NewState: () -> State,
+    CopyState: (State) -> State,
+    FromState: (State) -> T
+}
+
+
+
 return {}

@@ -8,16 +8,31 @@ local inst_core, inst_components, inst_nes, inst_api =
     inst_root.API
 
 local T_NES = require(inst_nes["NES.types"])
+type NES = T_NES.NES
+type Display = T_NES.Display
+
+local T_CONTROLLER = require(inst_api["Controller.types"])
+type EInput = T_CONTROLLER.EInput
+type ControllerState = T_CONTROLLER.State
+
+
 local T_DEBUG = require(inst_api["Debug.types"])
-local T_H = require(inst_core["Helpers.types"])
-
-
-type NES<T> = T_NES.NES<T>
-type IDisplay = T_NES.IDisplay
-
 type DebugLog = T_DEBUG.DebugLog
 type Debugger = T_DEBUG.Debugger
+
+local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
+
+local T_EMU = require(inst_api["Emulation.types"])
+type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
+type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
+type IO = T_EMU.IO
+
+local T = require(script.Parent["UI.types"])
+type IrisControlledRenderBuffer = T.IrisControlledRenderBuffer
+type IrisHook = T.IrisHook
+type EmulationContext<MapperState> = T.EmulationContext<MapperState>
+
 
 
 local Windows = require(script.Windows)
@@ -33,42 +48,51 @@ local C_PPU = require(inst_components["PPU.constants"])
 local C_NES = require(inst_nes["NES.constants"])
 local h = require(inst_core.Helpers)
 
-local API = setmetatable({
+local API = {
     Display = require(inst_api.Display),
     Debug = require(inst_api.Debug),
-    Log = require(inst_api.Log)
-}, {__index = require(inst_root.API)})
+    Log = require(inst_api.Log),
+    Emulation = require(inst_api.Emulation)
+}
 
 local SIZES = C_DISPLAY.RESOLUTIONS
 
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
+local KEYCODES_BY_INPUT: {[EInput]: Enum.KeyCode} = {
+    ["A"]       = Enum.KeyCode.J,
+    ["B"]       = Enum.KeyCode.K,
+    ["Select"]  = Enum.KeyCode.LeftShift,
+    ["Start"]   = Enum.KeyCode.Return,
+    ["Up"]      = Enum.KeyCode.W,
+    ["Down"]    = Enum.KeyCode.S,
+    ["Left"]    = Enum.KeyCode.A,
+    ["Right"]   = Enum.KeyCode.D,
+}
 
-function m.NewScreenBuffer()
-    return API.Display.NewDisplayBuffer(SIZES.SCREEN)
-end
+function m.FromRom<T>(rom: buffer, state: EmulationState<T,ControllerState>?): EmulationContext<T>
+    local screenBuffer = _newScreenBuffer()
+    local io = _newIO(rom, screenBuffer)
+    local iEmulation = API.Emulation.FromIO(io)
+    local myEmulation = iEmulation.FromState(state or iEmulation.NewState())
 
+    if not state then
+        Nes.Reset(myEmulation.Nes)
+    end
 
-function m.NewBufferDisplayInterface(b: buffer): IDisplay
     return {
-        OnFrameComplete = function() end,
-        SetPixelForPpuCycle = API.Display.NewPlacePixelInFrame(
-            API.Display.NewWriteColorValueToBuffer(b)
-        ),
+        ScreenBuffer = screenBuffer,
+        IEmulation = iEmulation,
+        Emulation = myEmulation,
+        IO = io
     }
 end
 
 
-function m.FromRom(rom: buffer, state)
-    local screenBuffer = m.NewScreenBuffer()
-    local display = m.NewBufferDisplayInterface(screenBuffer)
-    local myNes = API.Nes(rom, display, state)
+function m.NewIrisHook<T>(context: EmulationContext<T>): IrisHook
+    local myNes = context.Emulation.Nes
 
-    return m.NewIrisHook(myNes, screenBuffer)
-end
-
-
-function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     local state = {
         Running = false,
         BreakComment = "",
@@ -85,7 +109,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
     local function _addStatelyRenderBuffer(
         size, _fn, defaultState, existingBuffer
     )
-        local result = _newStateControlledRenderBuffer(
+        local result = _newIrisControlledRenderBuffer(
             size, _fn, defaultState, existingBuffer
         )
         table.insert(statelyBufferData, result)
@@ -102,7 +126,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
 
     local screen = _addStatelyRenderBuffer(
         SIZES.SCREEN, API.Display.WriteBufferToImage,
-        windowStates.Screen, screenBuffer
+        windowStates.Screen, context.ScreenBuffer
     )
 
     local nametables = (function()
@@ -211,7 +235,7 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
             _stateWindow(
                 {"Execution"}, nil, windowStates.Execution,
                 function()
-                    Windows.Execution(myNes, myLog, state, _myClock)
+                    Windows.Execution(context, myLog, state, _myClock)
                 end
             )
         end,
@@ -236,6 +260,34 @@ function m.NewIrisHook<T>(myNes: NES<T>, screenBuffer: buffer)
 end
 
 
+function _newIO(rom: buffer, screenBuffer: buffer): IO
+    return {
+        Rom = rom,
+        Display = _newBufferDisplayInterface(screenBuffer),
+        GetPort1ButtonDown = function(eInput: EInput)
+            return UserInputService:IsKeyDown(KEYCODES_BY_INPUT[eInput])
+        end,
+        GetPort2ButtonDown = function()
+            return false
+        end
+    }
+end
+
+function _newScreenBuffer()
+    return API.Display.NewDisplayBuffer(SIZES.SCREEN)
+end
+
+
+function _newBufferDisplayInterface(b: buffer): Display
+    return {
+        OnFrameComplete = function() end,
+        SetPixelForPpuCycle = API.Display.NewPlacePixelInFrame(
+            API.Display.NewWriteColorValueToBuffer(b)
+        ),
+    }
+end
+
+
 function _stateWindow(
     args, size, openState, _iris: () -> ()
 )
@@ -245,12 +297,12 @@ function _stateWindow(
 end
 
 
-function _newStateControlledRenderBuffer(
+function _newIrisControlledRenderBuffer(
     size: Vector2,
     _render: (buffer, EditableImage) -> (),
     stateValue: boolean? | any?,
     existingBuffer: buffer?
-)
+): IrisControlledRenderBuffer
     local b, editableImage = API.Display.NewBufferImagePair(size, existingBuffer)
     local state = if stateValue == nil or typeof(stateValue == "boolean")
         then Iris.State(stateValue or false)

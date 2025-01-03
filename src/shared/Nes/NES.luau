@@ -19,67 +19,67 @@ local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
 
+
 type Peripheral = T_H.Peripheral
 
 local T = require(script.Parent["NES.types"])
-type NES<MapperState> = T.NES<MapperState>
-type Cartridge<MapperState> = T.Cartridge<MapperState>
-type State<MapperState> = T.State<MapperState>
-type IMapper<MapperState> = T.IMapper<MapperState>
-type IDisplay = T.IDisplay
+type NES = T.NES
+type Cartridge = T.Cartridge
+type State = T.State
+type Display = T.Display
+
+local T_CPUP = require(script.Parent["CPUPeripherals.types"])
+type Ports = T_CPUP.Ports
+
 
 
 local m = {}
 
 
 -- Clock amounts divided by 4 (common denominator)
-function m.Clock<T>(nes: NES<T>)
+function m.Clock(nes: NES)
     Ppu.Clock(nes.Ppu, nes.PpuBus)
 
     -- An offset of 1 allows for accurate syncronization.
-    if (nes.Clock + 1)%3 == 0 then
+    if (nes.State.Clock + 1)%3 == 0 then
         CpuPeripherals.Clock2A03(nes.State.CpuPeripherals, nes.Cpu, nes.CpuBus, nes.State.Ppu.OAM)
     end
 
-    nes.Clock += 1
+    nes.State.Clock += 1
 end
 
 
-function m.NewState<MapperState>(mapperState: MapperState): State<MapperState>
+function m.NewState<MapperState,PortState>(): State
     return {
-        Mapper = mapperState,
         Cpu = Cpu.NewState(),
         CpuPeripherals = CpuPeripherals.NewState(),
         Ppu = Ppu.NewState(),
         PpuPeripherals = PpuPeripherals.NewState(),
+        Clock = 0
     }
 end
 
 
-function m.CopyState<MapperState>(
-    state: State<MapperState>,
-    _copyMapperState: (MapperState) -> MapperState
-): State<MapperState>
+function m.CopyState<MapperState,PortState>(state: State): State
     return {
-        Mapper = _copyMapperState(state.Mapper),
         Cpu = Cpu.CopyState(state.Cpu),
         CpuPeripherals = CpuPeripherals.CopyState(state.CpuPeripherals),
         Ppu = Ppu.CopyState(state.Ppu),
         PpuPeripherals = PpuPeripherals.CopyState(state.PpuPeripherals),
+        Clock = state.Clock
     }
 end
 
 
-function m.New<MapperState>(
-    displayInterface: IDisplay,
-    mapperInterface: IMapper<MapperState>,
-    state: State<MapperState>
-): NES<MapperState>
-    local nes: NES<MapperState>
+function m.New(
+    displayInterface: Display,
+    portInterface: Ports,
+    cartridge: Cartridge,
+    state: State
+): NES
+    local nes: NES
     local cpuBus = h.NewBus()
     local ppuBus = h.NewBus()
-
-    local cartridge = mapperInterface.NewCartridge(state.Mapper)
 
     -- The cartridge can effectively map & observe all reads and writes.
     h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
@@ -99,7 +99,7 @@ function m.New<MapperState>(
     )
 
     CpuPeripherals.MapPeripheralsFromState(
-        cpuBus, ppuBus, ppu, state.CpuPeripherals
+        cpuBus, ppuBus, ppu, state.CpuPeripherals, portInterface
     )
 
     PpuPeripherals.MapPeripheralsFromState(
@@ -116,7 +116,6 @@ function m.New<MapperState>(
         PpuBus = ppuBus,
 
         State = state,
-        Mapper = mapperInterface,
 
         Clock = 0
     }
@@ -126,7 +125,7 @@ end
 
 
 -- Not complete/accurate. Just used for starting programs
-function m.Reset<T>(nes: NES<T>)
+function m.Reset<T>(nes: NES)
     nes.Cpu.State.Registers.PC = h.ReadAddressFromVector(nes.CpuBus, 0xFFFC)
 end
 

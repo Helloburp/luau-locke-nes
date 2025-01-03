@@ -26,6 +26,7 @@ type ExecutionState = T_H.ExecutionState
 local T = require(script.Parent["CPUPeripherals.types"])
 type State = T.State
 type ActiveDMAState = T.ActiveDMAState
+type Ports = T.Ports
 
 
 local LSHIFT = bit32.lshift
@@ -35,31 +36,70 @@ local RU8, WU8 = buffer.readu8, buffer.writeu8
 local m = {}
 
 
-function m.MapPeripherals(
-    bus: Bus,
-    internalRam: Peripheral,
-    ppuRegisters: Peripheral,
-    oamDma: Peripheral
-)
-    h.MapPeripheral(bus, NumberRange.new(0x0000, 0x1FFF), internalRam)
-    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x3FFF), ppuRegisters)
-    h.MapPeripheral(bus, NumberRange.new(0x4014), oamDma)
+function m.NewState(): State
+    return {
+        InternalRam = buffer.create(0x800),
+        ActiveDMA = nil,
+        ControllerLatch = false
+    }
+end
+
+
+function m.CopyState(state: State): State
+    return {
+        InternalRam = h.CopyBuffer(state.InternalRam),
+        ActiveDMA = state.ActiveDMA and table.clone(state.ActiveDMA) or nil,
+        ControllerLatch = state.ControllerLatch
+    }
 end
 
 
 function m.MapPeripheralsFromState(
-    cpuBus: Bus, ppuBus: Bus, ppu: PPU, state: State
+    cpuBus: Bus, ppuBus: Bus, ppu: PPU, state: State, portInterface: Ports
 )
-    m.MapPeripherals(
+    _mapPeripherals(
         cpuBus,
-        m.NewInternalRam(state.InternalRam),
-        m.NewPpuRegisters(ppu, ppuBus),
-        m.NewOAMDMA(state)
+        _newInternalRam(state.InternalRam),
+        _newPpuRegisters(ppu, ppuBus),
+        _newOAMDMA(state),
+        _newPortLatch(state, portInterface.ControllerLatchUpdate),
+        _newControllerInput(portInterface)
     )
 end
 
 
-function m.ClockDmaAndReturnIfFinished(
+-- CPU clock with added DMA logic.
+function m.Clock2A03(state: State, cpu: CPU, cpuBus: Bus, oam: buffer)
+    if not state.ActiveDMA then
+        Cpu.Clock(cpu, cpuBus)
+    elseif _clockDmaAndReturnIfFinished(
+        state.ActiveDMA,
+        cpu.State.ExecutionState,
+        cpuBus,
+        oam
+    ) then
+        state.ActiveDMA = nil
+    end
+end
+
+
+function _mapPeripherals(
+    bus: Bus,
+    internalRam: Peripheral,
+    ppuRegisters: Peripheral,
+    oamDma: Peripheral,
+    controllerLatch: Peripheral,
+    controllerInput: Peripheral
+)
+    h.MapPeripheral(bus, NumberRange.new(0x0000, 0x1FFF), internalRam)
+    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x3FFF), ppuRegisters)
+    h.MapPeripheral(bus, NumberRange.new(0x4014), oamDma)
+    h.MapPeripheral(bus, NumberRange.new(0x4016), controllerLatch)
+    h.MapPeripheral(bus, NumberRange.new(0x4016, 0x4017), controllerInput)
+end
+
+
+function _clockDmaAndReturnIfFinished(
     dmaState: ActiveDMAState,
     cpuExecutionState: ExecutionState,
     cpuBus: Bus,
@@ -88,7 +128,7 @@ function m.ClockDmaAndReturnIfFinished(
 end
 
 
-function m.NewOAMDMA(state: State): (Peripheral)
+function _newOAMDMA(state: State): (Peripheral)
     local function _write(addr: u16, val: u8)
         state.ActiveDMA = {
             IdleCycleComplete = false,
@@ -105,22 +145,7 @@ function m.NewOAMDMA(state: State): (Peripheral)
 end
 
 
--- CPU clock with added DMA logic.
-function m.Clock2A03(state: State, cpu: CPU, cpuBus: Bus, oam: buffer)
-    if not state.ActiveDMA then
-        Cpu.Clock(cpu, cpuBus)
-    elseif m.ClockDmaAndReturnIfFinished(
-        state.ActiveDMA,
-        cpu.State.ExecutionState,
-        cpuBus,
-        oam
-    ) then
-        state.ActiveDMA = nil
-    end
-end
-
-
-function m.NewPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
+function _newPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
 
     local iState, executionState, _nmi =
         ppu.State, ppu.State.ExecutionState, ppu.TriggerNmi
@@ -180,7 +205,7 @@ function m.NewPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
 end
 
 
-function m.NewInternalRam(b: buffer): (Peripheral)
+function _newInternalRam(b: buffer): (Peripheral)
     assert(buffer.len(b) == 0x800)
 
     local function _offset(addr: u16)
@@ -203,17 +228,34 @@ function m.NewInternalRam(b: buffer): (Peripheral)
 end
 
 
-function m.NewState(): State
+function _newPortLatch(
+    state: State,
+    _controllerLatchUpdate: (boolean) -> ()
+): Peripheral
+
+    local function _write(_: u16, val: u8): boolean
+        state.ControllerLatch = h.GetBit(0, val)
+        _controllerLatchUpdate(state.ControllerLatch)
+        return true
+    end
+
     return {
-        InternalRam = buffer.create(0x800),
-        ActiveDMA = nil
+        Write = _write
     }
 end
 
 
-function m.CopyState(state: State): State
+function _newControllerInput(portInterface: Ports): Peripheral
+
+    local function _read(addr: u16): u8
+        return
+            if addr == 0x4016 then portInterface.ReadPort1()
+            elseif addr == 0x4017 then portInterface.ReadPort2()
+            else error(`Invalid controller input address 0x{string.format("%X", addr)}`)
+    end
+
     return {
-        InternalRam = h.CopyBuffer(state.InternalRam)
+        Read = _read
     }
 end
 

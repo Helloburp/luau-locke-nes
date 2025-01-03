@@ -11,9 +11,17 @@ export type ActiveDMAState = {
 }
 
 
+export type Ports = {
+    ControllerLatchUpdate: (boolean) -> (),
+    ReadPort1: () -> u8,
+    ReadPort2: () -> u8,
+}
+
+
 export type State = {
     InternalRam: buffer,
-    ActiveDMA: ActiveDMAState?
+    ActiveDMA: ActiveDMAState?,
+    ControllerLatch: boolean,
 }
 
 return {}

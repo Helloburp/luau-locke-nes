@@ -24,37 +24,29 @@ local T_PPUP = require(script.Parent["PPUPeripherals.types"])
 type PPUPeripheralState = T_PPUP.State
 
 
-export type NES<MapperState> = {
+export type NES = {
     CpuBus: Bus,    PpuBus: Bus,
     Cpu: CPU,       Ppu: PPU,
 
-    State: State<MapperState>,
-    Mapper: IMapper<MapperState>,
-
-    Clock: number,
+    State: State
 }
 
-export type Cartridge<MapperState> = {
+export type Cartridge = {
     CpuPeripheral: Peripheral,
     PpuPeripheral: Peripheral,
     GetIsMirroringVertical: () -> boolean,
 }
 
-export type State<MapperState> = {
-    Mapper: MapperState,
+export type State = {
     Cpu: CPUState, Ppu: PPUState,
     CpuPeripherals: CPUPeripheralState,
     PpuPeripherals: PPUPeripheralState,
+
+    Clock: number
 }
 
 
-export type IMapper<MapperState> = {
-    NewState: () -> MapperState,
-    CopyState: (MapperState) -> MapperState,
-    NewCartridge: (MapperState) -> Cartridge<MapperState>
-}
-
-export type IDisplay = {
+export type Display = {
     OnFrameComplete: () -> (),
     SetPixelForPpuCycle: (cycleInFrame: number, color: u8) -> (),
 }

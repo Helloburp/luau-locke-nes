@@ -1,8 +1,7 @@
 local inst_root = script.Parent.Parent.Parent.Shared
-local inst_core, inst_components, inst_nes, inst_api =
+local inst_core, inst_components, inst_api =
     inst_root.Core,
     inst_root.Components,
-    inst_root.Nes,
     inst_root.API
 
 local Log = require(inst_api.Log)
@@ -25,15 +24,28 @@ local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
 type Peripheral = T_H.Peripheral
 
-local T_NES = require(inst_nes["NES.types"])
-type Cartridge<MapperState> = T_NES.Cartridge<MapperState>
-type IMapper<MapperState> = T_NES.IMapper<MapperState>
-
+local T_EMU = require(inst_api["Emulation.types"])
+type IMapper<MapperState> = T_EMU.IMapper<MapperState>
+type IPorts<PortState> = T_EMU.IPorts<PortState>
 
 
 local LSHIFT = bit32.lshift
 
 local m = {}
+
+function m.NewPortsInterface(): IPorts<nil>
+    return {
+        CopyState = function(state: nil) return nil end,
+        NewState = function() return nil end,
+        FromState = function(state: nil)
+            return {
+                ControllerLatchUpdate = function() end,
+                ReadPort1 = function() return 0x00 end,
+                ReadPort2 = function() return 0x00 end,
+            }
+        end
+    }
+end
 
 
 function m.NewMapperInterface(): IMapper<nil>

@@ -316,38 +316,6 @@ function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
 end
 
 
-function m.InitializeSecondaryOAM(secondaryOam: buffer)
-    buffer.fill(secondaryOam, 0, 0xFF, 8*4 - 1)
-end
-
-
-function m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
-    scanline: number,
-    spriteSizeFlag: boolean,
-    oam: buffer,
-    secondaryOam: buffer
-): boolean
-    local spriteFoundCount = 0
-    local spriteSize = if spriteSizeFlag then 16 else 8
-
-    for i = 0, 63 do
-        local y = OAMGetters.Y(oam, i)
-        if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
-        
-        WU32(
-            secondaryOam,
-            spriteFoundCount * 4,
-            RU32(oam, i * 4)
-        )
-
-        spriteFoundCount += 1
-        if spriteFoundCount > 7 then break end
-    end
-
-    return spriteFoundCount > 7
-end
-
-
 function m.SpriteIndexAtDot(
     dot: number, secondaryOam: buffer
 ): number?
@@ -364,6 +332,40 @@ function m.SpriteIndexAtDot(
     end
 
     return nil
+end
+
+
+function _initializeSecondaryOAM(secondaryOam: buffer)
+    buffer.fill(secondaryOam, 0, 0xFF, 8*4 - 1)
+end
+
+
+function _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+    scanline: number,
+    spriteSizeFlag: boolean,
+    oam: buffer,
+    secondaryOam: buffer
+): boolean
+    local spriteFoundCount = 0
+    local spriteSize = if spriteSizeFlag then 16 else 8
+    local isSprite0BeingDrawn = false
+
+    for i = 0, 63 do
+        local y = OAMGetters.Y(oam, i)
+        if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
+        isSprite0BeingDrawn = isSprite0BeingDrawn or i == 0
+        
+        WU32(
+            secondaryOam,
+            spriteFoundCount * 4,
+            RU32(oam, i * 4)
+        )
+
+        spriteFoundCount += 1
+        if spriteFoundCount > 7 then break end
+    end
+
+    return spriteFoundCount > 7, isSprite0BeingDrawn
 end
 
 
@@ -614,14 +616,15 @@ function _cycleAndReturnPixel(
                 - Pattern table tile high
             ]]
             if dot == 320 then
-                m.InitializeSecondaryOAM(iState.SecondaryOAM)
+                _initializeSecondaryOAM(iState.SecondaryOAM)
                 local isSpriteOverflow, isSprite0BeingDrawn =
-                    m.PutDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
-                    scanline + 1,
-                    PpuControl.GetBit("H", regs.PPUCTRL),
-                    iState.OAM,
-                    iState.SecondaryOAM
-                )
+                    _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+                        scanline + 1,
+                        PpuControl.GetBit("H", regs.PPUCTRL),
+                        iState.OAM,
+                        iState.SecondaryOAM
+                    )
+
                 iState.IsSprite0BeingDrawn = isSprite0BeingDrawn
 
                 -- Technically this flag should only be set once per frame.

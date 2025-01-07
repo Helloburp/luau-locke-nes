@@ -1,7 +1,7 @@
 --!optimize 2
 
-local ROM_NAME = "DK.nes"
-local SAVESTATE_NAME = "dk_start"
+local ROM_NAME = "IceClimber.nes"
+local SAVESTATE_NAME = nil -- "dk_start"
 
 
 local inst_root = game.ReplicatedStorage.Shared

@@ -1,5 +1,5 @@
+local RUN_TESTS = false
 
--- Default TestEZ implementation
--- require(game.ReplicatedStorage.Packages.TestEZ).TestBootstrap:run(
---     {game.ReplicatedStorage.Test}
--- )
+if RUN_TESTS then
+    require(script.TestEZ)
+end

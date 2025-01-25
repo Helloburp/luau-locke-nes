@@ -143,9 +143,11 @@ function m.BreakdownLog(log: string): LogBreakdown
     }
 end
 
+
 function m.IterLog(logfile: string)
     return string.gmatch(logfile, "%x.-CYC:%d+")
 end
+
 
 function m.IterLogMultiple(logfiles: {string}): () -> (string?)
     local logfileIndex = 1

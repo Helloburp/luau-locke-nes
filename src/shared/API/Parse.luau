@@ -11,6 +11,10 @@ local m = {}
 local _getBit = h.GetBit
 
 type u8 = T.u8
+type u16 = T.u16
+type RomInterface = T_PARSE.RomInterface
+type Rom = T_PARSE.Rom
+
 
 local WU8, RU8 = buffer.writeu8, buffer.readu8
 local RSHIFT, LSHIFT, BAND = bit32.rshift, bit32.lshift, bit32.band
@@ -74,6 +78,31 @@ function m.ChrMemOffset(
 ): number
     return m.PrgRomOffset(hasTrainer, prgRomBanks)
         + CHR_MEM_BANK_SIZE * bankOffset
+end
+
+
+function m.RomInterface(rom: buffer): RomInterface
+    local header = m.Header(rom)
+    local prgBank0, prgBanks = m.PrgRomOffset(
+        header.HasTrainer, 0
+    ), header.PrgRom16kBankCount
+
+    local chrBank0 = m.ChrMemOffset(
+        header.HasTrainer, prgBanks, 0
+    )
+
+    return {
+        ReadPrgRom = function(addr: u16) return RU8(rom, prgBank0 + addr) end,
+        ReadChrRom = function(addr: u16) return RU8(rom, chrBank0 + addr) end
+    }
+end
+
+
+function m.FromBuffer(b: buffer): Rom
+    return {
+        Interface = m.RomInterface(b),
+        Header = m.Header(b)
+    }
 end
 
 

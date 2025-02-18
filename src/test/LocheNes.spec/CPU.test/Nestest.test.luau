@@ -37,12 +37,13 @@ return function()
             require(inst_components.CPU.AddressingModes),
             require(inst_components.CPU.Instructions)
         )
+
+        local romInterface = Parse.RomInterface(rom)
         
         local oldRead = bus.Read
         bus.Read = function(i)
-            local romValue = NROM.CpuReadFromBuffer(i, rom,
-                Parse.PrgRomOffset(header.HasTrainer, 0),
-                header.PrgRom16kBankCount
+            local romValue = NROM.CpuReadFromBuffer(
+                i, header.PrgRom16kBankCount, romInterface.ReadPrgRom
             )
             if romValue then return romValue end
             return oldRead(i)

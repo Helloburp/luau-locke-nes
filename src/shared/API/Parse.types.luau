@@ -3,6 +3,8 @@ local inst_core = inst_root.Core
 
 local T = require(inst_core["Helpers.types"])
 type u8 = T.u8
+type u16 = T.u16
+
 
 export type Header = {
     PrgRom16kBankCount: u8,
@@ -17,6 +19,16 @@ export type Header = {
 
     TVSystem: "NTSC" | "PAL" | "Dual",
     MapperId: u8,
+}
+
+export type RomInterface = {
+    ReadPrgRom: (u16) -> u8,
+    ReadChrRom: (u16) -> u8
+}
+
+export type Rom = {
+    Interface: RomInterface,
+    Header: Header
 }
 
 return {}

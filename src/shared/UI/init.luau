@@ -52,7 +52,8 @@ local API = {
     Display = require(inst_api.Display),
     Debug = require(inst_api.Debug),
     Log = require(inst_api.Log),
-    Emulation = require(inst_api.Emulation)
+    Emulation = require(inst_api.Emulation),
+    Parse = require(inst_api.Parse)
 }
 
 local SIZES = C_DISPLAY.RESOLUTIONS
@@ -262,7 +263,7 @@ end
 
 function _newIO(rom: buffer, screenBuffer: buffer): IO
     return {
-        Rom = rom,
+        Rom = API.Parse.FromBuffer(rom),
         Display = _newBufferDisplayInterface(screenBuffer),
         GetPort1ButtonDown = function(eInput: EInput)
             return UserInputService:IsKeyDown(KEYCODES_BY_INPUT[eInput])

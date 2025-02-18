@@ -24,7 +24,6 @@ type EInput = T_CONTROLLER.EInput
 
 
 local Controller = require(script.Parent.Controller)
-local Parse = require(script.Parent.Parse)
 local Nes = require(inst_nes.NES)
 
 local HttpService = game:GetService("HttpService")
@@ -32,8 +31,7 @@ local HttpService = game:GetService("HttpService")
 local m = {}
 
 function m.FromIO<MapperState>(io: IO): IEmulation<MapperState,ControllerState>
-    local header = Parse.Header(io.Rom)
-    local iMapper = C.MAPPERS_BY_ID[header.MapperId](io.Rom)
+    local iMapper = C.MAPPERS_BY_ID[io.Rom.Header.MapperId](io.Rom)
 
     local function _fromState(state: State<MapperState,ControllerState>)
         local iPorts = Controller.New(

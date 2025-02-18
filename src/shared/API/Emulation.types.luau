@@ -18,6 +18,9 @@ type Ports = T_CPUP.Ports
 local T = require(inst_core["Helpers.types"])
 type IState<T,State> = T.IState<T,State>
 
+local T_PARSE = require(script.Parent["Parse.types"])
+type Rom = T_PARSE.Rom
+
 
 export type IMapper<MapperState> = IState<Cartridge,MapperState>
 export type IPorts<PortState> = IState<Ports,PortState>
@@ -25,7 +28,7 @@ export type IEmulation<MapperState,PortState> = IState<
     Emulation<MapperState,PortState>,
     State<MapperState,PortState>
 >
-export type IMapperFromRom<MapperState> = (rom: buffer) -> IMapper<MapperState>
+export type IMapperFromRom<MapperState> = (rom: Rom) -> IMapper<MapperState>
 
 
 export type State<
@@ -51,7 +54,7 @@ export type Emulation<
 
 
 export type IO = {
-    Rom: buffer,
+    Rom: Rom,
     Display: Display,
     GetPort1ButtonDown: (EInput) -> boolean,
     GetPort2ButtonDown: (EInput) -> boolean,

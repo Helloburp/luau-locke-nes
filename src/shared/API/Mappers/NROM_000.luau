@@ -3,12 +3,13 @@ local inst_root = script.Parent.Parent.Parent
 local inst_core, inst_nes, inst_api = inst_root.Core, inst_root.Nes, inst_root.API
 
 local T_P = require(inst_api["Parse.types"])
-local Parse = require(inst_api.Parse)
 
 local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
-type Mem = T_H.Bus
+type RomInterface = T_P.RomInterface
+type Rom = T_P.Rom
+
 
 local T_EMU = require(inst_api["Emulation.types"])
 type IMapper<State> = T_EMU.IMapper<State>
@@ -20,76 +21,58 @@ type Cartridge = T_NES.Cartridge
 local ADDR_MIN, ADDR_MAX = 0x8000, 0xFFFF
 local ADDR_RANGE = ADDR_MAX - ADDR_MIN + 1
 
-local RU8 = buffer.readu8
-
 local m = {}
 
 
-function m.MapperInterface(rom: buffer): IMapper<nil>
+function m.MapperInterface(rom: Rom): IMapper<nil>
     return {
         FromState = function(state: nil)
-            return m.NewFromRom(rom, Parse.Header(rom))
+            return {
+                CpuPeripheral = {
+                    Read = function(addr: u16)
+                        return m.CpuReadFromBuffer(
+                            addr,
+                            rom.Header.PrgRom16kBankCount,
+                            rom.Interface.ReadPrgRom
+                        )
+                    end
+                },
+                PpuPeripheral = {
+                    Read = function(addr: u16)
+                        return _ppuReadFromBuffer(
+                            addr, rom.Interface.ReadChrRom
+                        )
+                    end
+                },
+                GetIsMirroringVertical = function()
+                    return rom.Header.NametableArrangement == "Vertical"
+                end,
+            }
         end,
+
         CopyState = function(state: nil) return nil end,
         NewState = function() return nil end
     }
 end
 
 
-function m.NewFromRom(
-    rom: buffer,
-    header: T_P.Header
-): Cartridge
-    local prgBank0, prgBanks = Parse.PrgRomOffset(
-        header.HasTrainer, 0
-    ), header.PrgRom16kBankCount
-
-    local chrBank0 = Parse.ChrMemOffset(
-        header.HasTrainer, header.PrgRom16kBankCount, 0
-    )
-
-    local mirroringIsVertical = header.NametableArrangement == "Vertical"
-
-    return {
-        CpuPeripheral = {
-            Read = function(addr: u16)
-                return m.CpuReadFromBuffer(addr, rom, prgBank0, prgBanks)
-            end
-        },
-        PpuPeripheral = {
-            Read = function(addr: u16)
-                return m.PpuReadFromBuffer(addr, rom, chrBank0)
-            end
-        },
-        GetIsMirroringVertical = function()
-            return mirroringIsVertical
-        end,
-    }
-end
-
-
 function m.CpuReadFromBuffer(
     addr: u16,
-    rom: buffer,
-    bank0Offset: number,
-    prgBanks: number        -- Must be 0 or 1
-): number?
+    prgRom16kBankCount: number,
+    _readPrgRom: (u16) -> u8
+): u8?
     if addr < 0x8000 then return nil end
-
-    -- Proper mirroring of the chr rom
-    addr = (addr - 0x8000)%(ADDR_RANGE/(3 - prgBanks))
-    return RU8(rom, bank0Offset + addr)
+    addr = (addr - 0x8000)%(ADDR_RANGE/(3 - prgRom16kBankCount))
+    return _readPrgRom(addr)
 end
 
 
-function m.PpuReadFromBuffer(
+function _ppuReadFromBuffer(
     addr: u16,
-    rom: buffer,
-    bank0Offset: number
+    _readChrRom: (u16) -> (u8)
 ): number?
-    -- This "mapper" only maps the pattern tables
     if addr >= 0x2000 then return nil end
-    return RU8(rom, bank0Offset + addr)
+    return _readChrRom(addr)
 end
 
 

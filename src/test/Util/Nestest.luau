@@ -49,8 +49,9 @@ end
 
 
 function m.NewMapperInterface(): IMapper<nil>
-    local rom = Parse.HexStrToBuffer(C_NESTEST.ROM)
-    return NROM.MapperInterface(rom)
+    return NROM.MapperInterface(
+        Parse.FromBuffer(Parse.HexStrToBuffer(C_NESTEST.ROM))
+    )
 end
 
 

@@ -54,30 +54,16 @@ end
 
 
 function m.NewVRam(
-    _getIsMirroringVertical: () -> boolean, b: buffer
+    _mirrorVRam: (u16) -> u16, b: buffer
 ): (Peripheral)
     assert(buffer.len(b) == 0x800)
 
-    local function _offset(addr: u16)
-        local offset
-        if _getIsMirroringVertical() then
-            offset = h.UnmirrorAddress(addr, 0x2000, 0x800)
-        else
-            if addr < 0x2800 then
-                offset = h.UnmirrorAddress(addr, 0x2000, 0x400)
-            else
-                offset = 0x400 + h.UnmirrorAddress(addr, 0x2800, 0x400)
-            end
-        end
-        return offset
-    end
-
     local function _read(addr: u16)
-        return RU8(b, _offset(addr))
+        return RU8(b, _mirrorVRam(addr))
     end
 
     local function _write(addr: u16, val: u8)
-        WU8(b, _offset(addr), val)
+        WU8(b, _mirrorVRam(addr), val)
     end
 
     return {
@@ -99,12 +85,12 @@ end
 
 function m.MapPeripheralsFromState(
     bus: Bus, ppuRegisters: Regs,
-    _getIsMirroringVertical: () -> (boolean),
+    _mirrorVRam: (u16) -> (u16),
     state: State
 )
     m.MapPeripherals(
         bus,
-        m.NewVRam(_getIsMirroringVertical, state.VRam),
+        m.NewVRam(_mirrorVRam, state.VRam),
         m.NewPaletteControl(ppuRegisters, state.PaletteControl)
     )
 end

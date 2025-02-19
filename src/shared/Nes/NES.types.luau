@@ -15,6 +15,7 @@ local T = require(inst_core["Helpers.types"])
 type Bus = T.Bus
 type Peripheral = T.Peripheral
 type u8 = T.u8
+type u16 = T.u16
 
 
 local T_CPUP = require(script.Parent["CPUPeripherals.types"])
@@ -34,7 +35,7 @@ export type NES = {
 export type Cartridge = {
     CpuPeripheral: Peripheral,
     PpuPeripheral: Peripheral,
-    GetIsMirroringVertical: () -> boolean,
+    MirrorVRam: (u16) -> u16,
 }
 
 export type State = {

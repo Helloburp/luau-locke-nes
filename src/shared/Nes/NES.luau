@@ -105,7 +105,7 @@ function m.New(
     PpuPeripherals.MapPeripheralsFromState(
         ppuBus,
         state.Ppu.Registers,
-        cartridge.GetIsMirroringVertical,
+        cartridge.MirrorVRam,
         state.PpuPeripherals
     )
 

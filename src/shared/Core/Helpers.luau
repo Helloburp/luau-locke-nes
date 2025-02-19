@@ -12,7 +12,7 @@ type Peripheral = T.Peripheral
 local BAND, BOR, BNOT, LSHIFT, RSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
 
-local RU8 = buffer.readu8
+local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
 local m = {}
@@ -208,6 +208,14 @@ function m.CopyBuffer(b: buffer): buffer
     local newBuffer = buffer.create(buffer.len(b))
     buffer.copy(newBuffer, 0, b)
     return newBuffer
+end
+
+
+function m.MemoryInterfaceFromBufferWithOffset(b: buffer, offset: number): Bus
+    return {
+        Read = function(addr: u16) return RU8(b, offset + addr) end,
+        Write = function(addr: u16, data: u8) return WU8(b, offset + addr, data) end
+    }
 end
 
 

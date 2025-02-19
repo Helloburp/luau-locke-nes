@@ -14,6 +14,11 @@ type u8 = T.u8
 type u16 = T.u16
 type RomInterface = T_PARSE.RomInterface
 type Rom = T_PARSE.Rom
+type Mem = T.Bus
+
+local T_RAMSTATE = require(script.Parent["RamState.types"])
+type RamState = T_RAMSTATE.RamState
+
 
 
 local WU8, RU8 = buffer.writeu8, buffer.readu8
@@ -92,8 +97,20 @@ function m.RomInterface(rom: buffer): RomInterface
     )
 
     return {
-        ReadPrgRom = function(addr: u16) return RU8(rom, prgBank0 + addr) end,
-        ReadChrRom = function(addr: u16) return RU8(rom, chrBank0 + addr) end
+        PrgMem = h.MemoryInterfaceFromBufferWithOffset(rom, prgBank0),
+        ChrMem = h.MemoryInterfaceFromBufferWithOffset(rom, chrBank0)
+    }
+end
+
+
+function m.RamState(header: Header): RamState
+    return {
+        ChrRam = if header.ChrMemory._t == "Ram"
+            then buffer.create(0x2000)
+            else nil,
+        PrgRam = if header.HasPersistentMemory
+            then buffer.create(0x2000)
+            else nil
     }
 end
 

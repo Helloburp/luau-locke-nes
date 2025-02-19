@@ -1,19 +1,22 @@
 
+type Memory<R,W> = {
+    Read: R,
+    Write: W
+}
+
+type FnRead<T> = (u16) -> (T)
+type FnWrite = (u16, u8) -> boolean
+
+
 
 -- These numeric types have no behavior, but are used to convey intent.
 export type u8 = number
 export type u16 = number
 
--- The bus' methods are infallible.
-export type Bus = {
-    Read: (u16) -> (u8),
-    Write: (u16, u8) -> (true)
-}
 
-export type Peripheral = {
-    Read: ((u16) -> (u8?))?,
-    Write: ((u16, u8) -> (boolean))?
-}
+-- The bus' methods are infallible. Writes should never return false.
+export type Bus = Memory<FnRead<u8>, FnWrite>
+export type Peripheral = Memory<FnRead<u8?>?, FnWrite?>
 
 
 export type ExecutionState = {

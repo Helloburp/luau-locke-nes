@@ -5,7 +5,8 @@ type IMapperFromRom<State> = T.IMapperFromRom<State>
 local inst_mappers = script.Parent.Mappers
 
 local MAPPERS_BY_ID: {[number]: IMapperFromRom<any>} = {
-    [000] = require(inst_mappers.NROM_000).MapperInterface
+    [000] = require(inst_mappers.NROM_000).MapperInterface,
+    [001] = require(inst_mappers.SxROM_001).MapperInterface
 }
 
 

@@ -43,7 +43,7 @@ return function()
         local oldRead = bus.Read
         bus.Read = function(i)
             local romValue = NROM.CpuReadFromBuffer(
-                i, header.PrgRom16kBankCount, romInterface.ReadPrgRom
+                i, header.PrgRom16kBankCount, romInterface.PrgMem.Read
             )
             if romValue then return romValue end
             return oldRead(i)

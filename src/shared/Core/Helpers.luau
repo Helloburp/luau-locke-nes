@@ -149,10 +149,10 @@ function m.ReadAddressFromVector(bus: Bus, vector: u16): u16
 end
 
 
-function m.MapReadToBus(
-    bus: Bus, addressRange: NumberRange?, _read: (u16) -> (u8?)
+function m.MapReadToMemory(
+    bus: Peripheral, addressRange: NumberRange?, _read: (u16) -> (u8?)
 )
-    local _oldRead = bus.Read
+    local _oldRead = bus.Read or function() return nil end
 
     if not addressRange then
         bus.Read = function(addr: u16): number
@@ -172,10 +172,10 @@ function m.MapReadToBus(
 end
 
 
-function m.MapWriteToBus(
-    bus: Bus, addressRange: NumberRange?, _write: (u16, u8) -> (boolean)
+function m.MapWriteToMemory(
+    bus: Peripheral, addressRange: NumberRange?, _write: (u16, u8) -> (boolean)
 )
-    local _oldWrite = bus.Write
+    local _oldWrite = bus.Write or function() return false end
 
     if not addressRange then
         bus.Write = function(addr: u16, val: u8)
@@ -196,11 +196,11 @@ end
 
 
 function m.MapPeripheral(
-    bus: Bus, addressRange: NumberRange?, peripheral: Peripheral
+    bus: Peripheral, addressRange: NumberRange?, peripheral: Peripheral
 )
     local _read, _write = peripheral.Read, peripheral.Write
-    if _read then m.MapReadToBus(bus, addressRange, _read) end
-    if _write then m.MapWriteToBus(bus, addressRange, _write) end
+    if _read then m.MapReadToMemory(bus, addressRange, _read) end
+    if _write then m.MapWriteToMemory(bus, addressRange, _write) end
 end
 
 

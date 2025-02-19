@@ -21,28 +21,11 @@ type RamState = T_RAMSTATE.RamState
 
 
 
-local WU8, RU8 = buffer.writeu8, buffer.readu8
-local RSHIFT, LSHIFT, BAND = bit32.rshift, bit32.lshift, bit32.band
+local RU8 = buffer.readu8
+local RSHIFT, BAND = bit32.rshift, bit32.band
 
 local PRG_ROM_BANK_SIZE = (2^14)
 local CHR_MEM_BANK_SIZE = (2^13)
-
-function _hexStrBytes(str: string) return string.gmatch(str, "(%x).-(%x)") end
-
-function m.HexStrToBuffer(str: string): buffer
-    local values = {}
-    for hiNibble, loNibble in _hexStrBytes(str) do
-        local val = LSHIFT(tonumber(hiNibble, 16), 4) + tonumber(loNibble, 16)
-        table.insert(values, val)
-    end
-
-    local b = buffer.create(#values)
-    for i, v in ipairs(values) do
-       WU8(b, i - 1, v)
-    end
-
-    return b
-end
 
 
 function m.Header(rom: buffer): Header

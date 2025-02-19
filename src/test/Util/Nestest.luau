@@ -1,12 +1,14 @@
 local inst_root = script.Parent.Parent.Parent.Shared
-local inst_core, inst_components, inst_api =
+local inst_core, inst_components, inst_api, inst_auxiliary =
     inst_root.Core,
     inst_root.Components,
-    inst_root.API
+    inst_root.API,
+    inst_root.Auxiliary
 
 local Log = require(inst_api.Log)
 local Parse = require(inst_api.Parse)
 local NROM = require(inst_api.Mappers.NROM_000)
+local StringBufferConversion = require(inst_auxiliary.StringBufferConversion)
 
 local C_NESTEST = require(script.Parent["Nestest.constants"])
 
@@ -50,7 +52,7 @@ end
 
 function m.NewMapperInterface(): IMapper<nil>
     return NROM.MapperInterface(
-        Parse.FromBuffer(Parse.HexStrToBuffer(C_NESTEST.ROM))
+        Parse.FromBuffer(StringBufferConversion.HexStrToBuffer(C_NESTEST.ROM))
     )
 end
 

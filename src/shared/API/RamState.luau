@@ -29,7 +29,7 @@ end
 
 function m.WithChrRam(state: RamState, mapperPeripheral: Bus): Bus
     
-    local chrRam = state.PrgRam
+    local chrRam = state.ChrRam
     if not chrRam then return mapperPeripheral end
 
     local function _read(addr: u16)

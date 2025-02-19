@@ -1,6 +1,7 @@
 --!optimize 2
 
-local ROM_NAME = "IceClimber.nes"
+-- local ROM_NAME = "M1_P128K_C128K_W8K.nes"
+local ROM_NAME = "SMB.nes"
 local SAVESTATE_NAME = nil -- "dk_start"
 
 
@@ -14,13 +15,17 @@ local API = {
     Emulation = require(inst_root.API.Emulation)
 }
 
+local Auxiliary = {
+    StringBufferConversion = require(inst_root.Auxiliary.StringBufferConversion)
+}
+
+
 local Players = game:GetService("Players")
 
 local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
     assert(romModule, `Unable to find rom "{ROM_NAME}!"`)
-    local romStr = require(romModule)
-    rom = API.Parse.HexStrToBuffer(romStr)
+    rom = Auxiliary.StringBufferConversion.BufferFromInstance(romModule)
 end
 
 local savestate do

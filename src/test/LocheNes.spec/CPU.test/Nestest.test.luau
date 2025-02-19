@@ -5,12 +5,15 @@
 
 local inst_root = script.Parent.Parent.Parent.Parent.Shared
 local inst_core, inst_components, inst_api = inst_root.Core, inst_root.Components, inst_root.API
+local inst_auxiliary = inst_root.Auxiliary
+
 local T = require(inst_components["CPU.types"])
 local h = require(inst_core.Helpers)
 local m = require(inst_components.CPU)
 
 
 local Parse = require(inst_api.Parse)
+local StringBufferConversion = require(inst_auxiliary.StringBufferConversion)
 local NROM = require(inst_api.Mappers.NROM_000)
 
 local inst_util = script.Parent.Parent.Parent.Util
@@ -27,7 +30,7 @@ return function()
     local bus: T.Bus
     local cpu: T.CPU
 
-    local rom = Parse.HexStrToBuffer(NESTEST_ROM)
+    local rom = StringBufferConversion.HexStrToBuffer(NESTEST_ROM)
     local header = Parse.Header(rom)
 
     beforeEach(function()

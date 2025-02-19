@@ -140,6 +140,8 @@ end
 
 
 function _cpuWrite(addr: u16, data: u8, state: State)
+    if addr < 0x8000 then return nil end
+
     local clear = h.GetBit(7, data)
 
     if clear then
@@ -175,11 +177,6 @@ end
 
 
 function _cpuRead(addr: u16, state: State, rom: Rom): number?
-    
-    if state.Ram.PrgRam and addr >= 0x6000 and addr < 0x8000 then
-        return buffer.readu8(state.Ram.PrgRam, addr - 0x6000)
-    end
-
     if addr < 0x8000 then return nil end
 
     local prgRomMode = ControlRegister.Get("PrgRomMode", state.Control)

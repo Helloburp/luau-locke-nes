@@ -7,7 +7,6 @@ local T_P = require(inst_api["Parse.types"])
 local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
 type u16 = T_H.u16
-type RomInterface = T_P.RomInterface
 type Rom = T_P.Rom
 
 local T_EMU = require(inst_api["Emulation.types"])
@@ -24,7 +23,6 @@ local m = {}
 
 local ADDR_MIN = 0x8000
 local ADDR_RANGE = 0x8000
-
 
 
 function m.MapperInterface(rom: Rom): IMapper<nil>
@@ -75,7 +73,7 @@ end
 function _ppuReadFromBuffer(
     addr: u16,
     _readChrRom: (u16) -> (u8)
-): number?
+): u8?
     if addr >= 0x2000 then return nil end
     return _readChrRom(addr)
 end

@@ -51,7 +51,6 @@ return function()
     end)
 
     describe("M1_P128K_C128K_W8K", function()
-        FOCUS()
         local rom = StringBufferConversion.BufferFromModuleParent(
             inst_util.MapperTestRoms["M1_P128K_C128K_W8K.nes"]
         )

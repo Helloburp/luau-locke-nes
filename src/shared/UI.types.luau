@@ -15,10 +15,11 @@ type ControllerState = T_CONTROLLER.State
 
 local T_DEBUG = require(inst_api["Debug.types"])
 type DebugLog = T_DEBUG.DebugLog
-type Debugger = T_DEBUG.Debugger
 
 local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
+type u16 = T_H.u16
+
 
 local T_EMU = require(inst_api["Emulation.types"])
 type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
@@ -44,8 +45,6 @@ export type IrisControlledRenderBuffer = {
 export type IrisHook = {
     Iris: () -> (),
     Destroy: () -> (),
-    CpuDebugger: Debugger,
-    PpuDebugger: Debugger,
     Nes: NES,
     Renderers: {
         Screen: IrisControlledRenderBuffer,
@@ -67,11 +66,19 @@ export type IrisHook = {
 }
 
 
+export type DebugConfig = {
+    BreakIfCpuRead: ((u16) -> boolean)?,
+    BreakIfCpuWrite: ((u16) -> boolean)?,
+    BreakIfPpuRead: ((u16) -> boolean)?,
+    BreakIfPpuWrite: ((u16) -> boolean)?
+}
+
+
 export type EmulationContext<MapperState> = {
     ScreenBuffer: buffer,
     IO: IO,
     IEmulation: IEmulation<MapperState,ControllerState>,
-    Emulation: Emulation<MapperState,ControllerState>
+    Emulation: Emulation<MapperState,ControllerState>,
 }
 
 return {}

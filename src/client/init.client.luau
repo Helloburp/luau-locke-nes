@@ -1,8 +1,10 @@
 --!optimize 2
 
--- local ROM_NAME = "M1_P128K_C128K_W8K.nes"
-local ROM_NAME = "SMB.nes"
-local SAVESTATE_NAME = nil --"smb_start" -- "dk_start"
+local CONFIG = require(script.CONFIG)
+local ROM_NAME, SAVESTATE_NAME, DEBUG_CONFIG =
+    CONFIG.ROM_NAME,
+    CONFIG.SAVESTATE_NAME,
+    CONFIG["DEBUG_CONFIG"] or nil
 
 
 local inst_root = game.ReplicatedStorage.Shared
@@ -41,7 +43,7 @@ local savestate do
 end
 
 local myContext = UI.FromRom(rom, savestate)
-local myIrisHook = UI.NewIrisHook(myContext)
+local myIrisHook = UI.NewIrisHook(myContext, DEBUG_CONFIG or {})
 
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 

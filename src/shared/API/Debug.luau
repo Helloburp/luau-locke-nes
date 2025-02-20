@@ -9,12 +9,13 @@ type Bus = T_H.Bus
 type Peripheral = T_H.Peripheral
 
 local T_NES = require(inst_nes["NES.types"])
-type NES<MapperState> = T_NES.NES<MapperState>
+type NES = T_NES.NES
 
 
 local T = require(script.Parent["Debug.types"])
-type Debugger = T.Debugger
 type DebugLog = T.DebugLog
+type DebugArgs = T.DebugArgs
+
 
 
 local C_PPU = require(inst_components["PPU.constants"])
@@ -23,31 +24,27 @@ local C_PPU = require(inst_components["PPU.constants"])
 local m = {}
 
 
-function m.Debugger(_break: (context: string) -> ()): Debugger
-    local readBreakpoints = {}
-    local writeBreakpoints = {}
+function m.Debugger(args: DebugArgs): Peripheral
+    local _readPredicate = args.ReadBreakpointPredicate or function(addr: u16) return false end
+    local _writePredicate = args.WriteBreakpointPredicate or function(addr: u16) return false end
 
     local function _read(addr: u16)
-        if readBreakpoints[addr] then
-            _break(string.format("Read from address 0x%.4x", addr))
+        if _readPredicate(addr) then
+            args.BreakCallback(string.format("Read from address 0x%.4x", addr))
         end
         return nil
     end
 
     local function _write(addr: u16)
-        if writeBreakpoints[addr] then
-            _break(string.format("Write to address 0x%.4x", addr))
+        if _writePredicate(addr) then
+            args.BreakCallback(string.format("Write to address 0x%.4x", addr))
         end
         return false
     end
 
     return {
-        ReadBreakpoints = readBreakpoints,
-        WriteBreakpoints = writeBreakpoints,
-        Peripherpal = {
-            Read = _read,
-            Write = _write
-        }
+        Read = _read,
+        Write = _write
     }
 end
 
@@ -56,9 +53,9 @@ function m.NewLog(): DebugLog
 end
 
 function m.LogClock(
-    _clock: (NES<any>) -> (), log: DebugLog, maxLogHistory: number
-): (NES<any>) -> ()
-    return function(nes: NES<any>)
+    _clock: (NES) -> (), log: DebugLog, maxLogHistory: number
+): (NES) -> ()
+    return function(nes: NES)
         local cpuState = nes.Cpu.State
         local oldCpuCycle = cpuState.ExecutionState.Cycles
         _clock(nes)
@@ -74,7 +71,7 @@ function m.LogClock(
 end
 
 
-function m.StepCpuInstruction(nes: NES<any>, _clock: (NES<any>) -> ())
+function m.StepCpuInstruction(nes: NES, _clock: (NES) -> ())
     local cpuState = nes.Cpu.State
     while cpuState.ExecutionState.Cycles > 0 do
         _clock(nes)
@@ -85,7 +82,7 @@ function m.StepCpuInstruction(nes: NES<any>, _clock: (NES<any>) -> ())
     end
 end
 
-function m.StepToVBlank(nes: NES<any>, _clock: (NES<any>) -> ())
+function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
     local state = C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
         "V", nes.Ppu.State.Registers.PPUSTATUS
     ) 

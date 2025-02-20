@@ -3,6 +3,7 @@
 
 
 local modules = {
+    Mappers = require(script["Mappers.test"]),
     PPU = require(script["PPU.test"]),
     Nes = require(script["NES.test"]),
     CPU = require(script["CPU.test"]),
@@ -13,6 +14,7 @@ local modules = {
 }
 
 return function()
+    describe("Mappers", modules.Mappers)
     describe("Components", function()
         describe("PPU", modules.PPU)
         describe("NES", modules.Nes)

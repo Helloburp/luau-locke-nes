@@ -18,7 +18,7 @@ type ControllerState = T_CONTROLLER.State
 
 local T_DEBUG = require(inst_api["Debug.types"])
 type DebugLog = T_DEBUG.DebugLog
-type Debugger = T_DEBUG.Debugger
+
 
 local T_H = require(inst_core["Helpers.types"])
 type Bus = T_H.Bus
@@ -32,7 +32,7 @@ local T = require(script.Parent["UI.types"])
 type IrisControlledRenderBuffer = T.IrisControlledRenderBuffer
 type IrisHook = T.IrisHook
 type EmulationContext<MapperState> = T.EmulationContext<MapperState>
-
+type DebugConfig = T.DebugConfig
 
 
 local Windows = require(script.Windows)
@@ -91,7 +91,7 @@ function m.FromRom<T>(rom: buffer, state: EmulationState<T,ControllerState>?): E
 end
 
 
-function m.NewIrisHook<T>(context: EmulationContext<T>): IrisHook
+function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig): IrisHook
     local myNes = context.Emulation.Nes
 
     local state = {
@@ -168,18 +168,28 @@ function m.NewIrisHook<T>(context: EmulationContext<T>): IrisHook
     )
 
 
-    local CpuDebugger = API.Debug.Debugger(function(context)
-        state.Running = false
-        state.BreakComment = `CPU {context}`
-    end)
+    local CpuDebugger = API.Debug.Debugger{
+        BreakCallback = function(context)
+            state.Running = false
+            state.BreakComment = `CPU {context}`
+        end,
 
-    local PpuDebugger = API.Debug.Debugger(function(context)
-        state.Running = false
-        state.BreakComment = `PPU {context}`
-    end)
+        ReadBreakpointPredicate = debugConfig.BreakIfCpuRead,
+        WriteBreakpointPredicate = debugConfig.BreakIfCpuWrite
+    }
 
-    h.MapPeripheral(myNes.CpuBus, nil, CpuDebugger.Peripherpal)
-    h.MapPeripheral(myNes.PpuBus, nil, PpuDebugger.Peripherpal)
+    local PpuDebugger = API.Debug.Debugger{
+        BreakCallback = function(context)
+            state.Running = false
+            state.BreakComment = `PPU {context}`
+        end,
+
+        ReadBreakpointPredicate = debugConfig.BreakIfPpuRead,
+        WriteBreakpointPredicate = debugConfig.BreakIfPpuWrite
+    }
+
+    h.MapPeripheral(myNes.CpuBus, nil, CpuDebugger)
+    h.MapPeripheral(myNes.PpuBus, nil, PpuDebugger)
 
     local myLog = API.Debug.NewLog()
     local _myClock = API.Debug.LogClock(Nes.Clock, myLog, 5)

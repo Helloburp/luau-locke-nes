@@ -7,13 +7,12 @@ type u16 = T.u16
 
 local T_CPU = require(inst_components["CPU.types"])
 
-
-
-export type Debugger = {
-    ReadBreakpoints: {[u16]: true},
-    WriteBreakpoints: {[u16]: true},
-    Peripherpal: Peripheral
+export type DebugArgs = {
+    BreakCallback: (string) -> (),
+    ReadBreakpointPredicate: ((u16) -> boolean)?,
+    WriteBreakpointPredicate: ((u16) -> boolean)?,
 }
+
 
 export type DebugLog = {
     PCHistory: {number},

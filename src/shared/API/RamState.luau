@@ -27,7 +27,7 @@ function m.Copy(state: RamState): RamState
 end
 
 
-function m.WithChrRam(state: RamState, mapperPeripheral: Bus): Bus
+function m.WithChrRam(state: RamState, mapperPeripheral: Peripheral): Peripheral
     
     local chrRam = state.ChrRam
     if not chrRam then return mapperPeripheral end
@@ -51,7 +51,7 @@ function m.WithChrRam(state: RamState, mapperPeripheral: Bus): Bus
 end
 
 
-function m.WithPrgRam(state: RamState, peripheral: Bus): Bus
+function m.WithPrgRam(state: RamState, peripheral: Peripheral): Peripheral
     
     local prgRam = state.PrgRam
     if not prgRam then return peripheral end

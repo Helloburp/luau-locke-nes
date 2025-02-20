@@ -111,7 +111,7 @@ function _newFromRom(
             state.Ram, 
             {
                 Read = function(addr: u16) return _cpuRead(addr, state, rom) end,
-                Write = function(addr: u16, data: u8) return _cpuWrite(addr, data, state) end
+                Write = function(addr: u16, data: u8) return m.CpuWrite(addr, data, state) end
             }
         ),
 
@@ -119,7 +119,6 @@ function _newFromRom(
             state.Ram,
             {
                 Read = function(addr: u16) return _ppuRead(addr, state, rom) end,
-                Write = function(addr: u16, data: u8) return false end
             }
         ),
 
@@ -139,7 +138,7 @@ function _newFromRom(
 end
 
 
-function _cpuWrite(addr: u16, data: u8, state: State)
+function m.CpuWrite(addr: u16, data: u8, state: State)
     if addr < 0x8000 then return nil end
 
     local clear = h.GetBit(7, data)

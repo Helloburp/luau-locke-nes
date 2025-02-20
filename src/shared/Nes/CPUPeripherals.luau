@@ -6,14 +6,18 @@ local inst_components = inst_root.Components
 
 local Ppu = require(inst_components.PPU)
 local h = require(inst_core.Helpers)
-
 local Cpu = require(inst_components.CPU)
+local Apu = require(inst_components.APU)
 
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 
 local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
+
+local T_APU = require(inst_components["APU.types"])
+type APUState = T_APU.State
+
 
 local T_H = require(inst_core["Helpers.types"])
 type Peripheral = T_H.Peripheral
@@ -40,6 +44,7 @@ function m.NewState(): State
     return {
         InternalRam = buffer.create(0x800),
         ActiveDMA = nil,
+        APU = Apu.NewState(),
         ControllerLatch = false
     }
 end
@@ -49,6 +54,7 @@ function m.CopyState(state: State): State
     return {
         InternalRam = h.CopyBuffer(state.InternalRam),
         ActiveDMA = state.ActiveDMA and table.clone(state.ActiveDMA) or nil,
+        APU = Apu.CopyState(state.APU),
         ControllerLatch = state.ControllerLatch
     }
 end
@@ -61,6 +67,7 @@ function m.MapPeripheralsFromState(
         cpuBus,
         _newInternalRam(state.InternalRam),
         _newPpuRegisters(ppu, ppuBus),
+        _newApuRegisters(state.APU),
         _newOAMDMA(state),
         _newPortLatch(state, portInterface.ControllerLatchUpdate),
         _newControllerInput(portInterface)
@@ -87,6 +94,7 @@ function _mapPeripherals(
     bus: Bus,
     internalRam: Peripheral,
     ppuRegisters: Peripheral,
+    apuRegisters: Peripheral,
     oamDma: Peripheral,
     controllerLatch: Peripheral,
     controllerInput: Peripheral
@@ -95,6 +103,7 @@ function _mapPeripherals(
     h.MapPeripheral(bus, NumberRange.new(0x2000, 0x3FFF), ppuRegisters)
     h.MapPeripheral(bus, NumberRange.new(0x4014), oamDma)
     h.MapPeripheral(bus, NumberRange.new(0x4016), controllerLatch)
+    h.MapPeripheral(bus, NumberRange.new(0x4000, 0x4017), apuRegisters)
     h.MapPeripheral(bus, NumberRange.new(0x4016, 0x4017), controllerInput)
 end
 
@@ -137,6 +146,34 @@ function _newOAMDMA(state: State): (Peripheral)
             LastRead = 0x00,
         }
         return true
+    end
+
+    return {
+        Write = _write
+    }
+end
+
+
+function _newApuRegisters(state: APUState): (Peripheral)
+
+    local function _write(addr: u16, data: u8)
+        if addr == 0x4002 then
+            state.Pulse1.Reg3 = data
+        elseif addr == 0x4003 then
+            state.Pulse1.Reg4 = data
+        elseif addr == 0x4006 then
+            state.Pulse2.Reg3 = data
+        elseif addr == 0x4007 then
+            state.Pulse2.Reg4 = data
+        elseif addr == 0x400A then
+            state.Triangle.Reg2 = data
+        elseif addr == 0x400B then
+            state.Triangle.Reg3 = data
+        elseif addr == 0x400E then
+            state.Noise.Reg2 = data
+        end
+
+        return false
     end
 
     return {

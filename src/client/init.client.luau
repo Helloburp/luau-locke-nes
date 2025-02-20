@@ -2,7 +2,7 @@
 
 -- local ROM_NAME = "M1_P128K_C128K_W8K.nes"
 local ROM_NAME = "SMB.nes"
-local SAVESTATE_NAME = nil -- "dk_start"
+local SAVESTATE_NAME = nil --"smb_start" -- "dk_start"
 
 
 local inst_root = game.ReplicatedStorage.Shared
@@ -12,7 +12,8 @@ local UI = require(inst_root.UI)
 
 local API = {
     Parse = require(inst_root.API.Parse),
-    Emulation = require(inst_root.API.Emulation)
+    Emulation = require(inst_root.API.Emulation),
+    AudioPlayer = require(inst_root.API.AudioPlayer)
 }
 
 local Auxiliary = {
@@ -61,3 +62,18 @@ Players.LocalPlayer.CharacterAdded:Connect(function(char)
     if not (root and root:IsA("BasePart")) then return end
     root.Anchored = true
 end)
+
+
+
+function _audioTest()
+    local audioPlayer = API.AudioPlayer.New(
+        require(script.CONSTANTS).SFX_LIB, game.Workspace
+    )
+
+    local RunService = game:GetService("RunService")
+    RunService.RenderStepped:Connect(function()
+        API.AudioPlayer.Update(audioPlayer, myIrisHook.Nes.State.CpuPeripherals.APU)
+    end)
+end
+
+-- _audioTest()

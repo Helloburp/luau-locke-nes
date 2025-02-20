@@ -2,6 +2,11 @@ local inst_core = script.Parent.Parent.Core
 local T = require(inst_core["Helpers.types"])
 type u8 = T.u8
 
+local inst_components = script.Parent.Parent.Components
+local T_APU = require(inst_components["APU.types"])
+type APUState = T_APU.State
+
+
 
 export type ActiveDMAState = {
     IdleCycleComplete: boolean,
@@ -21,6 +26,7 @@ export type Ports = {
 export type State = {
     InternalRam: buffer,
     ActiveDMA: ActiveDMAState?,
+    APU: APUState,
     ControllerLatch: boolean,
 }
 

@@ -13,6 +13,16 @@ local CONFIGURATIONS = {
         }
     },
 
+    MM2 = {
+        ROM_NAME = "mm2.nes",
+        SAVESTATE_NAME = nil,
+        DEBUG_CONFIG = {
+            BreakIfCpuWrite = function(addr)
+                return addr >= 0x8000
+            end,
+        }
+    },
+
     SMB = {
         ROM_NAME = "SMB.nes",
         SAVESTATE_NAME = nil
@@ -29,4 +39,4 @@ local CONFIGURATIONS = {
     }
 }
 
-return CONFIGURATIONS.METROID
+return CONFIGURATIONS.MM2

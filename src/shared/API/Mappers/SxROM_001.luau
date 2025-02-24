@@ -33,40 +33,15 @@ local T_NES = require(inst_nes["NES.types"])
 type Cartridge = T_NES.Cartridge
 
 
-export type EControl = "NametableArrangement" | "PrgRomMode" | "ChrRomMode"
+local T = require(script.Parent["SxROM_001.types"])
+type EControl = T.EControl
+type State = T.State
 
 
-export type State = {
-    Ram: RamState,
-    Control: u8,
-    ChrBank0: u8,
-    ChrBank1: u8,
-    PrgBank: u8,
-    Shift: u8
-}
-
-local CONTROL_MASKS: {[EControl]: number} = {
-    ["NametableArrangement"]    = 0b00011,
-    ["PrgRomMode"]              = 0b01100,
-    ["ChrRomMode"]              = 0b10000,
-}
-
-local REG_SELECT = {
-    Control     = 0b00,
-    ChrBank0    = 0b01,
-    ChrBank1    = 0b10,
-    PrgBank     = 0b11,
-}
-
-local MIRROR_SELECT = {
-    SingleScreenLow     = 0b00,
-    SingleScreenHigh    = 0b01,
-    Horizontal          = 0b10,
-    Vertical            = 0b11
-}
+local C = require(script.Parent["SxROM_001.constants"])
 
 local MirroringModes = require(inst_api.MirroringModes)
-local ControlRegister = h.NewBitfieldFunctions(CONTROL_MASKS)
+local ControlRegister = C.ControlRegister
 
 local BAND, RSHIFT = bit32.band, bit32.rshift
 
@@ -124,13 +99,13 @@ function _newFromRom(
 
         MirrorVRam = function(addr: u16)
             local mirroringMode = ControlRegister.Get("NametableArrangement", state.Control)
-            return if mirroringMode == MIRROR_SELECT.SingleScreenLow then
+            return if mirroringMode == C.MIRROR_SELECT.SingleScreenLow then
                     MirroringModes.SingleScreenLow(addr)
-                elseif mirroringMode == MIRROR_SELECT.SingleScreenHigh then
+                elseif mirroringMode == C.MIRROR_SELECT.SingleScreenHigh then
                     MirroringModes.SingleScreenHigh(addr)
-                elseif mirroringMode == MIRROR_SELECT.Horizontal then
+                elseif mirroringMode == C.MIRROR_SELECT.Horizontal then
                     MirroringModes.Horizontal(addr)
-                elseif mirroringMode == MIRROR_SELECT.Vertical then
+                elseif mirroringMode == C.MIRROR_SELECT.Vertical then
                     MirroringModes.Vertical(addr)
                 else error(`Invalid Mirroring Mode '{mirroringMode}'`)
         end,
@@ -158,16 +133,16 @@ function m.CpuWrite(addr: u16, data: u8, state: State)
     if not isFull then return true end
 
     local value = state.Shift
-    local registerSelect = RSHIFT(addr, 13) - 4
+    local registerSelect = RSHIFT(addr, 13)%4
     state.Shift = 0x10
     
-    if registerSelect == REG_SELECT.Control then
+    if registerSelect == C.REG_SELECT.Control then
         state.Control = value
-    elseif registerSelect == REG_SELECT.ChrBank0 then
+    elseif registerSelect == C.REG_SELECT.ChrBank0 then
         state.ChrBank0 = value
-    elseif registerSelect == REG_SELECT.ChrBank1 then
+    elseif registerSelect == C.REG_SELECT.ChrBank1 then
         state.ChrBank1 = value
-    elseif registerSelect == REG_SELECT.PrgBank then
+    elseif registerSelect == C.REG_SELECT.PrgBank then
         state.PrgBank = value
     end
 
@@ -182,23 +157,23 @@ function _cpuRead(addr: u16, state: State, rom: Rom): number?
 
     if prgRomMode == 0 or prgRomMode == 1 then  -- 32kb mode
         local bank = RSHIFT(BAND(state.PrgBank, 0b01110), 1)
-        return rom.Interface.PrgMem.Read(bank * 0x8000 + addr - 0x8000)
+        return rom.Interface.PrgMem.Read(bank * 0x8000 + addr%0x8000)
 
     elseif prgRomMode == 2 then                 -- First bank at 0x8000
         if addr < 0xC000 then
-            return rom.Interface.PrgMem.Read(0 * 0x4000 + addr - 0x8000)
+            return rom.Interface.PrgMem.Read(0 * 0x4000 + addr%0x4000)
         else
             local bank = BAND(state.PrgBank, 0b01111)
-            return rom.Interface.PrgMem.Read(bank * 0x4000 + addr - 0xC000)
+            return rom.Interface.PrgMem.Read(bank * 0x4000 + addr%0x4000)
         end
 
     elseif prgRomMode == 3 then                 -- Last bank at 0xC000
         if addr < 0xC000 then
             local bank = BAND(state.PrgBank, 0b01111)
-            return rom.Interface.PrgMem.Read(bank * 0x4000 + addr - 0xC000)
+            return rom.Interface.PrgMem.Read(bank * 0x4000 + addr%0x4000)
         else
             return rom.Interface.PrgMem.Read(
-                (rom.Header.PrgRom16kBankCount - 1) * 0x4000 + addr - 0xC000
+                (rom.Header.PrgRom16kBankCount - 1) * 0x4000 + addr%0x4000
             )
         end
     end

@@ -35,15 +35,19 @@ type EmulationContext<MapperState> = T.EmulationContext<MapperState>
 type DebugConfig = T.DebugConfig
 
 
-local Windows = require(script.Windows)
+local Windows = {
+    Execution = require(script.Windows.Execution),
+    PpuViewer = require(script.Windows.PpuViewer),
+    Screen = require(script.Windows.Screen)
+}
 
-
-local m = {}
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
 local Nes = require(inst_nes.NES)
 local C_DISPLAY = require(inst_api["Display.constants"])
+local SIZES = C_DISPLAY.RESOLUTIONS
+
 local C_PPU = require(inst_components["PPU.constants"])
 local C_NES = require(inst_nes["NES.constants"])
 local h = require(inst_core.Helpers)
@@ -56,7 +60,6 @@ local API = {
     Parse = require(inst_api.Parse)
 }
 
-local SIZES = C_DISPLAY.RESOLUTIONS
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -71,6 +74,10 @@ local KEYCODES_BY_INPUT: {[EInput]: Enum.KeyCode} = {
     ["Left"]    = Enum.KeyCode.A,
     ["Right"]   = Enum.KeyCode.D,
 }
+
+
+local m = {}
+
 
 function m.FromRom<T>(rom: buffer, state: EmulationState<T,ControllerState>?): EmulationContext<T>
     local screenBuffer = _newScreenBuffer()
@@ -217,11 +224,11 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
 
     return {
         Iris = function()
-            Windows.WindowControl(windowStates)
+            _windowControl(windowStates)
             _stateWindow(
                 {"PPU Viewer"}, Vector2.new(500, 700), windowStates.PpuViewer,
                 function()
-                    Windows.PpuViewer({
+                    Windows.PpuViewer.Render({
                         patternTables[0].Content, patternTables[1].Content
                     },
                     {
@@ -240,13 +247,13 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
             _stateWindow(
                 {"Screen"}, SIZES.SCREEN, windowStates.Screen,
                 function()
-                    Windows.Screen(screen.Content)
+                    Windows.Screen.Render(screen.Content)
                 end
             )
             _stateWindow(
                 {"Execution"}, nil, windowStates.Execution,
                 function()
-                    Windows.Execution(context, myLog, state, _myClock)
+                    Windows.Execution.Render(context, myLog, state, _myClock)
                 end
             )
         end,
@@ -332,6 +339,13 @@ function _newIrisControlledRenderBuffer(
             _render(b, editableImage)
         end,
     }
+end
+
+
+function _windowControl(states)
+    for uiName, state in pairs(states) do
+        Iris.MenuToggle({uiName}, {isChecked = state})
+    end
 end
 
 

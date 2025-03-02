@@ -43,7 +43,7 @@ function m.WithChrRam(state: RamState, mapperPeripheral: Peripheral): Peripheral
 
     h.MapPeripheral(
         mapperPeripheral,
-        NumberRange.new(0x0000, 0x2000),
+        NumberRange.new(0x0000, 0x1FFF),
         { Read = _read, Write = _write }
     )
 
@@ -69,7 +69,7 @@ function m.WithPrgRam(state: RamState, peripheral: Peripheral): Peripheral
 
     h.MapPeripheral(
         peripheral,
-        NumberRange.new(0x6000, 0x8000),
+        NumberRange.new(0x6000, 0x7FFF),
         { Read = _read, Write = _write }
     )
 

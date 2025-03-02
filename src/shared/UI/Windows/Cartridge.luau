@@ -6,13 +6,19 @@ type Header = T_PARSE.Header
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
+local T_UI = require(inst_root["UI.types"])
+type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+
+
+local C = require(script.Parent["Cartridge.constants"])
+
 local m = {}
 
 
 function _headerInfo(header: Header)
     Iris.Text(
         string.format(
-            "%s\n%15s%15s",
+            "%s\n%-15s%-15s",
             `Mapper Id: {string.format("%.3d", header.MapperId)}`,
             `PrgROM: {header.PrgRom16kBankCount*16}k`,
             `{
@@ -22,6 +28,17 @@ function _headerInfo(header: Header)
             }`
         )
     )
+end
+
+
+function m.Render<T>(context: EmulationContext<T>)
+    local header = context.IO.Rom.Header
+    _headerInfo(header)
+    local _renderMapper = C.RENDER_FUNCTIONS_BY_MAPPER_ID[header.MapperId]
+    if _renderMapper then
+        Iris.Separator()
+        _renderMapper(context)
+    end
 end
 
 return m

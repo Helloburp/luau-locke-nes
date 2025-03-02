@@ -55,7 +55,8 @@ export type IrisHook = {
     WindowStates: {
         PpuViewer: IrisState<boolean>,
         Screen: IrisState<boolean>,
-        Execution: IrisState<boolean>
+        Execution: IrisState<boolean>,
+        Cartridge: IrisState<boolean>
     },
 
     RunningState: {

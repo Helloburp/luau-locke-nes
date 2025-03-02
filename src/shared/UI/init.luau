@@ -38,7 +38,8 @@ type DebugConfig = T.DebugConfig
 local Windows = {
     Execution = require(script.Windows.Execution),
     PpuViewer = require(script.Windows.PpuViewer),
-    Screen = require(script.Windows.Screen)
+    Screen = require(script.Windows.Screen),
+    Cartridge = require(script.Windows.Cartridge)
 }
 
 
@@ -110,7 +111,8 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
     local windowStates = {
         PpuViewer = Iris.State(false),
         Screen = Iris.State(false),
-        Execution = Iris.State(false)
+        Execution = Iris.State(false),
+        Cartridge = Iris.State(false)
     }
 
     local statelyBufferData = {}
@@ -254,6 +256,12 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
                 {"Execution"}, nil, windowStates.Execution,
                 function()
                     Windows.Execution.Render(context, myLog, state, _myClock)
+                end
+            )
+            _stateWindow(
+                {"Cartridge"}, nil, windowStates.Cartridge,
+                function()
+                    Windows.Cartridge.Render(context)
                 end
             )
         end,

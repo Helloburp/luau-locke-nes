@@ -7,20 +7,25 @@ local CONFIGURATIONS = {
         ROM_NAME = "metroid.nes",
         SAVESTATE_NAME = nil,
         DEBUG_CONFIG = {
-            BreakIfCpuWrite = function(addr)
-                return addr >= 0x8000
-            end,
+            -- BreakIfCpuWrite = function(addr)
+            --     return addr >= 0x8000
+            -- end,
         }
     },
 
     MM2 = {
         ROM_NAME = "mm2.nes",
-        SAVESTATE_NAME = nil,
-        DEBUG_CONFIG = {
-            BreakIfCpuWrite = function(addr)
-                return addr >= 0x8000
-            end,
-        }
+        SAVESTATE_NAME = "mm2_start",
+    },
+
+    SMB2 = {
+        ROM_NAME = "smb2.nes",
+        SAVESTATE_NAME = nil
+    },
+
+    ZELDA = {
+        ROM_NAME = "zelda.nes",
+        SAVESTATE_NAME = nil
     },
 
     SMB = {
@@ -39,4 +44,4 @@ local CONFIGURATIONS = {
     }
 }
 
-return CONFIGURATIONS.MM2
+return CONFIGURATIONS.ZELDA

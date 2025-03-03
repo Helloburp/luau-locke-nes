@@ -115,12 +115,24 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
         Cartridge = Iris.State(false)
     }
 
+    local ptStates = {
+        [0] = Iris.State(false),
+        [1] = Iris.State(false)
+    }
+
+    local ntStates = {
+        [0] = Iris.State(false),
+        [1] = Iris.State(false),
+        [2] = Iris.State(false),
+        [3] = Iris.State(false),
+    }
+
     local statelyBufferData = {}
     local function _addStatelyRenderBuffer(
-        size, _fn, defaultState, existingBuffer
+        _fn, defaultState, editableImage, displayBuffer
     )
         local result = _newIrisControlledRenderBuffer(
-            size, _fn, defaultState, existingBuffer
+            _fn, defaultState, editableImage, displayBuffer
         )
         table.insert(statelyBufferData, result)
         return result
@@ -135,22 +147,25 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
     end
 
     local screen = _addStatelyRenderBuffer(
-        SIZES.SCREEN, API.Display.WriteBufferToImage,
-        windowStates.Screen, context.ScreenBuffer
+        API.Display.WriteBufferToImage, windowStates.Screen,
+        API.Display.EditableImageFromSize(SIZES.SCREEN), context.ScreenBuffer
     )
 
     local nametables = (function()
         local t = {}
         for nt = 0, 3 do
             t[nt] = _addStatelyRenderBuffer(
-                SIZES.NAMETABLE, function(b, image)
+                function(b, image)
                     API.Display.RefreshNametable(
                         b, image, myNes.PpuBus, nt,
                         C_PPU.BITFIELD_UTIL.PpuControl.GetBit(
                             "B", myNes.Ppu.State.Registers.PPUCTRL
                         )
                     )
-                end
+                end,
+                ntStates[nt],
+                API.Display.EditableImageFromSize(SIZES.NAMETABLE),
+                API.Display.NewDisplayBuffer(SIZES.NAMETABLE)
             )
         end
         return t
@@ -160,20 +175,26 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
         local t = {}
         for pt = 0, 1 do
             t[pt] = _addStatelyRenderBuffer(
-                SIZES.PATTERN_TABLE, function(b, image)
+                function(b, image)
                     API.Display.RefreshPatternTable(
                         b, image, myNes.PpuBus, pt == 1
                     )
-                end
+                end,
+                ptStates[pt],
+                API.Display.EditableImageFromSize(SIZES.PATTERN_TABLE),
+                API.Display.NewDisplayBuffer(SIZES.PATTERN_TABLE)
             )
         end
         return t
     end)()
 
     local palette = _addStatelyRenderBuffer(
-        SIZES.PALETTES, function(b, image)
+        function(b, image)
             API.Display.RefreshPalette(b, image, myNes.PpuBus)
-        end, true
+        end,
+        Iris.State(true),
+        API.Display.EditableImageFromSize(SIZES.PALETTES),
+        API.Display.NewDisplayBuffer(SIZES.PALETTES)
     )
 
 
@@ -230,20 +251,21 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
             _stateWindow(
                 {"PPU Viewer"}, Vector2.new(500, 700), windowStates.PpuViewer,
                 function()
-                    Windows.PpuViewer.Render({
-                        patternTables[0].Content, patternTables[1].Content
-                    },
-                    {
-                        nametables[0].Content, nametables[1].Content,
-                        nametables[2].Content, nametables[3].Content
-                    },
-                    palette.Content,
-                    {
-                        OAM = API.Log.GetFullOAMLog(myNes.Ppu.State.OAM),
-                        SecondaryOAM = API.Log.GetSecondaryOAMLog(myNes.Ppu.State.SecondaryOAM)
-                    },
-                    _getStateByImage
-                )
+                    Windows.PpuViewer.Render(
+                        {
+                            patternTables[0].Content, patternTables[1].Content
+                        },
+                        {
+                            nametables[0].Content, nametables[1].Content,
+                            nametables[2].Content, nametables[3].Content
+                        },
+                        palette.Content,
+                        {
+                            OAM = API.Log.GetFullOAMLog(myNes.Ppu.State.OAM),
+                            SecondaryOAM = API.Log.GetSecondaryOAMLog(myNes.Ppu.State.SecondaryOAM)
+                        },
+                        _getStateByImage
+                    )
                 end
             )
             _stateWindow(
@@ -324,27 +346,23 @@ end
 
 
 function _newIrisControlledRenderBuffer(
-    size: Vector2,
     _render: (buffer, EditableImage) -> (),
-    stateValue: boolean? | any?,
-    existingBuffer: buffer?
+    state: any,
+    editableImage: EditableImage,
+    displayBuffer: buffer
 ): IrisControlledRenderBuffer
-    local b, editableImage = API.Display.NewBufferImagePair(size, existingBuffer)
-    local state = if stateValue == nil or typeof(stateValue == "boolean")
-        then Iris.State(stateValue or false)
-        else stateValue
 
     return {
-        Buffer = b,
+        Buffer = displayBuffer,
         Image = editableImage,
         Content = Content.fromObject(editableImage),
         State = state,
         Render = function()
-            _render(b, editableImage)
+            _render(displayBuffer, editableImage)
         end,
         RenderIfState = function()
             if not state:get() then return end
-            _render(b, editableImage)
+            _render(displayBuffer, editableImage)
         end,
     }
 end

@@ -187,19 +187,13 @@ function m.DrawPatternTable(
 end
 
 
-function m.NewBufferImagePair(
-    size: Vector2, existingBuffer: buffer?
-): (buffer, EditableImage)
-    local b = existingBuffer or m.NewDisplayBuffer(size)
-    assert(buffer.len(b) == _displayBufferSize(size))
-
+function m.EditableImageFromSize(size: Vector2)
     local editableImage = AssetService:CreateEditableImage{
         Size = size
-    } :: EditableImage
+    }
 
     assert(editableImage, "DEVICE OUT OF MEMORY!")
-
-    return b, editableImage
+    return editableImage
 end
 
 

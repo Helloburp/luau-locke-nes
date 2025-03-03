@@ -45,11 +45,9 @@ function m.MapperInterface(rom: Rom): IMapper<nil>
                         )
                     end
                 },
-                MirrorVRam = function(addr: u16)
-                    return if rom.Header.NametableArrangement == "Vertical"
-                        then MirroringModes.Vertical(addr)
-                        else MirroringModes.Horizontal(addr)
-                end,
+                MirrorVRam = if rom.Header.NametableArrangement == "Vertical"
+                    then MirroringModes.Vertical
+                    else MirroringModes.Horizontal
             }
         end,
 

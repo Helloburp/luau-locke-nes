@@ -15,7 +15,7 @@ local CONFIGURATIONS = {
 
     MM2 = {
         ROM_NAME = "mm2.nes",
-        SAVESTATE_NAME = "mm2_start",
+        SAVESTATE_NAME = "mm2_wood",
     },
 
     SMB2 = {
@@ -41,7 +41,11 @@ local CONFIGURATIONS = {
     ICE_CLIMBER = {
         ROM_NAME = "IceClimber.nes",
         SAVESTATE_NAME = nil
+    },
+
+    CASTLEVANIA = {
+        ROM_NAME = "castlevania.nes"
     }
 }
 
-return CONFIGURATIONS.ZELDA
+return CONFIGURATIONS.CASTLEVANIA

@@ -32,34 +32,38 @@ local m = {}
 
 function m.FromIO<MapperState>(io: IO): IEmulation<MapperState,ControllerState>
     local iMapper = C.MAPPERS_BY_ID[io.Rom.Header.MapperId](io.Rom)
+    local iPorts = Controller.New(
+        io.GetPort1ButtonDown,
+        io.GetPort2ButtonDown
+    )
 
-    local function _fromState(state: State<MapperState,ControllerState>)
-        local iPorts = Controller.New(
-            io.GetPort1ButtonDown,
-            io.GetPort2ButtonDown,
-            function() return state.Nes.CpuPeripherals.ControllerLatch end
-        )
+    local function _fromState(
+        state: State<MapperState,ControllerState>
+    ): Emulation<MapperState,ControllerState>
 
         local nes = Nes.New(
             io.Display,
             iPorts.FromState(state.Ports),
-            iMapper.FromState(state.Mapper),
+            iMapper.FromState{
+                State = state.Mapper,
+                NesState = state.Nes
+            },
             state.Nes
         )
 
         return {
             Nes = nes,
-            IMapper = iMapper,
-            IPorts = iPorts,
             State = state
         }
     end
+
 
     local function _copyState(
         state: State<MapperState,ControllerState>
     ): State<MapperState,ControllerState>
         return m.CopyState(state, iMapper.CopyState, Controller.CopyState)
     end
+
 
     local function _newState(): State<MapperState,ControllerState>
         return m.NewState(iMapper.NewState, Controller.NewState)

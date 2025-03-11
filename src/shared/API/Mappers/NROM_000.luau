@@ -11,6 +11,8 @@ type Rom = T_P.Rom
 
 local T_EMU = require(inst_api["Emulation.types"])
 type IMapper<State> = T_EMU.IMapper<State>
+type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
+
 
 local T_NES = require(inst_nes["NES.types"])
 type Cartridge = T_NES.Cartridge
@@ -27,7 +29,7 @@ local ADDR_RANGE = 0x8000
 
 function m.MapperInterface(rom: Rom): IMapper<nil>
     return {
-        FromState = function(state: nil)
+        FromState = function(_: EmulationState<nil,any>)
             return {
                 CpuPeripheral = {
                     Read = function(addr: u16)

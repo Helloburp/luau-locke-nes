@@ -28,6 +28,7 @@ type Peripheral = T_H.Peripheral
 
 local T_EMU = require(inst_api["Emulation.types"])
 type IMapper<State> = T_EMU.IMapper<State>
+type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
 
 local T_NES = require(inst_nes["NES.types"])
 type Cartridge = T_NES.Cartridge
@@ -51,8 +52,8 @@ local m = {}
 
 function m.MapperInterface(rom: Rom): IMapper<State>
     return {
-        FromState = function(state: State)
-            return _newFromRom(rom, state)
+        FromState = function(emulationState: EmulationState<State,any>)
+            return _newFromRom(rom, emulationState.Mapper)
         end,
         CopyState = function(state: State)
             return {

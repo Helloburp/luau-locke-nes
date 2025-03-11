@@ -1,7 +1,7 @@
+--!optimize 2
+
 local inst_root = script.Parent.Parent.Parent
 local inst_core, inst_nes, inst_api = inst_root.Core, inst_root.Nes, inst_root.API
-
-local h = require(inst_core.Helpers)
 
 local Parse = require(inst_api.Parse)
 local RamState = require(inst_api.RamState)
@@ -22,6 +22,7 @@ type Peripheral = T_H.Peripheral
 
 local T_EMU = require(inst_api["Emulation.types"])
 type IMapper<State> = T_EMU.IMapper<State>
+type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
 
 local T_NES = require(inst_nes["NES.types"])
 type Cartridge = T_NES.Cartridge
@@ -38,8 +39,8 @@ local m = {}
 
 function m.MapperInterface(rom: Rom): IMapper<State>
     return {
-        FromState = function(state: State)
-            return _newFromRom(rom, state)
+        FromState = function(emulationState: EmulationState<State,any>)
+            return _newFromRom(rom, emulationState.Mapper)
         end,
         NewState = function()
             return {

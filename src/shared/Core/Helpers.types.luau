@@ -33,10 +33,10 @@ export type BitfieldFunctions<EValue> = {
 }
 
 
-export type IState<T,State> = {
+export type IState<T,State,InputArgs=State> = {
     NewState: () -> State,
     CopyState: (State) -> State,
-    FromState: (State) -> T
+    FromState: (InputArgs) -> T,
 }
 
 

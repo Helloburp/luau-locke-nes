@@ -16,14 +16,24 @@ type Ports = T_CPUP.Ports
 
 
 local T = require(inst_core["Helpers.types"])
-type IState<T,State> = T.IState<T,State>
+type IState<T,State,InputArgs=State> = T.IState<T,State,InputArgs>
 
 local T_PARSE = require(script.Parent["Parse.types"])
 type Rom = T_PARSE.Rom
 
 
-export type IMapper<MapperState> = IState<Cartridge,MapperState>
-export type IPorts<PortState> = IState<Ports,PortState>
+export type IMapper<MapperState> = IState<
+    Cartridge,
+    MapperState,
+    State<MapperState,any>
+>
+
+export type IPorts<PortState> = IState<
+    Ports,
+    PortState,
+    State<any,PortState>
+>
+
 export type IEmulation<MapperState,PortState> = IState<
     Emulation<MapperState,PortState>,
     State<MapperState,PortState>
@@ -46,9 +56,6 @@ export type Emulation<
     PortState
 > = {
     Nes: NES,
-    IMapper: IMapper<MapperState>,
-    IPorts: IPorts<PortState>,
-
     State: State<MapperState,PortState>
 }
 

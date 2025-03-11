@@ -49,7 +49,7 @@ function m.Clock(nes: NES)
 end
 
 
-function m.NewState<MapperState,PortState>(): State
+function m.NewState(): State
     return {
         Cpu = Cpu.NewState(),
         CpuPeripherals = CpuPeripherals.NewState(),
@@ -60,7 +60,7 @@ function m.NewState<MapperState,PortState>(): State
 end
 
 
-function m.CopyState<MapperState,PortState>(state: State): State
+function m.CopyState(state: State): State
     return {
         Cpu = Cpu.CopyState(state.Cpu),
         CpuPeripherals = CpuPeripherals.CopyState(state.CpuPeripherals),

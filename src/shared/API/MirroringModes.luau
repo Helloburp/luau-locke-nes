@@ -13,7 +13,7 @@ function m.Vertical(addr: u16): u16
 end
 
 
-function m.Horizontal(addr: u16)
+function m.Horizontal(addr: u16): u16
     if addr < 0x2800 then
         return h.UnmirrorAddress(addr, 0x2000, 0x400)
     else
@@ -22,13 +22,18 @@ function m.Horizontal(addr: u16)
 end
 
 
-function m.SingleScreenLow(addr: u16)
+function m.SingleScreenLow(addr: u16): u16
     return h.UnmirrorAddress(addr, 0x2000, 0x400)
 end
 
 
-function m.SingleScreenHigh(addr: u16)
+function m.SingleScreenHigh(addr: u16): u16
     return 0x400 + h.UnmirrorAddress(addr, 0x2000, 0x400)
+end
+
+
+function m.FourScreen(addr: u16): u16
+    return error("Four Screen Mirroring is not implemented")
 end
 
 

@@ -13,6 +13,8 @@ type State = T.State
 
 local T_EMU = require(script.Parent["Emulation.types"])
 type IPorts<PortState> = T_EMU.IPorts<PortState>
+type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
+
 
 local C = require(script.Parent["Controller.constants"])
 
@@ -53,11 +55,12 @@ end
 
 function m.New(
     _getPort1ButtonDown: (EInput) -> boolean,
-    _getPort2ButtonDown: (EInput) -> boolean,
-    _getStrobeLatch: () -> boolean
+    _getPort2ButtonDown: (EInput) -> boolean
 ): IPorts<State>
 
-    local function _fromState(state: State): Ports
+    local function _fromState(emulationState: EmulationState<any,State>): Ports
+        local state = emulationState.Ports
+
         local function _controllerLatchUpdate(v: boolean)
             if v then return end
             state.Port1 = _constructInput(_getPort1ButtonDown)

@@ -36,6 +36,7 @@ export type Cartridge = {
     CpuPeripheral: Peripheral,
     PpuPeripheral: Peripheral,
     MirrorVRam: (u16) -> u16,
+    OnScanline: () -> ()?
 }
 
 export type State = {

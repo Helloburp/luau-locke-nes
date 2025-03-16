@@ -30,7 +30,7 @@ export type State = {
     MirroringIsHorizontal: boolean,
     PrgRamProtect: u8,
     IrqLatch: u8,
-    IrqReload: boolean,
+    IrqReload: u8,
     IrqEnabled: boolean,
 }
 

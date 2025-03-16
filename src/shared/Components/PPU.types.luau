@@ -17,7 +17,8 @@ export type PPU = {
 
     TriggerNmi: () -> (),
     SetPixelForCycle: (i: number, color: u8) -> (),
-    OnFrameComplete: () -> ()
+    OnFrameComplete: () -> (),
+    OnScanline: () -> ()
 }
 
 

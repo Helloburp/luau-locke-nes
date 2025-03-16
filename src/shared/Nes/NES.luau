@@ -94,6 +94,7 @@ function m.New(
     local ppu = Ppu.New(
         _nmi,
         displayInterface.OnFrameComplete,
+        cartridge.OnScanline or function() end,
         displayInterface.SetPixelForPpuCycle,
         state.Ppu
     )

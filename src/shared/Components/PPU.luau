@@ -57,12 +57,17 @@ function m.Clock(ppu: PPU, bus: Bus)
     )
     ppu.SetPixelForCycle(cycles, m.GetColorByPixelValue(pixel, bus))
 
+
     -- Perform NMI if applicable
-    if dot == 1 and scanline == 241 and
-        PpuControl.GetBit("V", state.Registers.PPUCTRL)
-    then
+    if dot == 1 and scanline == 241 and PpuControl.GetBit("V", state.Registers.PPUCTRL) then
         ppu.TriggerNmi()
     end
+
+    -- Scanline callback for MMC3 IRQ
+    if dot == 260 and scanline < 240 and _isRenderingEnabled(state.Registers.PPUMASK) then
+        ppu.OnScanline()
+    end
+
 
     state.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
     state.ExecutionState.Clock += 1
@@ -226,6 +231,7 @@ end
 function m.New(
     _nmi: () -> (),
     _onFrameComplete: () -> (),
+    _onScanline: () -> (),
     _setPixelColorForCycle: (i: number, color: u8) -> (),
     state: State?
 ): PPU
@@ -234,6 +240,7 @@ function m.New(
 
         TriggerNmi = _nmi,
         OnFrameComplete = _onFrameComplete,
+        OnScanline = _onScanline,
         SetPixelForCycle = _setPixelColorForCycle
     }
 end

@@ -43,11 +43,8 @@ function m.FromIO<MapperState>(io: IO): IEmulation<MapperState,ControllerState>
 
         local nes = Nes.New(
             io.Display,
-            iPorts.FromState(state.Ports),
-            iMapper.FromState{
-                State = state.Mapper,
-                NesState = state.Nes
-            },
+            iPorts.FromState(state),
+            iMapper.FromState(state),
             state.Nes
         )
 

@@ -31,6 +31,10 @@ function m.NewPaletteControl(regs: Regs, b: buffer): (Peripheral)
 
     local function _offset(addr: u16)
         local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
+
+        -- 0x3F00 and 3F10 refer to the same register.
+        if offset%0x10 == 0 then offset = 0 end
+
         return offset
     end
 

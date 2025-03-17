@@ -35,7 +35,7 @@ local CONFIGURATIONS = {
 
     DK = {
         ROM_NAME = "DK.nes",
-        SAVESTATE_NAME = nil
+        SAVESTATE_NAME = "dk_start"
     },
 
     ICE_CLIMBER = {
@@ -48,4 +48,4 @@ local CONFIGURATIONS = {
     }
 }
 
-return CONFIGURATIONS.CASTLEVANIA
+return CONFIGURATIONS.SMB

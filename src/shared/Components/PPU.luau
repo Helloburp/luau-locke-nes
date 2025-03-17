@@ -323,22 +323,35 @@ function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
 end
 
 
-function m.SpriteIndexAtDot(
-    dot: number, secondaryOam: buffer
-): number?
+function m.SpriteIndexAndPixelAtScreenPosition(
+    bus: Bus, scanline: number, dot: number, iState: State
+): (number?, u8)
     for i = 0, 7 do
         local x, y =
-            OAMGetters.X(secondaryOam, i),
-            OAMGetters.Y(secondaryOam, i)
+            OAMGetters.X(iState.SecondaryOAM, i),
+            OAMGetters.Y(iState.SecondaryOAM, i)
 
         if y >= 0xEF then continue end
 
+        local spritePixel = _spritePixelAtScreenPosition(
+            bus,
+            i,
+            scanline,
+            dot,
+            iState.SecondaryOAM,
+            PpuControl.GetBit("H", iState.Registers.PPUCTRL),
+            PpuControl.GetBit("S", iState.Registers.PPUCTRL)
+        )
+
+        local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
+        if isSpriteTransparent then continue end
+
         if dot >= x and x + 8 > dot then
-            return i
+            return i, spritePixel
         end
     end
 
-    return nil
+    return nil, 0x00
 end
 
 
@@ -572,7 +585,9 @@ function _cycleAndReturnPixel(
 
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
-        local spriteIndex = m.SpriteIndexAtDot(dot, iState.SecondaryOAM)
+        local spriteIndex, spritePixel = m.SpriteIndexAndPixelAtScreenPosition(
+            bus, scanline, dot, iState
+        )
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
@@ -649,16 +664,6 @@ function _cycleAndReturnPixel(
         end
 
         if spriteIndex then
-            local spritePixel = _spritePixelAtScreenPosition(
-                bus,
-                spriteIndex,
-                scanline,
-                dot,
-                iState.SecondaryOAM,
-                PpuControl.GetBit("H", iState.Registers.PPUCTRL),
-                PpuControl.GetBit("S", iState.Registers.PPUCTRL)
-            )
-
             local isBgTransparent = BAND(bgPixel, 0b11) == 0
             local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
 

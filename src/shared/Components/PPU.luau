@@ -352,13 +352,13 @@ function _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
     spriteSizeFlag: boolean,
     oam: buffer,
     secondaryOam: buffer
-): boolean
+): (boolean, boolean)
     local spriteFoundCount = 0
     local spriteSize = if spriteSizeFlag then 16 else 8
     local isSprite0BeingDrawn = false
 
     for i = 0, 63 do
-        local y = OAMGetters.Y(oam, i)
+        local y = OAMGetters.Y(oam, i) + 1
         if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
         isSprite0BeingDrawn = isSprite0BeingDrawn or i == 0
         
@@ -778,7 +778,7 @@ function _getSpritePatternTablePropertiesAtScreenPosition(
     ppuCtrlSpriteBank: boolean
 ): (boolean, u8, number)
     
-    local row = scanline - spriteY
+    local row = scanline - (spriteY + 1)
     local isRightBank, tileIndex
 
     if ppuCtrlSpriteSize then

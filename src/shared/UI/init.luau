@@ -1,11 +1,12 @@
 --!optimize 2
 
 local inst_root = script.Parent
-local inst_core, inst_components, inst_nes, inst_api =
+local inst_core, inst_components, inst_nes, inst_api, inst_auxiliary =
     inst_root.Core,
     inst_root.Components,
     inst_root.Nes,
-    inst_root.API
+    inst_root.API,
+    inst_root.Auxiliary
 
 local T_NES = require(inst_nes["NES.types"])
 type NES = T_NES.NES
@@ -33,6 +34,9 @@ type IrisControlledRenderBuffer = T.IrisControlledRenderBuffer
 type IrisHook = T.IrisHook
 type EmulationContext<MapperState> = T.EmulationContext<MapperState>
 type DebugConfig = T.DebugConfig
+type BenchmarkingState = T.BenchmarkingState
+type RunningState = T.RunningState
+
 
 
 local Windows = {
@@ -61,6 +65,8 @@ local API = {
     Parse = require(inst_api.Parse)
 }
 
+local Benchmarking = require(inst_auxiliary.Benchmarking)
+
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -75,6 +81,8 @@ local KEYCODES_BY_INPUT: {[EInput]: Enum.KeyCode} = {
     ["Left"]    = Enum.KeyCode.A,
     ["Right"]   = Enum.KeyCode.D,
 }
+
+local BENCHMARKING_SAMPLE_SIZE = 60
 
 
 local m = {}
@@ -102,7 +110,7 @@ end
 function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig): IrisHook
     local myNes = context.Emulation.Nes
 
-    local state = {
+    local state: RunningState = {
         Running = false,
         BreakComment = "",
         ClockSpeedState = Iris.State(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4)
@@ -125,6 +133,18 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
         [1] = Iris.State(false),
         [2] = Iris.State(false),
         [3] = Iris.State(false),
+    }
+
+    local emulationSpeedState: BenchmarkingState = {
+        SpeedList = {},
+        Outliers = NumberRange.new(0, 0),
+        SampleSize = BENCHMARKING_SAMPLE_SIZE
+    }
+
+    local executionSpeedState: BenchmarkingState = {
+        SpeedList = {},
+        Outliers = NumberRange.new(0, 0),
+        SampleSize = BENCHMARKING_SAMPLE_SIZE
     }
 
     local statelyBufferData = {}
@@ -224,13 +244,39 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
     local myLog = API.Debug.NewLog()
     local _myClock = API.Debug.LogClock(Nes.Clock, myLog, 5)
 
+    local function _clockFrame(dt)
 
-    local con_heartbeat = RunService.Heartbeat:Connect(function()
-        for x = 1, state.ClockSpeedState:get() do
-            if not state.Running then continue end
+        if not state.Running then return end
+        local cycles = state.ClockSpeedState:get()
+        local tic = os.clock()
+
+
+        for x = 1, cycles do
             _myClock(myNes)
         end
 
+        local toc = os.clock()
+
+        local emulationSpeed = Benchmarking.Speed(cycles, dt, C_NES.MASTER_CLOCK_HZ_NTSC/4)
+        local executionSpeed = Benchmarking.Speed(cycles, toc - tic, C_NES.MASTER_CLOCK_HZ_NTSC/4)
+
+        Benchmarking.RollingState(
+            emulationSpeedState.SpeedList, emulationSpeedState.SampleSize, emulationSpeed
+        )
+        emulationSpeedState.Outliers = Benchmarking.Outliers(
+            emulationSpeedState.Outliers, emulationSpeed
+        )
+
+        Benchmarking.RollingState(
+            executionSpeedState.SpeedList, executionSpeedState.SampleSize, executionSpeed
+        )
+        executionSpeedState.Outliers = Benchmarking.Outliers(
+            executionSpeedState.Outliers, executionSpeed
+        )
+    end
+
+
+    local function _renderFrame()
         if windowStates.PpuViewer:get() then
             for _, v in pairs(patternTables) do v.RenderIfState() end
             for _, v in pairs(nametables) do v.RenderIfState() end
@@ -238,6 +284,14 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
         end
 
         screen.RenderIfState()
+    end
+
+    local con_heartbeat = RunService.Heartbeat:Connect(function(dt)
+        _clockFrame(dt)
+    end)
+
+    local con_prerender = RunService.PreRender:Connect(function(dt)
+        _renderFrame()
     end)
 
     for _, v in pairs(statelyBufferData) do
@@ -277,7 +331,9 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
             _stateWindow(
                 {"Execution"}, nil, windowStates.Execution,
                 function()
-                    Windows.Execution.Render(context, myLog, state, _myClock)
+                    Windows.Execution.Render(
+                        context, myLog, state, emulationSpeedState, executionSpeedState, _myClock
+                    )
                 end
             )
             _stateWindow(
@@ -290,6 +346,7 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
 
         Destroy = function()
             con_heartbeat:Disconnect()
+            con_prerender:Disconnect()
             for _, v in pairs(statelyBufferData) do
                 v.Image:Destroy()
             end
@@ -303,7 +360,9 @@ function m.NewIrisHook<T>(context: EmulationContext<T>, debugConfig: DebugConfig
             Nametables = nametables, Palette = palette
         },
         WindowStates = windowStates,
-        RunningState = state
+        RunningState = state,
+        EmulationSpeedState = emulationSpeedState,
+        ExecutionSpeedState = executionSpeedState
     }
 end
 

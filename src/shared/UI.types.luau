@@ -46,12 +46,14 @@ export type IrisHook = {
     Iris: () -> (),
     Destroy: () -> (),
     Nes: NES,
+
     Renderers: {
         Screen: IrisControlledRenderBuffer,
         PatternTables: {IrisControlledRenderBuffer},
         Nametables: {IrisControlledRenderBuffer},
         Palette: IrisControlledRenderBuffer
     },
+
     WindowStates: {
         PpuViewer: IrisState<boolean>,
         Screen: IrisState<boolean>,
@@ -59,11 +61,23 @@ export type IrisHook = {
         Cartridge: IrisState<boolean>
     },
 
-    RunningState: {
-        Running: boolean,
-        BreakComment: string,
-        ClockSpeedState: IrisState<number>
-    }
+    RunningState: RunningState,
+    
+    EmulationSpeedState: BenchmarkingState,
+    ExecutionSpeedState: BenchmarkingState
+}
+
+export type RunningState = {
+    Running: boolean,
+    BreakComment: string,
+    ClockSpeedState: IrisState<number>
+}
+
+
+export type BenchmarkingState = {
+    Outliers: NumberRange,
+    SpeedList: {},
+    SampleSize: number
 }
 
 

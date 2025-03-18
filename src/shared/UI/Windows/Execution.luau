@@ -1,9 +1,10 @@
 --!optimize 2
 
 local inst_root = script.Parent.Parent.Parent
-local inst_nes, inst_api =
+local inst_nes, inst_api, inst_auxiliary =
     inst_root.Nes,
-    inst_root.API
+    inst_root.API,
+    inst_root.Auxiliary
 
 local T_NES = require(inst_nes["NES.types"])
 type NES = T_NES.NES
@@ -14,9 +15,11 @@ type DebugLog = T_DEBUG.DebugLog
 local T_EMU = require(inst_api["Emulation.types"])
 type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
 
-
 local T_UI = require(inst_root["UI.types"])
 type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+type RunningState = T_UI.RunningState
+type BenchmarkingState = T_UI.BenchmarkingState
+
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
@@ -26,7 +29,14 @@ local API = {
     Emulation = require(inst_api.Emulation)
 }
 
+local Benchmarking = require(inst_auxiliary.Benchmarking)
+
 local C_NES = require(inst_nes["NES.constants"])
+
+local FONT_COLORS = {
+    Green   = "rgb(127,255,127)",
+    Red     = "rgb(255,127,127)"
+}
 
 
 local m = {}
@@ -35,7 +45,9 @@ local m = {}
 function m.Render<T>(
     context: EmulationContext<T>,
     myLog: DebugLog,
-    state: any,
+    state: RunningState,
+    emulationSpeedState: BenchmarkingState,
+    executionSpeedState: BenchmarkingState,
     _myClock: (NES) -> ()
 )
     local myNes = context.Emulation.Nes
@@ -103,9 +115,50 @@ function m.Render<T>(
     if state.BreakComment ~= "" then
         Iris.Text{
             `Breakpoint hit: {state.BreakComment}`,
-            [Iris.Args.Text.Color] = Color3.new(1,.5,.5)
+            [Iris.Args.Text.Color] = Color3.fromRGB(255,127,127)
         }
     end
+    Iris.Separator()
+    _performance(state, emulationSpeedState, executionSpeedState, {})
+end
+
+
+function _performance(
+    runningState: RunningState,
+    emulationSpeed: BenchmarkingState,
+    executionState: BenchmarkingState,
+    comparison: {
+        EmulationSpeed: number?,
+        ExecutionSpeed: number?
+    }
+)
+
+    local expectedEmulationSpeed = runningState.ClockSpeedState:get()/(C_NES.MASTER_CLOCK_HZ_NTSC/60/4)
+
+    local averageEmulationSpeed = Benchmarking.Average(emulationSpeed.SpeedList)
+    local averageExecutionSpeed = Benchmarking.Average(executionState.SpeedList)
+
+    Iris.Text(
+        `Emulation Speed: {_comparePercentages(
+            averageEmulationSpeed, comparison.EmulationSpeed or expectedEmulationSpeed
+        )}`
+    )
+    Iris.Text(
+        `Execution Speed: {_comparePercentages(
+            averageExecutionSpeed, comparison.ExecutionSpeed or 1
+        )}`
+    )
+end
+
+
+function _comparePercentages(baseline: number, comparison: number): string
+    if comparison == 0 then return "div0" end
+
+    local delta = baseline/comparison
+    return string.format(
+        `%6.2f%% (target: %6.2f%%) ({if delta >= 1 then "+" else "-"}%6.2f%%)`,
+        baseline*100, comparison*100, math.abs((1 - delta))*100
+    )
 end
 
 

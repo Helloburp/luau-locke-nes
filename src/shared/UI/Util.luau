@@ -8,6 +8,7 @@ local SIZES = C_DISPLAY.RESOLUTIONS
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 
+
 local m = {}
 
 function m.GetOffsetInImage(guiObject: GuiObject, divisor: number): Vector2?
@@ -28,7 +29,6 @@ function m.GetOffsetInImage(guiObject: GuiObject, divisor: number): Vector2?
         math.floor(relOffset.Y * sizeRatio.Y/divisor)
     )
 end
-
 
 
 return m

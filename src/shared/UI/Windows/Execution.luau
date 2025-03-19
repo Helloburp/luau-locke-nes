@@ -1,10 +1,11 @@
 --!optimize 2
 
 local inst_root = script.Parent.Parent.Parent
-local inst_nes, inst_api, inst_auxiliary =
+local inst_nes, inst_api, inst_auxiliary, inst_ui =
     inst_root.Nes,
     inst_root.API,
-    inst_root.Auxiliary
+    inst_root.Auxiliary,
+    inst_root.UI
 
 local T_NES = require(inst_nes["NES.types"])
 type NES = T_NES.NES
@@ -15,10 +16,14 @@ type DebugLog = T_DEBUG.DebugLog
 local T_EMU = require(inst_api["Emulation.types"])
 type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
 
-local T_UI = require(inst_root["UI.types"])
-type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
-type RunningState = T_UI.RunningState
-type BenchmarkingState = T_UI.BenchmarkingState
+local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
+
+local T_IRIS = require(inst_ui["IrisLoop.types"])
+type UiState = T_IRIS.State
+
+type RunningState = T_IRIS.RunningState
+type BenchmarkingState = T_IRIS.BenchmarkingState
 
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
@@ -33,7 +38,7 @@ local Benchmarking = require(inst_auxiliary.Benchmarking)
 
 local C_NES = require(inst_nes["NES.constants"])
 
-local FONT_COLORS = {
+local _FONT_COLORS = {
     Green   = "rgb(127,255,127)",
     Red     = "rgb(255,127,127)"
 }
@@ -44,13 +49,11 @@ local m = {}
 
 function m.Render<T>(
     context: EmulationContext<T>,
-    myLog: DebugLog,
-    state: RunningState,
-    emulationSpeedState: BenchmarkingState,
-    executionSpeedState: BenchmarkingState,
-    _myClock: (NES) -> ()
+    uiState: UiState
 )
-    local myNes = context.Emulation.Nes
+    local myNes = context.RunningEmulation and context.RunningEmulation.Emulation.Nes or nil
+    local myLog = uiState.DebugLog
+    local runningState = uiState.RunningState
 
     Iris.Text{(function()
         local logTexts = {}
@@ -73,64 +76,72 @@ function m.Render<T>(
         return table.concat(logTexts, "\n")
     end)(), [Iris.Args.Text.RichText] = true}
 
-    Iris.Text(API.Log.GetLogRegs(myNes.Cpu.State.Registers))
-    Iris.Text(API.Log.GetPpuRegLog(myNes.Ppu.State.Registers))
-    Iris.Text(API.Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters))
+    Iris.Text(myNes and API.Log.GetLogRegs(myNes.Cpu.State.Registers) or "")
+    Iris.Text(myNes and API.Log.GetPpuRegLog(myNes.Ppu.State.Registers) or "")
+    Iris.Text(myNes and API.Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters) or "")
 
     Iris.SameLine()
     do
+        local _myClock = if context.RunningEmulation
+            then context.RunningEmulation.Clock
+            else nil
+        
         if Iris.Button(
-            if state.Running then "Pause" else "Continue"
+            if runningState.Running then "Pause" else "Continue"
         ).clicked() then
-            state.BreakComment = ""
-            state.Running = not state.Running
+            runningState.BreakComment = ""
+            runningState.Running = not runningState.Running
         end
-        if Iris.Button("Step").clicked() then
+        if Iris.Button("Step").clicked() and _myClock and myNes then
             API.Debug.StepCpuInstruction(myNes, _myClock)
         end
-        if Iris.Button("Step to VBlank").clicked() then
+        if Iris.Button("Step to VBlank").clicked() and _myClock and myNes then
             API.Debug.StepToVBlank(myNes, _myClock)
         end
     end
     Iris.End()
-    Iris.InputNum({"Clock speed (hz)", 500}, {number =  state.ClockSpeedState})
+    Iris.InputNum({"Clock speed (hz)", 500}, {number = runningState.ClockSpeedState})
     Iris.SameLine()
     if Iris.Button("Realtime").clicked() then
-        state.ClockSpeedState:set(C_NES.MASTER_CLOCK_HZ_NTSC/60/4)
+        runningState.ClockSpeedState:set(C_NES.MASTER_CLOCK_HZ_NTSC/60/4)
     end
     if Iris.Button("1/2 Realtime").clicked() then
-        state.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/2/4))
+        runningState.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/2/4))
     end
     if Iris.Button("1/8 Realtime").clicked() then
-        state.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4))
+        runningState.ClockSpeedState:set(math.floor(C_NES.MASTER_CLOCK_HZ_NTSC/60/8/4))
     end
     Iris.End()
     if Iris.Button("Print State").clicked() then
-        print(API.Emulation.SerializeState(context.Emulation.State))
+        print(
+            if context.RunningEmulation
+                then API.Emulation.SerializeState(context.RunningEmulation.Emulation.State)
+                else "No running emulation!"
+        )
     end
     Iris.Text{
         API.Log.GetInputLog(context.IO.GetPort1ButtonDown),
         [Iris.Args.Text.RichText] = true
     }
-    if state.BreakComment ~= "" then
+    if runningState.BreakComment ~= "" then
         Iris.Text{
-            `Breakpoint hit: {state.BreakComment}`,
+            `Breakpoint hit: {runningState.BreakComment}`,
             [Iris.Args.Text.Color] = Color3.fromRGB(255,127,127)
         }
     end
     Iris.Separator()
-    _performance(state, emulationSpeedState, executionSpeedState, {})
+    _performance(
+        uiState.RunningState,
+        uiState.EmulationSpeedState,
+        uiState.ExecutionSpeedState
+    )
 end
 
 
 function _performance(
     runningState: RunningState,
     emulationSpeed: BenchmarkingState,
-    executionState: BenchmarkingState,
-    comparison: {
-        EmulationSpeed: number?,
-        ExecutionSpeed: number?
-    }
+    executionState: BenchmarkingState
 )
 
     local expectedEmulationSpeed = runningState.ClockSpeedState:get()/(C_NES.MASTER_CLOCK_HZ_NTSC/60/4)
@@ -140,12 +151,12 @@ function _performance(
 
     Iris.Text(
         `Emulation Speed: {_comparePercentages(
-            averageEmulationSpeed, comparison.EmulationSpeed or expectedEmulationSpeed
+            averageEmulationSpeed, emulationSpeed.Comparison or expectedEmulationSpeed
         )}`
     )
     Iris.Text(
         `Execution Speed: {_comparePercentages(
-            averageExecutionSpeed, comparison.ExecutionSpeed or 1
+            averageExecutionSpeed, executionState.Comparison or 1
         )}`
     )
 end

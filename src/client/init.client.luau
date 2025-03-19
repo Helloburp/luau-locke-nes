@@ -10,7 +10,10 @@ local ROM_NAME, SAVESTATE_NAME, DEBUG_CONFIG =
 local inst_root = game.ReplicatedStorage.Shared
 local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
-local UI = require(inst_root.UI)
+local UI = {
+    EmulationContext = require(inst_root.UI.EmulationContext),
+    IrisLoop = require(inst_root.UI.IrisLoop)
+}
 
 local API = {
     Parse = require(inst_root.API.Parse),
@@ -24,6 +27,7 @@ local Auxiliary = {
 
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
@@ -42,22 +46,32 @@ local savestate do
     end
 end
 
-local myContext = UI.FromRom(rom, savestate)
-local myIrisHook = UI.NewIrisHook(myContext, DEBUG_CONFIG or {})
+local myContext = UI.EmulationContext.FromRom(rom)
+local myUiState = UI.IrisLoop.State()
+UI.EmulationContext.NewEmulation(
+    myContext, savestate, UI.IrisLoop.EmulationConfig(myUiState, DEBUG_CONFIG)
+)
 
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 
 -- Debugging
 do
-    myIrisHook.WindowStates.Screen:set(true)
-    -- myUi.IrisHook.WindowStates.Execution:set(true)
-    -- myUi.IrisHook.WindowStates.PpuViewer:set(true)
-    myIrisHook.RunningState.Running = true
+    myUiState.WindowStates.Screen:set(true)
+    myUiState.WindowStates.Execution:set(true)
+    myUiState.RunningState.Running = true
+    myUiState.EmulationSpeedState.Comparison = 0.093
+    myUiState.ExecutionSpeedState.Comparison = 0.1021
 end
 
 
-Iris:Connect(myIrisHook.Iris)
+Iris:Connect(function()
+    UI.IrisLoop.Render(myContext, myUiState)
+end)
 
+RunService.Heartbeat:Connect(function(dt)
+    UI.IrisLoop.ClockFrame(myContext, myUiState, dt)
+    UI.IrisLoop.RenderFrame(myContext, myUiState)
+end)
 
 Players.LocalPlayer.CharacterAdded:Connect(function(char)
     local root = char:WaitForChild("HumanoidRootPart", 5)
@@ -72,9 +86,10 @@ function _audioTest()
         require(script.CONSTANTS).SFX_LIB, game.Workspace
     )
 
-    local RunService = game:GetService("RunService")
     RunService.RenderStepped:Connect(function()
-        API.AudioPlayer.Update(audioPlayer, myIrisHook.Nes.State.CpuPeripherals.APU)
+        if not myContext.RunningEmulation then return end
+        local myNes = myContext.RunningEmulation.Emulation.Nes
+        API.AudioPlayer.Update(audioPlayer, myNes.State.CpuPeripherals.APU)
     end)
 end
 

@@ -1,12 +1,12 @@
 local inst_root = script.Parent.Parent.Parent
 
-local inst_api = inst_root.API
+local inst_api, inst_ui = inst_root.API, inst_root.UI
 local Mapper = require(inst_api.Mappers.SxROM_001)
 local C = require(inst_api.Mappers["SxROM_001.constants"])
 local ControlRegister = C.ControlRegister
 
-local T_UI = require(inst_root["UI.types"])
-type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
 local T = require(inst_api.Mappers["SxROM_001.types"])
 type State = T.State
@@ -20,7 +20,9 @@ local m = {}
 
 
 function m.Render(context: EmulationContext<State>)
-    local state = context.Emulation.State.Mapper
+    local state = context.RunningEmulation and context.RunningEmulation.Emulation.State.Mapper
+    if not state then return end
+
     local prgBankMode, chrBankMode =
         ControlRegister.Get("PrgRomMode", state.Control),
         ControlRegister.Get("ChrRomMode", state.Control)

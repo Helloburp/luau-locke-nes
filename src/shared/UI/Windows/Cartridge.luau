@@ -1,13 +1,13 @@
 local inst_root = script.Parent.Parent.Parent
-local inst_api = inst_root.API
+local inst_api, inst_ui = inst_root.API, inst_root.UI
 
 local T_PARSE = require(inst_api["Parse.types"])
 type Header = T_PARSE.Header
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
-local T_UI = require(inst_root["UI.types"])
-type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
 
 local C = require(script.Parent["Cartridge.constants"])

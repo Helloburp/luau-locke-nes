@@ -1,7 +1,7 @@
-local inst_root = script.Parent.Parent.Parent
+local inst_ui = script.Parent.Parent
 
-local T_UI = require(inst_root["UI.types"])
-type EmulationContext<MapperState> = T_UI.EmulationContext<MapperState>
+local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
 
 export type MapperRenderFunction<T> = (EmulationContext<T>) -> ()

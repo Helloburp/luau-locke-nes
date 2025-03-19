@@ -38,6 +38,7 @@ local LSHIFT, RSHIFT, BOR, BAND =
 local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
+
 function m.Clock(ppu: PPU, bus: Bus)
     local state = ppu.State
     
@@ -49,13 +50,13 @@ function m.Clock(ppu: PPU, bus: Bus)
     end
 
     local cycles = state.ExecutionState.Cycles
-    local dot, scanline = m.GetDotInFrame(cycles), m.GetScanlineInFrame(cycles)
+    local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
 
     -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
         bus, state, dot, scanline
     )
-    ppu.SetPixelForCycle(cycles, m.GetColorByPixelValue(pixel, bus))
+    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
 
 
     -- Perform NMI if applicable
@@ -246,28 +247,6 @@ function m.New(
 end
 
 
-function m.GetDotInFrame(cyclesThisFrame: number)
-    return cyclesThisFrame%C.DOTS_PER_SCANLINE
-end
-
-
-function m.GetScanlineInFrame(cyclesThisFrame: number)
-    return (cyclesThisFrame - cyclesThisFrame%C.DOTS_PER_SCANLINE)
-        / C.DOTS_PER_SCANLINE
-end
-
-
-function m.GetPixelValue(
-    patternValue: number, attributeValue: number, isSprite: boolean
-): u8
-    return (
-        patternValue +
-        LSHIFT(attributeValue, 2) + 
-        LSHIFT(if isSprite then 1 else 0, 4)
-    )
-end
-
-
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
 function m.GetTileAddressFromVRamAddress(v: u16)
     return 0x2000 + VRamAddress.Set("y", v, 0)
@@ -299,12 +278,6 @@ function m.GetHighPatternTableAddress(right, tileNumber, row)
     return PatternTableAddress.Set(
         "BitPlane", m.GetLowPatternTableAddress(right, tileNumber, row), 1
     )
-end
-
-
--- If divisible by 4, falls back to the background color.
-function m.GetColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
 
@@ -352,6 +325,27 @@ function m.SpriteIndexAndPixelAtScreenPosition(
     end
 
     return nil, 0x00
+end
+
+
+function _getDotInFrame(cyclesThisFrame: number)
+    return cyclesThisFrame%C.DOTS_PER_SCANLINE
+end
+
+function _getScanlineInFrame(cyclesThisFrame: number)
+    return (cyclesThisFrame - cyclesThisFrame%C.DOTS_PER_SCANLINE)
+        / C.DOTS_PER_SCANLINE
+end
+
+
+function _getPixelValue(
+    patternValue: number, attributeValue: number, isSprite: boolean
+): u8
+    return (
+        patternValue +
+        LSHIFT(attributeValue, 2) + 
+        LSHIFT(if isSprite then 1 else 0, 4)
+    )
 end
 
 
@@ -710,7 +704,13 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if h.GetBit(fineX, shifters.AttributeLo) then 1 else 0) +
         (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
-    return m.GetPixelValue(patternValue, attributeValue, false)
+    return _getPixelValue(patternValue, attributeValue, false)
+end
+
+
+-- If divisible by 4, falls back to the background color.
+function _getColorByPixelValue(index: number, bus: Bus)
+    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
 
@@ -770,7 +770,7 @@ function _spritePixelFromProperties(
 
     local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
 
-    return m.GetPixelValue(patternValue, attributeValue, true)
+    return _getPixelValue(patternValue, attributeValue, true)
 end
 
 
@@ -801,6 +801,11 @@ function _getSpritePatternTablePropertiesAtScreenPosition(
 
     return isRightBank, tileIndex, row
 end
+
+m.GetDotInFrame = _getDotInFrame
+m.GetScanlineInFrame = _getScanlineInFrame
+m.GetPixelValue = _getPixelValue
+m.GetColorByPixelValue = _getColorByPixelValue
 
 
 return m

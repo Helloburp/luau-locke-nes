@@ -82,8 +82,11 @@ local m = {}
 
 
 function m.State(): State
+    local screenImage = API.Display.EditableImageFromSize(SIZES.SCREEN)
     return {
-        ScreenImage = API.Display.EditableImageFromSize(SIZES.SCREEN),
+        ScreenImage = screenImage,
+        ScreenContent = Content.fromObject(screenImage),
+
         DebugLog = API.Debug.NewLog(),
 
         RunningState = {
@@ -168,7 +171,7 @@ function m.Render<T>(emulationContext: EmulationContext<T>, uiState: State)
     Ui.Elements.StateWindow(
         {"Screen"}, SIZES.SCREEN, uiState.WindowStates.Screen,
         function()
-            Windows.Screen.Render(Content.fromObject(uiState.ScreenImage))
+            Windows.Screen.Render(uiState.ScreenContent)
         end
     )
     Ui.Elements.StateWindow(

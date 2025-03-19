@@ -22,6 +22,7 @@ local T_PPUVIEWER = require(inst_ui.Windows["PpuViewer.types"])
 
 export type State = {
     ScreenImage: EditableImage,
+    ScreenContent: Content,
     DebugLog: DebugLog,
 
     WindowStates: {

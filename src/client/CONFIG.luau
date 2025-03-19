@@ -31,7 +31,7 @@ local CONFIGURATIONS = {
     SMB = {
         ROM_NAME = "SMB.nes",
         SAVESTATE_NAME = nil,
-        -- DEBUG_CONFIG = {}
+        DEBUG_CONFIG = {}
     },
 
     DK = {

@@ -39,12 +39,57 @@ local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buff
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
 
+local _oamGettersX, _oamGettersY, _oamGettersTileNumber, _oamGettersAttributes =
+    OAMGetters.X,
+    OAMGetters.Y,
+    OAMGetters.TileNumber,
+    OAMGetters.Attributes
+
+local _ppuControlGetBit, _ppuControlGet =
+    PpuControl.GetBit,
+    PpuControl.Get
+
+local _ppuStatusGetBit, _ppuStatusSetBit, _ppuStatusSet  =
+    PpuStatus.GetBit,
+    PpuStatus.SetBit,
+    PpuStatus.Set
+
+local _objectTileNumberGetBit, _objectTileNumberGet =
+    ObjectTileNumber.GetBit,
+    ObjectTileNumber.Get
+
+local _objectAttributeGetBit, _objectAttributeGet =
+    ObjectAttribute.GetBit,
+    ObjectAttribute.Get
+
+
+local _hGetBit, _hSetBit, _hReverseBitOrderU8 =
+    h.GetBit,
+    h.SetBit,
+    h.ReverseBitOrderU8
+
+local _ppuMaskGet, _ppuMaskGetBit =
+    PpuMask.Get,
+    PpuMask.GetBit
+
+local _vramAddressGet, _vramAddressSet, _vramAddressCompose =
+    VRamAddress.Get,
+    VRamAddress.Set,
+    VRamAddress.Compose
+
+local _patternTableAddressSet, _patternTableAddressCompose =
+    PatternTableAddress.Set,
+    PatternTableAddress.Compose
+
+local _attributeAddressCompose = AttributeAddress.Compose
+
+
 function m.Clock(ppu: PPU, bus: Bus)
     local state = ppu.State
     
     -- Perform skip cycle if at the beginning of an odd frame & BG set
     if state.FrameCounter%2 == 0 and state.ExecutionState.Cycles == 0 and
-        PpuMask.GetBit("b", state.Registers.PPUMASK)
+        _ppuMaskGetBit("b", state.Registers.PPUMASK)
     then
         state.ExecutionState.Cycles += 1
     end
@@ -60,7 +105,7 @@ function m.Clock(ppu: PPU, bus: Bus)
 
 
     -- Perform NMI if applicable
-    if dot == 1 and scanline == 241 and PpuControl.GetBit("V", state.Registers.PPUCTRL) then
+    if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
         ppu.TriggerNmi()
     end
 
@@ -130,12 +175,12 @@ function m.PpuCtrlWriteAndReturnNmi(
     regs: Regs, iRegs: InternalRegs, val: u8, scanlineCount: number
 ): boolean
     local oldNmi, newNmi =
-        PpuControl.Get("V", regs.PPUCTRL),
-        PpuControl.Get("V", val)
+        _ppuControlGet("V", regs.PPUCTRL),
+        _ppuControlGet("V", val)
     local inVBlank = _isInVBlank(scanlineCount)
     regs.PPUCTRL = val
 
-    iRegs.t = VRamAddress.Set("N", iRegs.t, BAND(val, 0x03))
+    iRegs.t = _vramAddressSet("N", iRegs.t, BAND(val, 0x03))
 
     return oldNmi == 0 and newNmi == 1 and inVBlank
 end
@@ -148,7 +193,7 @@ end
 
 function m.PpuStatusRead(regs: Regs, internalRegs: InternalRegs)
     local oldStatus = regs.PPUSTATUS
-    regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
+    regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)
     internalRegs.w = false
     return oldStatus   -- Todo: Consider making bits 0-4 "open bus"
 end
@@ -179,11 +224,11 @@ end
 
 function m.PpuScrollWrite(iRegs: InternalRegs, val: u8)
     if not iRegs.w then
-        iRegs.t = VRamAddress.Set("X", iRegs.t, RSHIFT(val, 3))
+        iRegs.t = _vramAddressSet("X", iRegs.t, RSHIFT(val, 3))
         iRegs.x = BAND(val, 0x07)
     else
-        iRegs.t = VRamAddress.Set("Y", iRegs.t, RSHIFT(val, 3))
-        iRegs.t = VRamAddress.Set("y", iRegs.t, BAND(val, 0x07))
+        iRegs.t = _vramAddressSet("Y", iRegs.t, RSHIFT(val, 3))
+        iRegs.t = _vramAddressSet("y", iRegs.t, BAND(val, 0x07))
     end
 
     iRegs.w = not iRegs.w
@@ -248,24 +293,23 @@ end
 
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-function m.GetTileAddressFromVRamAddress(v: u16)
-    return 0x2000 + VRamAddress.Set("y", v, 0)
+function _getTileAddressFromVRamAddress(v: u16)
+    return 0x2000 + _vramAddressSet("y", v, 0)
 end
 
-
-function m.GetAttributeAddressFromVRamAddress(v: u16)
-    local attrAddr = AttributeAddress.Compose{
-        ["N"] = VRamAddress.Get("N", v),
+function _getAttributeAddressFromVRamAddress(v: u16)
+    local attrAddr = _attributeAddressCompose{
+        ["N"] = _vramAddressGet("N", v),
         ["AttributeOffset"] = 0b1111,
-        ["Y"] = RSHIFT(VRamAddress.Get("Y", v), 2),
-        ["X"] = RSHIFT(VRamAddress.Get("X", v), 2)
+        ["Y"] = RSHIFT(_vramAddressGet("Y", v), 2),
+        ["X"] = RSHIFT(_vramAddressGet("X", v), 2)
     }
     return 0x2000 + attrAddr
 end
 
 
-function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
-    return PatternTableAddress.Compose{
+function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
+    return _patternTableAddressCompose{
         ["FineY"] = row,
         ["BitPlane"] = 0,
         ["TileNumber"] = tileNumber,
@@ -274,35 +318,34 @@ function m.GetLowPatternTableAddress(right: boolean, tileNumber: u8, row: number
 end
 
 
-function m.GetHighPatternTableAddress(right, tileNumber, row)
-    return PatternTableAddress.Set(
-        "BitPlane", m.GetLowPatternTableAddress(right, tileNumber, row), 1
+function _getHighPatternTableAddress(right, tileNumber, row)
+    return _patternTableAddressSet(
+        "BitPlane", _getLowPatternTableAddress(right, tileNumber, row), 1
     )
 end
 
 
-function m.GetPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
+
+function _getPatternValueFromBitPlanes(lo: u8, hi: u8, fineX: number)
     return
-        (if h.GetBit(fineX, lo) then 1 else 0) +
-        (if h.GetBit(fineX, hi) then 2 else 0)
+        (if _hGetBit(fineX, lo) then 1 else 0) +
+        (if _hGetBit(fineX, hi) then 2 else 0)
 end
 
 
-function m.GetOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
+function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
     return (
-        (if VRamAddress.Get("X", vramAddr)%4 >= 2 then 1 else 0) +
-        (if VRamAddress.Get("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
+        (if _vramAddressGet("X", vramAddr)%4 >= 2 then 1 else 0) +
+        (if _vramAddressGet("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
     ) * 2
 end
 
 
-function m.SpriteIndexAndPixelAtScreenPosition(
+function _spriteIndexAndPixelAtScreenPosition(
     bus: Bus, scanline: number, dot: number, iState: State
 ): (number?, u8)
     for i = 0, 7 do
-        local x, y =
-            OAMGetters.X(iState.SecondaryOAM, i),
-            OAMGetters.Y(iState.SecondaryOAM, i)
+        local y = _oamGettersY(iState.SecondaryOAM, i)
 
         if y >= 0xEF then continue end
 
@@ -312,12 +355,14 @@ function m.SpriteIndexAndPixelAtScreenPosition(
             scanline,
             dot,
             iState.SecondaryOAM,
-            PpuControl.GetBit("H", iState.Registers.PPUCTRL),
-            PpuControl.GetBit("S", iState.Registers.PPUCTRL)
+            _ppuControlGetBit("H", iState.Registers.PPUCTRL),
+            _ppuControlGetBit("S", iState.Registers.PPUCTRL)
         )
 
         local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
         if isSpriteTransparent then continue end
+
+        local x = _oamGettersX(iState.SecondaryOAM, i)
 
         if dot >= x and x + 8 > dot then
             return i, spritePixel
@@ -396,38 +441,39 @@ end
 
 
 function _incrementVRamAddressAfterCpuAccess(regs: Regs, iRegs: InternalRegs)
-    local inc = if PpuControl.Get("I", regs.PPUCTRL) == 0 then 1 else 32
+    local inc = if _ppuControlGet("I", regs.PPUCTRL) == 0 then 1 else 32
     iRegs.v = BAND(iRegs.v + inc, 0x7FFF)
 end
 
 
 function _getAddressAfterIncrementHorizontal(vramAddr: u16): u16
-    if VRamAddress.Get("X", vramAddr) == 31 then
-        local n = VRamAddress.Get("N", vramAddr)
-        vramAddr = VRamAddress.Set("X", vramAddr, 0)
+    if _vramAddressGet("X", vramAddr) == 31 then
+        local n = _vramAddressGet("N", vramAddr)
+        vramAddr = _vramAddressSet("X", vramAddr, 0)
 
         -- Flip X nametable bit
-        return VRamAddress.Set(
+        return _vramAddressSet(
             "N", vramAddr,
-            h.SetBit(0, n, not h.GetBit(0, n))
+            _hSetBit(0, n, not _hGetBit(0, n))
         )
     else
-        return VRamAddress.Set("X", vramAddr, VRamAddress.Get("X", vramAddr) + 1)
+        return _vramAddressSet("X", vramAddr, _vramAddressGet("X", vramAddr) + 1)
     end
 end
 
+
 function _getAddressAfterIncrementVertical(vramAddr: u16)
     -- Should we increment fine y, or set it to 0?
-    if VRamAddress.Get("y", vramAddr) == 7 then
-        local coarseY = VRamAddress.Get("Y", vramAddr)
-        vramAddr = VRamAddress.Set("y", vramAddr, 0)
+    if _vramAddressGet("y", vramAddr) == 7 then
+        local coarseY = _vramAddressGet("Y", vramAddr)
+        vramAddr = _vramAddressSet("y", vramAddr, 0)
 
         -- Do we set Y to 0, and if we do, do we flip the nametable?
         if coarseY == 29 then
-            local n = VRamAddress.Get("N", vramAddr)
-            vramAddr = VRamAddress.Set(
+            local n = _vramAddressGet("N", vramAddr)
+            vramAddr = _vramAddressSet(
                 "N", vramAddr,
-                h.SetBit(1, n, not h.GetBit(1, n))
+                _hSetBit(1, n, not _hGetBit(1, n))
             )
             coarseY = 0
         elseif coarseY == 31 then
@@ -436,31 +482,32 @@ function _getAddressAfterIncrementVertical(vramAddr: u16)
             coarseY += 1
         end
 
-        return VRamAddress.Set("Y", vramAddr, coarseY)
+        return _vramAddressSet("Y", vramAddr, coarseY)
     else
-        return VRamAddress.Set("y", vramAddr, VRamAddress.Get("y", vramAddr) + 1)
+        return _vramAddressSet("y", vramAddr, _vramAddressGet("y", vramAddr) + 1)
     end
 end
 
 
 function _getAddressAfterTransferX(v: u16, t: u16): u16
-    return VRamAddress.Compose{
-        ["X"] = VRamAddress.Get("X", t),
-        ["Y"] = VRamAddress.Get("Y", v),
-        ["N"] = BAND(VRamAddress.Get("N", v), 0b10) + -- Low bit is X nametable
-                BAND(VRamAddress.Get("N", t), 0b01),
-        ["y"] = VRamAddress.Get("y", v),
+    return _vramAddressCompose{
+        ["X"] = _vramAddressGet("X", t),
+        ["Y"] = _vramAddressGet("Y", v),
+        ["N"] = BAND(_vramAddressGet("N", v), 0b10) + -- Low bit is X nametable
+                BAND(_vramAddressGet("N", t), 0b01),
+        ["y"] = _vramAddressGet("y", v),
     }
 end
 
 
+
 function _getAddressAfterTransferY(v: u16, t: u16): u16
-    return VRamAddress.Compose{
-        ["X"] = VRamAddress.Get("X", v),
-        ["Y"] = VRamAddress.Get("Y", t),
-        ["N"] = BAND(VRamAddress.Get("N", v), 0b01) + -- High bit is Y nametable
-                BAND(VRamAddress.Get("N", t), 0b10),
-        ["y"] = VRamAddress.Get("y", t),
+    return _vramAddressCompose{
+        ["X"] = _vramAddressGet("X", v),
+        ["Y"] = _vramAddressGet("Y", t),
+        ["N"] = BAND(_vramAddressGet("N", v), 0b01) + -- High bit is Y nametable
+                BAND(_vramAddressGet("N", t), 0b10),
+        ["y"] = _vramAddressGet("y", t),
     }
 end
 
@@ -480,21 +527,21 @@ function _fetchToLatchesBasedOnProgress(
 
     local latchName, addr = unpack(
         if backgroundFetchProgress == 0 then {
-            "Nametable", m.GetTileAddressFromVRamAddress(vramAddr)
+            "Nametable", _getTileAddressFromVRamAddress(vramAddr)
         }
         elseif backgroundFetchProgress == 2 then {
-            "AttributeTable", m.GetAttributeAddressFromVRamAddress(vramAddr)
+            "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
         }
         elseif backgroundFetchProgress == 4 then {
             "PatternTableTileLow",
-            m.GetLowPatternTableAddress(
-                PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
+            _getLowPatternTableAddress(
+                _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
             )
         }
         elseif backgroundFetchProgress == 6 then {
             "PatternTableTileHigh",
-            m.GetHighPatternTableAddress(
-                PpuControl.GetBit("B", ppuCtrl), latches.Nametable, VRamAddress.Get("y", vramAddr)
+            _getHighPatternTableAddress(
+                _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
             )
         }
         else error("Invalid input")
@@ -511,16 +558,17 @@ function _shift(shifters: Shifters)
     shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
 end
 
+
 function _reloadShifters(
     latches: Latches, shifters: Shifters, vramAddr: u16
 )
 
     local offsetInAttributeByte =
-        m.GetOffsetInAttributeByteFromVRamAddress(vramAddr)    
+        _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
 
     shifters.AttributeLo = BAND(shifters.AttributeLo, 0x00FF) +
         LSHIFT(
-            0xFF * if h.GetBit(
+            0xFF * if _hGetBit(
                 offsetInAttributeByte,
                 latches.AttributeTable
             ) then 1 else 0,
@@ -529,7 +577,7 @@ function _reloadShifters(
 
     shifters.AttributeHi = BAND(shifters.AttributeHi, 0x00FF) +
         LSHIFT(
-            0xFF * if h.GetBit(
+            0xFF * if _hGetBit(
                 offsetInAttributeByte + 1,
                 latches.AttributeTable
             ) then 1 else 0,
@@ -537,17 +585,17 @@ function _reloadShifters(
         )
 
     shifters.PatternLo = BAND(shifters.PatternLo, 0x00FF) +
-        LSHIFT(h.ReverseBitOrderU8(latches.PatternTableTileLow), 8)
+        LSHIFT(_hReverseBitOrderU8(latches.PatternTableTileLow), 8)
 
     shifters.PatternHi = BAND(shifters.PatternHi, 0x00FF) +
-        LSHIFT(h.ReverseBitOrderU8(latches.PatternTableTileHigh), 8)
+        LSHIFT(_hReverseBitOrderU8(latches.PatternTableTileHigh), 8)
 end
 
 
 function _isRenderingEnabled(ppuMask: u8)
     return BOR(
-            PpuMask.Get("b", ppuMask),
-            PpuMask.Get("s", ppuMask)
+            _ppuMaskGet("b", ppuMask),
+            _ppuMaskGet("s", ppuMask)
         ) > 0
 end
 
@@ -572,14 +620,14 @@ function _cycleAndReturnPixel(
     local isRenderingEnabled = _isRenderingEnabled(regs.PPUMASK)
 
     if isPreRenderLine and dot == 1 then
-        regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 0)
-        regs.PPUSTATUS = PpuStatus.Set("S", regs.PPUSTATUS, 0)
-        regs.PPUSTATUS = PpuStatus.Set("O", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = _ppuStatusSet("S", regs.PPUSTATUS, 0)
+        regs.PPUSTATUS = _ppuStatusSet("O", regs.PPUSTATUS, 0)
     end
 
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
-        local spriteIndex, spritePixel = m.SpriteIndexAndPixelAtScreenPosition(
+        local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
             bus, scanline, dot, iState
         )
 
@@ -605,7 +653,7 @@ function _cycleAndReturnPixel(
 
             bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
 
-            if PpuMask.GetBit("b", regs.PPUMASK) then
+            if _ppuMaskGetBit("b", regs.PPUMASK) then
                 _shift(shifters)
             end
 
@@ -636,7 +684,7 @@ function _cycleAndReturnPixel(
                 local isSpriteOverflow, isSprite0BeingDrawn =
                     _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
                         scanline + 1,
-                        PpuControl.GetBit("H", regs.PPUCTRL),
+                        _ppuControlGetBit("H", regs.PPUCTRL),
                         iState.OAM,
                         iState.SecondaryOAM
                     )
@@ -645,8 +693,8 @@ function _cycleAndReturnPixel(
 
                 -- Technically this flag should only be set once per frame.
                 -- If bugs are apparent, make sure to change this.
-                if not PpuStatus.GetBit("O", regs.PPUSTATUS) then
-                    regs.PPUSTATUS = PpuStatus.SetBit("O", regs.PPUSTATUS, isSpriteOverflow)
+                if not _ppuStatusGetBit("O", regs.PPUSTATUS) then
+                    regs.PPUSTATUS = _ppuStatusSetBit("O", regs.PPUSTATUS, isSpriteOverflow)
                 end
             end
             
@@ -661,20 +709,20 @@ function _cycleAndReturnPixel(
             local isBgTransparent = BAND(bgPixel, 0b11) == 0
             local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
 
-            local spriteAttributes = OAMGetters.Attributes(iState.SecondaryOAM, spriteIndex)
-            local spritePriority = ObjectAttribute.GetBit("Priority", spriteAttributes)
+            local spriteAttributes = _oamGettersAttributes(iState.SecondaryOAM, spriteIndex)
+            local spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
             local shouldSpriteBeRendered = _shouldSpriteBeRendered(
                 isBgTransparent, isSpriteTransparent, spritePriority
             )
 
             -- Technically this flag should only be set once per frame.
             -- If bugs are apparent, make sure to change this.
-            if not PpuStatus.GetBit("S", regs.PPUSTATUS) then
+            if not _ppuStatusGetBit("S", regs.PPUSTATUS) then
                 local isSprite0Hit = iState.IsSprite0BeingDrawn
                     and spriteIndex == 0
                     and not (isBgTransparent or isSpriteTransparent)
 
-                regs.PPUSTATUS = PpuStatus.SetBit("S", regs.PPUSTATUS, isSprite0Hit)
+                regs.PPUSTATUS = _ppuStatusSetBit("S", regs.PPUSTATUS, isSprite0Hit)
             end
             
             returnedPixel = shouldSpriteBeRendered
@@ -686,7 +734,7 @@ function _cycleAndReturnPixel(
 
     elseif scanline >= 241 and scanline <= 261 then
         if scanline == 241 and dot == 1 then
-            regs.PPUSTATUS = PpuStatus.Set("V", regs.PPUSTATUS, 1)
+            regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 1)
         end
     end
 
@@ -697,12 +745,12 @@ end
 
 function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
     local patternValue = 
-        (if h.GetBit(fineX, shifters.PatternLo) then 1 else 0) +
-        (if h.GetBit(fineX, shifters.PatternHi) then 2 else 0)
+        (if _hGetBit(fineX, shifters.PatternLo) then 1 else 0) +
+        (if _hGetBit(fineX, shifters.PatternHi) then 2 else 0)
 
     local attributeValue = 
-        (if h.GetBit(fineX, shifters.AttributeLo) then 1 else 0) +
-        (if h.GetBit(fineX, shifters.AttributeHi) then 2 else 0)
+        (if _hGetBit(fineX, shifters.AttributeLo) then 1 else 0) +
+        (if _hGetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
     return _getPixelValue(patternValue, attributeValue, false)
 end
@@ -729,12 +777,12 @@ function _spritePixelAtScreenPosition(
     ppuCtrlSpriteSize: boolean,
     ppuCtrlSpriteBank: boolean
 ): u8
-    local spriteAttributes = OAMGetters.Attributes(secondaryOam, objIndex)
+    local spriteAttributes = _oamGettersAttributes(secondaryOam, objIndex)
 
     local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        OAMGetters.TileNumber(secondaryOam, objIndex),
-        OAMGetters.Y(secondaryOam, objIndex),
-        ObjectAttribute.GetBit("FlipY", spriteAttributes),
+        _oamGettersTileNumber(secondaryOam, objIndex),
+        _oamGettersY(secondaryOam, objIndex),
+        _objectAttributeGetBit("FlipY", spriteAttributes),
         scanline,
         ppuCtrlSpriteSize,
         ppuCtrlSpriteBank
@@ -743,9 +791,9 @@ function _spritePixelAtScreenPosition(
     return _spritePixelFromProperties(
         dot,
         spriteAttributes,
-        OAMGetters.X(secondaryOam, objIndex),
-        bus.Read(m.GetLowPatternTableAddress(isRightBank, tileIndex, row)),
-        bus.Read(m.GetHighPatternTableAddress(isRightBank, tileIndex, row))
+        _oamGettersX(secondaryOam, objIndex),
+        bus.Read(_getLowPatternTableAddress(isRightBank, tileIndex, row)),
+        bus.Read(_getHighPatternTableAddress(isRightBank, tileIndex, row))
     )
 end
 
@@ -759,16 +807,16 @@ function _spritePixelFromProperties(
 ): u8
     local column = dot - spriteX
 
-    column = if ObjectAttribute.GetBit("FlipX", spriteAttributes)
+    column = if _objectAttributeGetBit("FlipX", spriteAttributes)
         then column
         else 7 - column
     
 
-    local patternValue = m.GetPatternValueFromBitPlanes(
+    local patternValue = _getPatternValueFromBitPlanes(
         lowPatternValue, highPatternValue, column
     )
 
-    local attributeValue = ObjectAttribute.Get("Palette", spriteAttributes)
+    local attributeValue = _objectAttributeGet("Palette", spriteAttributes)
 
     return _getPixelValue(patternValue, attributeValue, true)
 end
@@ -787,8 +835,8 @@ function _getSpritePatternTablePropertiesAtScreenPosition(
     local isRightBank, tileIndex
 
     if ppuCtrlSpriteSize then
-        isRightBank = ObjectTileNumber.GetBit("Bank", spriteTileNumber)
-        tileIndex = ObjectTileNumber.Get("TileNumber", spriteTileNumber)
+        isRightBank = _objectTileNumberGetBit("Bank", spriteTileNumber)
+        tileIndex = _objectTileNumberGet("TileNumber", spriteTileNumber)
     else
         isRightBank = ppuCtrlSpriteBank
         tileIndex = spriteTileNumber
@@ -806,6 +854,11 @@ m.GetDotInFrame = _getDotInFrame
 m.GetScanlineInFrame = _getScanlineInFrame
 m.GetPixelValue = _getPixelValue
 m.GetColorByPixelValue = _getColorByPixelValue
-
+m.GetTileAddressFromVRamAddress = _getTileAddressFromVRamAddress
+m.GetAttributeAddressFromVRamAddress = _getAttributeAddressFromVRamAddress
+m.GetLowPatternTableAddress = _getLowPatternTableAddress
+m.GetHighPatternTableAddress = _getHighPatternTableAddress
+m.GetPatternValueFromBitPlanes = _getPatternValueFromBitPlanes
+m.GetOffsetInAttributeByteFromVRamAddress = _getOffsetInAttributeByteFromVRamAddress
 
 return m

@@ -345,7 +345,8 @@ function _spriteIndexAndPixelAtScreenPosition(
     bus: Bus, scanline: number, dot: number, iState: State
 ): (number?, u8)
     for i = 0, 7 do
-        local y = _oamGettersY(iState.SecondaryOAM, i)
+        -- local y = _oamGettersY(iState.SecondaryOAM, i)
+        local y = RU8(iState.SecondaryOAM, i * 4 + 0)
 
         if y >= 0xEF then continue end
 
@@ -355,14 +356,17 @@ function _spriteIndexAndPixelAtScreenPosition(
             scanline,
             dot,
             iState.SecondaryOAM,
-            _ppuControlGetBit("H", iState.Registers.PPUCTRL),
-            _ppuControlGetBit("S", iState.Registers.PPUCTRL)
+            -- _ppuControlGetBit("H", iState.Registers.PPUCTRL),
+            BAND(iState.Registers.PPUCTRL, 0b00100000) > 0,
+            -- _ppuControlGetBit("S", iState.Registers.PPUCTRL)
+            BAND(iState.Registers.PPUCTRL, 0b00001000) > 0
         )
 
         local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
         if isSpriteTransparent then continue end
 
-        local x = _oamGettersX(iState.SecondaryOAM, i)
+        -- local x = _oamGettersX(iState.SecondaryOAM, i)
+        local x = RU8(iState.SecondaryOAM, i * 4 + 3)
 
         if dot >= x and x + 8 > dot then
             return i, spritePixel

@@ -78,11 +78,11 @@ return function()
         local bus = h.NewDebugBus()
         bus.Write(0x3F00, 0xEE)
 
-        expect(m.GetColorByPixelValue(0, bus))
+        expect(m.GetColorByPixelValue(0, bus.Read))
             .to.equal(0xEE)
 
         -- Pattern value is 0; falls to backdrop
-        expect(m.GetColorByPixelValue(0b01100, bus))
+        expect(m.GetColorByPixelValue(0b01100, bus.Read))
             .to.equal(0xEE)
     end)
 

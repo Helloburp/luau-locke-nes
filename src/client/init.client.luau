@@ -59,8 +59,8 @@ do
     myUiState.WindowStates.Screen:set(true)
     myUiState.WindowStates.Execution:set(true)
     myUiState.RunningState.Running = true
-    myUiState.EmulationSpeedState.Comparison = 0.116
-    myUiState.ExecutionSpeedState.Comparison = 0.1329
+    myUiState.EmulationSpeedState.Comparison = 0.117
+    myUiState.ExecutionSpeedState.Comparison = 0.1430
 end
 
 

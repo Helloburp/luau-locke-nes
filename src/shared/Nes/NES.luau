@@ -35,10 +35,34 @@ type Ports = T_CPUP.Ports
 
 local m = {}
 
+function m.NewClockClosure(nes: NES): () -> ()
+    local _ppuClock, _ppuBusRead, _ppuSetPixelForCycle =
+        Ppu.Clock,
+        nes.PpuBus.Read,
+        nes.Ppu.SetPixelForCycle
+    
+    local _clock2A03 = CpuPeripherals.Clock2A03
+
+    local nesState, cpuPeripheralState, ppuOamState =
+        nes.State, nes.State.CpuPeripherals, nes.State.Ppu.OAM
+    
+    local cpu, cpuBus = nes.Cpu, nes.CpuBus
+    
+    return function()
+        _ppuClock(nes.Ppu, _ppuBusRead, _ppuSetPixelForCycle)
+
+        -- An offset of 1 allows for accurate syncronization.
+        if (nes.State.Clock + 1)%3 == 0 then
+            _clock2A03(cpuPeripheralState, cpu, cpuBus, ppuOamState)
+        end
+
+        nesState.Clock += 1
+    end
+end
 
 -- Clock amounts divided by 4 (common denominator)
 function m.Clock(nes: NES)
-    Ppu.Clock(nes.Ppu, nes.PpuBus)
+    Ppu.Clock(nes.Ppu, nes.PpuBus.Read, nes.Ppu.SetPixelForCycle)
 
     -- An offset of 1 allows for accurate syncronization.
     if (nes.State.Clock + 1)%3 == 0 then

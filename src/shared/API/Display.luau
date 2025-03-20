@@ -144,7 +144,7 @@ function m.RenderTileStrip(
             patternValue, attr, isSprite
         )
 
-        local color = Ppu.GetColorByPixelValue(pixel, ppuBus)
+        local color = Ppu.GetColorByPixelValue(pixel, ppuBus.Read)
 
         _setFineXColor(7 - fineX, color)
     end

@@ -84,7 +84,11 @@ local _patternTableAddressSet, _patternTableAddressCompose =
 local _attributeAddressCompose = AttributeAddress.Compose
 
 
-function m.Clock(ppu: PPU, bus: Bus)
+function m.Clock(
+    ppu: PPU,
+    _read: (u16) -> u8,
+    _setPixelForCycle: (i: number, color: number) -> ()
+)
     local state = ppu.State
     
     -- Perform skip cycle if at the beginning of an odd frame & BG set
@@ -99,9 +103,9 @@ function m.Clock(ppu: PPU, bus: Bus)
 
     -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
-        bus, state, dot, scanline
+        _read, state, dot, scanline
     )
-    ppu.SetPixelForCycle(cycles, _getColorByPixelValue(pixel, bus))
+    _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
 
 
     -- Perform NMI if applicable
@@ -342,7 +346,7 @@ end
 
 
 function _spriteIndexAndPixelAtScreenPosition(
-    bus: Bus, scanline: number, dot: number, iState: State
+    _read: (u16) -> u8, scanline: number, dot: number, iState: State
 ): (number?, u8)
     for i = 0, 7 do
         -- local y = _oamGettersY(iState.SecondaryOAM, i)
@@ -351,7 +355,7 @@ function _spriteIndexAndPixelAtScreenPosition(
         if y >= 0xEF then continue end
 
         local spritePixel = _spritePixelAtScreenPosition(
-            bus,
+            _read,
             i,
             scanline,
             dot,
@@ -524,7 +528,7 @@ end
     vramAddr is likely the v register.
 ]]
 function _fetchToLatchesBasedOnProgress(
-    bus: Bus, ppuCtrl: u8, vramAddr: u16,
+    _read: (u16) -> u8, ppuCtrl: u8, vramAddr: u16,
     latches: Latches, backgroundFetchProgress: number
 )
     if backgroundFetchProgress%2 == 1 then return end
@@ -551,7 +555,7 @@ function _fetchToLatchesBasedOnProgress(
         else error("Invalid input")
     )
 
-    latches[latchName] = bus.Read(addr)
+    latches[latchName] = _read(addr)
 end
 
 
@@ -610,7 +614,7 @@ end
 
 
 function _cycleAndReturnPixel(
-    bus: Bus, iState: State, dot: number, scanline: number
+    _read: (u16) -> u8, iState: State, dot: number, scanline: number
 ): u8
     local returnedPixel = 0b00000
 
@@ -632,14 +636,14 @@ function _cycleAndReturnPixel(
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
         local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-            bus, scanline, dot, iState
+            _read, scanline, dot, iState
         )
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
             local fetchProgress = (dot - 1)%8
             _fetchToLatchesBasedOnProgress(
-                bus, regs.PPUCTRL, iRegs.v, latches,
+                _read, regs.PPUCTRL, iRegs.v, latches,
                 fetchProgress
             )
 
@@ -704,7 +708,7 @@ function _cycleAndReturnPixel(
             
         elseif dot == 337 or dot == 339 then
             _fetchToLatchesBasedOnProgress(
-                bus, regs.PPUCTRL, iRegs.v, latches,
+                _read, regs.PPUCTRL, iRegs.v, latches,
                 0 -- 0 progress implies nametable fetch
             )
         end
@@ -761,8 +765,8 @@ end
 
 
 -- If divisible by 4, falls back to the background color.
-function _getColorByPixelValue(index: number, bus: Bus)
-    return bus.Read(0x3F00 + if index%4 == 0 then 0 else index)
+function _getColorByPixelValue(index: number, _read: (u16) -> (u8))
+    return _read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
 
@@ -773,7 +777,7 @@ end
     - Implement flipping
 ]]
 function _spritePixelAtScreenPosition(
-    bus: Bus,
+    _read: (u16) -> u8,
     objIndex: number,
     scanline: number,
     dot: number,
@@ -796,8 +800,8 @@ function _spritePixelAtScreenPosition(
         dot,
         spriteAttributes,
         _oamGettersX(secondaryOam, objIndex),
-        bus.Read(_getLowPatternTableAddress(isRightBank, tileIndex, row)),
-        bus.Read(_getHighPatternTableAddress(isRightBank, tileIndex, row))
+        _read(_getLowPatternTableAddress(isRightBank, tileIndex, row)),
+        _read(_getHighPatternTableAddress(isRightBank, tileIndex, row))
     )
 end
 

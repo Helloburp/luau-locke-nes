@@ -128,7 +128,7 @@ function _configureNewEmulation_Return_Clock<T>(
 
     local _myClock =
         if config.DebugLog then API.Debug.LogClock(Nes.Clock, config.DebugLog, 5)
-        else Nes.Clock
+        else Nes.NewClockClosure(myNes)
 
     return _myClock
 end

@@ -90,12 +90,12 @@ function m.TrailingZeroesBase2(n: number): number
 end
 
 
-function m.GetValueFromBitfield(bitfield: number, mask: number, offset: number): number
+function _getValueFromBitfield(bitfield: number, mask: number, offset: number): number
     return RSHIFT(BAND(bitfield, mask), offset)
 end
 
 
-function m.SetValueInBitfield(
+function _setValueInBitfield(
     bitfield: number,
     mask: number,
     offset: number,
@@ -105,6 +105,7 @@ function m.SetValueInBitfield(
 end
 
 
+
 function m.NewBitfieldFunctions<EValue>(
     masks: {[EValue]: number}
 ): BitfieldFunctions<EValue>
@@ -112,7 +113,7 @@ function m.NewBitfieldFunctions<EValue>(
     for i, v in pairs(masks) do offsets[i] = m.TrailingZeroesBase2(v) end
 
     local function _get(valueType: EValue, bitfield: number)
-        return m.GetValueFromBitfield(bitfield, masks[valueType], offsets[valueType])
+        return _getValueFromBitfield(bitfield, masks[valueType], offsets[valueType])
     end
 
     local function _getBit(valueType: EValue, bitfield: number)
@@ -120,7 +121,7 @@ function m.NewBitfieldFunctions<EValue>(
     end
 
     local function _set(valueType: EValue, bitfield: number, value: number)
-        return m.SetValueInBitfield(bitfield, masks[valueType], offsets[valueType], value)
+        return _setValueInBitfield(bitfield, masks[valueType], offsets[valueType], value)
     end
 
     local function _setBit(valueType: EValue, bitfield: number, value: boolean)
@@ -242,5 +243,8 @@ function m.NewBus(): Bus
     }
 end
 
+
+m.SetValueInBitfield = _setValueInBitfield
+m.GetValueFromBitfield = _getValueFromBitfield
 
 return m

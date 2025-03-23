@@ -349,11 +349,15 @@ end
 
 
 function _spriteIndexAndPixelAtScreenPosition(
-    _read: (u16) -> u8, scanline: number, dot: number, iState: State
+    _read: (u16) -> u8,
+    scanline: number,
+    dot: number,
+    secondaryOam: buffer,
+    ppuCtrl: number
 ): (number?, u8)
     for i = 0, 7 do
         -- local y = _oamGettersY(iState.SecondaryOAM, i)
-        local y = RU8(iState.SecondaryOAM, i * 4 + 0)
+        local y = RU8(secondaryOam, i * 4 + 0)
 
         if y >= 0xEF then continue end
 
@@ -362,18 +366,18 @@ function _spriteIndexAndPixelAtScreenPosition(
             i,
             scanline,
             dot,
-            iState.SecondaryOAM,
+            secondaryOam,
             -- _ppuControlGetBit("H", iState.Registers.PPUCTRL),
-            BAND(iState.Registers.PPUCTRL, 0b00100000) > 0,
+            BAND(ppuCtrl, 0b00100000) > 0,
             -- _ppuControlGetBit("S", iState.Registers.PPUCTRL)
-            BAND(iState.Registers.PPUCTRL, 0b00001000) > 0
+            BAND(ppuCtrl, 0b00001000) > 0
         )
 
         local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
         if isSpriteTransparent then continue end
 
         -- local x = _oamGettersX(iState.SecondaryOAM, i)
-        local x = RU8(iState.SecondaryOAM, i * 4 + 3)
+        local x = RU8(secondaryOam, i * 4 + 3)
 
         if dot >= x and x + 8 > dot then
             return i, spritePixel
@@ -621,9 +625,10 @@ function _cycleAndReturnPixel(
 ): u8
     local returnedPixel = 0b00000
 
-    local regs, shifters, latches, iRegs =
+    local regs, shifters, latches, iRegs, secondaryOam =
         iState.Registers, iState.Shifters,
-        iState.Latches, iState.InternalRegisters
+        iState.Latches, iState.InternalRegisters,
+        iState.SecondaryOAM
     
     local isVisibleScanline = scanline >= 0 and scanline <= 239
     local isPreRenderLine = scanline == 261
@@ -639,7 +644,7 @@ function _cycleAndReturnPixel(
     if isVisibleScanline or isPreRenderLine then
         local bgPixel: u8 = 0b00000
         local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-            _read, scanline, dot, iState
+            _read, scanline, dot, secondaryOam, regs.PPUCTRL
         )
 
         if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then

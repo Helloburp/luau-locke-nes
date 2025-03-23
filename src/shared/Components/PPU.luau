@@ -313,12 +313,15 @@ end
 
 
 function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
-    return _patternTableAddressCompose{
-        ["FineY"] = row,
-        ["BitPlane"] = 0,
-        ["TileNumber"] = tileNumber,
-        ["Half"] = if right then 1 else 0
-    }
+    -- return _patternTableAddressCompose{
+    --     ["FineY"] = row,
+    --     ["BitPlane"] = 0,
+    --     ["TileNumber"] = tileNumber,
+    --     ["Half"] = if right then 1 else 0
+    -- }
+    return row
+        + tileNumber*2^4
+        + (if right then 1 else 0)*2^12
 end
 
 

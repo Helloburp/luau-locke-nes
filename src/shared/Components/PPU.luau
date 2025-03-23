@@ -90,6 +90,7 @@ function m.Clock(
     _setPixelForCycle: (i: number, color: number) -> ()
 )
     local state = ppu.State
+    local ppuMask = state.Registers.PPUMASK
     
     -- Perform skip cycle if at the beginning of an odd frame & BG set
     if state.FrameCounter%2 == 0 and state.ExecutionState.Cycles == 0 and
@@ -100,6 +101,11 @@ function m.Clock(
 
     local cycles = state.ExecutionState.Cycles
     local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
+
+    local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
+        BAND(ppuMask, 0b00010000) ~= 0
+
+
 
     -- Perform main arithmetic and return pixel for this cycle
     local pixel = _cycleAndReturnPixel(
@@ -116,7 +122,7 @@ function m.Clock(
     end
 
     -- Scanline callback for MMC3 IRQ
-    if dot == 260 and scanline < 240 and _isRenderingEnabled(state.Registers.PPUMASK) then
+    if dot == 260 and scanline < 240 and isRenderingEnabled then
         ppu.OnScanline()
     end
 
@@ -610,10 +616,10 @@ end
 
 
 function _isRenderingEnabled(ppuMask: u8)
-    return BOR(
-            _ppuMaskGet("b", ppuMask),
-            _ppuMaskGet("s", ppuMask)
-        ) > 0
+        -- _ppuMaskGet("b", ppuMask),
+    return BAND(ppuMask, 0b00001000) ~= 0 or
+        -- _ppuMaskGet("s", ppuMask)
+        BAND(ppuMask, 0b00010000) ~= 0
 end
 
 
@@ -632,10 +638,15 @@ function _cycleAndReturnPixel(
         iState.Latches, iState.InternalRegisters,
         iState.SecondaryOAM
     
+    local ppuMask = regs.PPUMASK
+    
     local isVisibleScanline = scanline >= 0 and scanline <= 239
     local isPreRenderLine = scanline == 261
 
-    local isRenderingEnabled = _isRenderingEnabled(regs.PPUMASK)
+    -- _isRenderingEnabled(ppuMask)
+    local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
+        BAND(ppuMask, 0b00010000) ~= 0
+
 
     if isPreRenderLine and dot == 1 then
         regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)

@@ -193,7 +193,15 @@ function m.NewClockClosure(
                         end
                     end
 
-                    bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
+                    -- bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
+                    local fineX = iRegs.x
+
+                    bgPixel = (
+                        (if BAND(shifters.PatternLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
+                        (if BAND(shifters.PatternHi, LSHIFT(1, fineX)) > 0 then 2 else 0) +
+                        (if BAND(shifters.AttributeLo, LSHIFT(1, fineX)) > 0 then 4 else 0) +
+                        (if BAND(shifters.AttributeHi, LSHIFT(1, fineX)) > 0 then 8 else 0)
+                    )
 
                     if _ppuMaskGetBit("b", regs.PPUMASK) then
                         _shift(shifters)

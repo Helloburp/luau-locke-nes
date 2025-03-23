@@ -30,6 +30,8 @@ local VRamAddress, AttributeAddress, PatternTableAddress,
     BFU.PpuControl, BFU.PpuMask, BFU.PpuStatus,
     BFU.ObjectTileNumber, BFU.ObjectAttribute, BFU.OAMGetters
 
+local DOTS_PER_SCANLINE = C.DOTS_PER_SCANLINE
+local CYCLES_PER_FRAME_NOSKIP = C.CYCLES_PER_FRAME_NOSKIP
 
 local m = {}
 
@@ -83,6 +85,80 @@ local _patternTableAddressSet, _patternTableAddressCompose =
 
 local _attributeAddressCompose = AttributeAddress.Compose
 
+
+function m.NewClockClosure(
+    ppu: PPU,
+    screenBuffer: buffer,
+    COLORS_U32: {[number]: number},
+    _read: (u16) -> u8
+)
+    local state = ppu.State
+    local regs, executionState =
+        state.Registers,
+        state.ExecutionState
+
+    return function()
+        local ppuMask, ppuCtrl =
+            regs.PPUMASK,
+            regs.PPUCTRL
+        
+        -- Perform skip cycle if at the beginning of an odd frame & BG set
+        if state.FrameCounter%2 == 0 and executionState.Cycles == 0 and
+            -- _ppuMaskGetBit("b", state.Registers.PPUMASK)
+            BAND(ppuMask, 0b00001000) > 0
+        then
+            executionState.Cycles += 1
+        end
+
+        local cycles = executionState.Cycles
+
+        -- local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
+        local dot, scanline =
+            cycles%DOTS_PER_SCANLINE,
+            (cycles - cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
+
+        local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
+            BAND(ppuMask, 0b00010000) ~= 0
+
+
+        -- Perform main arithmetic and return pixel for this cycle
+        local pixel = _cycleAndReturnPixel(
+            _read, state, dot, scanline
+        )
+
+        -- _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
+        -- _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
+        local color = _read(0x3F00 + if pixel%4 == 0 then 0 else pixel)
+        if dot < 256 and scanline < 240 then
+            buffer.writeu32(
+                screenBuffer,
+                (dot + scanline*256)*4,
+                COLORS_U32[color] or COLORS_U32[0x28]
+            )
+        end
+
+
+        -- Perform NMI if applicable
+        -- if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
+        if dot == 1 and scanline == 241 and BAND(0b10000000, ppuCtrl) > 0 then
+            ppu.TriggerNmi()
+        end
+
+        -- Scanline callback for MMC3 IRQ
+        if dot == 260 and scanline < 240 and isRenderingEnabled then
+            ppu.OnScanline()
+        end
+
+
+        executionState.Cycles = (cycles + 1)%CYCLES_PER_FRAME_NOSKIP
+        executionState.Clock += 1
+
+        if executionState.Cycles < cycles then
+            ppu.OnFrameComplete()
+            state.FrameCounter += 1
+        end
+    end
+end
 
 function m.Clock(
     ppu: PPU,

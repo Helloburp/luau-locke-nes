@@ -105,7 +105,9 @@ function m.Clock(
     local pixel = _cycleAndReturnPixel(
         _read, state, dot, scanline
     )
-    _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
+
+    -- _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
+    _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
 
 
     -- Perform NMI if applicable

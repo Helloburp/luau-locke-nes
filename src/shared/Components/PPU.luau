@@ -1030,12 +1030,16 @@ end
 
 function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
     local patternValue = 
-        (if _hGetBit(fineX, shifters.PatternLo) then 1 else 0) +
-        (if _hGetBit(fineX, shifters.PatternHi) then 2 else 0)
+        -- (if _hGetBit(fineX, shifters.PatternLo) then 1 else 0) +
+        (if BAND(shifters.PatternLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
+        -- (if _hGetBit(fineX, shifters.PatternHi) then 2 else 0)
+        (if BAND(shifters.PatternHi, LSHIFT(1, fineX)) > 0 then 2 else 0)
 
     local attributeValue = 
-        (if _hGetBit(fineX, shifters.AttributeLo) then 1 else 0) +
-        (if _hGetBit(fineX, shifters.AttributeHi) then 2 else 0)
+        -- (if _hGetBit(fineX, shifters.AttributeLo) then 1 else 0) +
+        (if BAND(shifters.AttributeLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
+        -- (if _hGetBit(fineX, shifters.AttributeHi) then 2 else 0)
+        (if BAND(shifters.AttributeHi, LSHIFT(1, fineX)) > 0 then 2 else 0)
 
     -- return _getPixelValue(patternValue, attributeValue, false)
     return (

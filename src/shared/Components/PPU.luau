@@ -796,9 +796,15 @@ function _spritePixelAtScreenPosition(
     local spriteAttributes = _oamGettersAttributes(secondaryOam, objIndex)
 
     local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        _oamGettersTileNumber(secondaryOam, objIndex),
-        _oamGettersY(secondaryOam, objIndex),
-        _objectAttributeGetBit("FlipY", spriteAttributes),
+        -- _oamGettersTileNumber(secondaryOam, objIndex),
+        RU8(secondaryOam, objIndex * 4 + 1),
+
+        -- _oamGettersY(secondaryOam, objIndex),
+        RU8(secondaryOam, objIndex * 4 + 0),
+
+        -- _objectAttributeGetBit("FlipY", spriteAttributes),
+        BAND(spriteAttributes, 0b10000000) ~= 0,
+
         scanline,
         ppuCtrlSpriteSize,
         ppuCtrlSpriteBank
@@ -807,7 +813,10 @@ function _spritePixelAtScreenPosition(
     return _spritePixelFromProperties(
         dot,
         spriteAttributes,
-        _oamGettersX(secondaryOam, objIndex),
+
+        -- _oamGettersX(secondaryOam, objIndex),
+        RU8(secondaryOam, objIndex * 4 + 3),
+
         _read(_getLowPatternTableAddress(isRightBank, tileIndex, row)),
         _read(_getHighPatternTableAddress(isRightBank, tileIndex, row))
     )
@@ -851,8 +860,12 @@ function _getSpritePatternTablePropertiesAtScreenPosition(
     local isRightBank, tileIndex
 
     if ppuCtrlSpriteSize then
-        isRightBank = _objectTileNumberGetBit("Bank", spriteTileNumber)
-        tileIndex = _objectTileNumberGet("TileNumber", spriteTileNumber)
+
+        -- isRightBank = _objectTileNumberGetBit("Bank", spriteTileNumber)
+        isRightBank = BAND(0x01, spriteTileNumber) ~= 0
+
+        -- tileIndex = _objectTileNumberGet("TileNumber", spriteTileNumber)
+        tileIndex = RSHIFT(spriteTileNumber, 1)
     else
         isRightBank = ppuCtrlSpriteBank
         tileIndex = spriteTileNumber

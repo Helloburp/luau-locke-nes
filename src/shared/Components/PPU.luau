@@ -797,7 +797,11 @@ function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
         (if _hGetBit(fineX, shifters.AttributeLo) then 1 else 0) +
         (if _hGetBit(fineX, shifters.AttributeHi) then 2 else 0)
 
-    return _getPixelValue(patternValue, attributeValue, false)
+    -- return _getPixelValue(patternValue, attributeValue, false)
+    return (
+        patternValue +
+        LSHIFT(attributeValue, 2)
+    )
 end
 
 
@@ -861,18 +865,30 @@ function _spritePixelFromProperties(
 ): u8
     local column = dot - spriteX
 
-    column = if _objectAttributeGetBit("FlipX", spriteAttributes)
+    -- column = if _objectAttributeGetBit("FlipX", spriteAttributes)
+    column = if BAND(0b01000000, spriteAttributes) ~= 0
         then column
         else 7 - column
     
 
-    local patternValue = _getPatternValueFromBitPlanes(
-        lowPatternValue, highPatternValue, column
+    -- local patternValue = _getPatternValueFromBitPlanes(
+    --     lowPatternValue, highPatternValue, column
+    -- )
+    local patternValue = 
+        -- (if _hGetBit(column, lowPatternValue) then 1 else 0) +
+        (if BAND(lowPatternValue, LSHIFT(1, column)) > 0 then 1 else 0) +
+        (if BAND(highPatternValue, LSHIFT(1, column)) > 0 then 2 else 0)
+        -- (if _hGetBit(column, highPatternValue) then 2 else 0)
+    
+    -- local attributeValue = _objectAttributeGet("Palette", spriteAttributes)
+
+    -- return _getPixelValue(patternValue, attributeValue, true)
+    -- return _getPixelValue(patternValue, BAND(0x03, spriteAttributes), true)
+    return (
+        patternValue +
+        LSHIFT(BAND(0x03, spriteAttributes), 2) + 
+        0x10
     )
-
-    local attributeValue = _objectAttributeGet("Palette", spriteAttributes)
-
-    return _getPixelValue(patternValue, attributeValue, true)
 end
 
 

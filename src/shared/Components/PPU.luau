@@ -85,6 +85,32 @@ local _patternTableAddressSet, _patternTableAddressCompose =
 
 local _attributeAddressCompose = AttributeAddress.Compose
 
+local PPUSTATUS_MASK_O, PPUSTATUS_MASK_S, PPUSTATUS_MASK_V  =
+    C.PPUSTATUS_MASKS["O" :: T.EPpuStatusFlag],
+    C.PPUSTATUS_MASKS["S" :: T.EPpuStatusFlag],
+    C.PPUSTATUS_MASKS["V" :: T.EPpuStatusFlag]
+
+local PPUMASK_MASK_Greyscale, PPUMASK_MASK_m, PPUMASK_MASK_M, PPUMASK_MASK_b,
+    PPUMASK_MASK_s, PPUMASK_MASK_R, PPUMASK_MASK_G, PPUMASK_MASK_B =
+    C.PPUMASK_MASKS["Greyscale" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["m" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["M" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["b" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["s" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["R" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["G" :: T.EPpuMaskFlag],
+    C.PPUMASK_MASKS["B" :: T.EPpuMaskFlag]
+
+local PPUCTRL_MASK_N, PPUCTRL_MASK_I, PPUCTRL_MASK_S, PPUCTRL_MASK_B,
+    PPUCTRL_MASK_H, PPUCTRL_MASK_P, PPUCTRL_MASK_V =
+    C.PPUCTRL_MASKS["N" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["I" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["S" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["B" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["H" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["P" :: T.EPpuControlFlag],
+    C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
+
 
 function m.NewClockClosure(
     ppu: PPU,
@@ -93,9 +119,11 @@ function m.NewClockClosure(
     _read: (u16) -> u8
 )
     local state = ppu.State
-    local regs, executionState =
-        state.Registers,
-        state.ExecutionState
+
+    local regs, executionState, shifters, latches, iRegs, oam, secondaryOam =
+        state.Registers, state.ExecutionState, state.Shifters,
+        state.Latches, state.InternalRegisters,
+        state.OAM, state.SecondaryOAM
 
     return function()
         local ppuMask, ppuCtrl =
@@ -105,7 +133,7 @@ function m.NewClockClosure(
         -- Perform skip cycle if at the beginning of an odd frame & BG set
         if state.FrameCounter%2 == 0 and executionState.Cycles == 0 and
             -- _ppuMaskGetBit("b", state.Registers.PPUMASK)
-            BAND(ppuMask, 0b00001000) > 0
+            BAND(ppuMask, PPUMASK_MASK_b) > 0
         then
             executionState.Cycles += 1
         end
@@ -117,18 +145,145 @@ function m.NewClockClosure(
             cycles%DOTS_PER_SCANLINE,
             (cycles - cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
 
-        local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
-            BAND(ppuMask, 0b00010000) ~= 0
+        local isRenderingEnabled = BAND(ppuMask, PPUMASK_MASK_b) ~= 0 or
+            BAND(ppuMask, PPUMASK_MASK_s) ~= 0
 
 
         -- Perform main arithmetic and return pixel for this cycle
-        local pixel = _cycleAndReturnPixel(
-            _read, state, dot, scanline
-        )
+        -- local pixel = _cycleAndReturnPixel(
+        --     _read, state, dot, scanline
+        -- )
+
+        -- Cycle and return pixel
+        local returnedPixel = 0b00000
+        do
+            local isVisibleScanline = scanline >= 0 and scanline <= 239
+            local isPreRenderLine = scanline == 261
+
+
+            if isPreRenderLine and dot == 1 then
+                regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)
+                regs.PPUSTATUS = _ppuStatusSet("S", regs.PPUSTATUS, 0)
+                regs.PPUSTATUS = _ppuStatusSet("O", regs.PPUSTATUS, 0)
+            end
+
+            if isVisibleScanline or isPreRenderLine then
+                local bgPixel: u8 = 0b00000
+                local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
+                    _read, scanline, dot, secondaryOam, regs.PPUCTRL
+                )
+
+                if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
+
+                    local fetchProgress = (dot - 1)%8
+                    _fetchToLatchesBasedOnProgress(
+                        _read, regs.PPUCTRL, iRegs.v, latches,
+                        fetchProgress
+                    )
+
+                    if fetchProgress == 7 then
+                        _reloadShifters(latches, shifters, iRegs.v)
+
+                        if isRenderingEnabled then
+                            iRegs.v = _getAddressAfterIncrementHorizontal(iRegs.v)
+                        end
+
+                        if isRenderingEnabled and dot == 256 then
+                            iRegs.v = _getAddressAfterIncrementVertical(iRegs.v)
+                        end
+                    end
+
+                    bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
+
+                    if _ppuMaskGetBit("b", regs.PPUMASK) then
+                        _shift(shifters)
+                    end
+
+                elseif dot >= 257 and dot <= 320 then
+                    if isRenderingEnabled and dot == 257 then
+                        iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
+                    end
+                    if isRenderingEnabled and dot >= 280 and dot <= 304 then
+                        if isPreRenderLine then
+                            iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
+                        end
+                    end
+
+                    if isRenderingEnabled then
+                        regs.OAMADDR = 0x00
+                    end
+
+                    --[[
+                        Dots 257-320:
+                        Data for sprites on next scanline are fetched. (2 dots each)
+                        In order:
+                        - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
+                        - Pattern table tile low
+                        - Pattern table tile high
+                    ]]
+                    if dot == 320 then
+                        _initializeSecondaryOAM(secondaryOam)
+                        local isSpriteOverflow, isSprite0BeingDrawn =
+                            _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+                                scanline + 1,
+                                _ppuControlGetBit("H", regs.PPUCTRL),
+                                oam,
+                                secondaryOam
+                            )
+
+                        state.IsSprite0BeingDrawn = isSprite0BeingDrawn
+
+                        -- Technically this flag should only be set once per frame.
+                        -- If bugs are apparent, make sure to change this.
+                        if not _ppuStatusGetBit("O", regs.PPUSTATUS) then
+                            regs.PPUSTATUS = _ppuStatusSetBit("O", regs.PPUSTATUS, isSpriteOverflow)
+                        end
+                    end
+                    
+                elseif dot == 337 or dot == 339 then
+                    _fetchToLatchesBasedOnProgress(
+                        _read, regs.PPUCTRL, iRegs.v, latches,
+                        0 -- 0 progress implies nametable fetch
+                    )
+                end
+
+                if spriteIndex then
+                    local isBgTransparent = BAND(bgPixel, 0b11) == 0
+                    local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
+
+                    local spriteAttributes = _oamGettersAttributes(secondaryOam, spriteIndex)
+                    local spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
+                    local shouldSpriteBeRendered = _shouldSpriteBeRendered(
+                        isBgTransparent, isSpriteTransparent, spritePriority
+                    )
+
+                    -- Technically this flag should only be set once per frame.
+                    -- If bugs are apparent, make sure to change this.
+                    if not _ppuStatusGetBit("S", regs.PPUSTATUS) then
+                        local isSprite0Hit = state.IsSprite0BeingDrawn
+                            and spriteIndex == 0
+                            and not (isBgTransparent or isSpriteTransparent)
+
+                        regs.PPUSTATUS = _ppuStatusSetBit("S", regs.PPUSTATUS, isSprite0Hit)
+                    end
+                    
+                    returnedPixel = shouldSpriteBeRendered
+                        and spritePixel
+                        or bgPixel
+                else
+                    returnedPixel = bgPixel
+                end
+
+            elseif scanline >= 241 and scanline <= 261 then
+                if scanline == 241 and dot == 1 then
+                    regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 1)
+                end
+            end
+        end
 
         -- _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
         -- _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
-        local color = _read(0x3F00 + if pixel%4 == 0 then 0 else pixel)
+        local color = _read(0x3F00 + if returnedPixel%4 == 0 then 0 else returnedPixel)
         if dot < 256 and scanline < 240 then
             buffer.writeu32(
                 screenBuffer,
@@ -140,7 +295,7 @@ function m.NewClockClosure(
 
         -- Perform NMI if applicable
         -- if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
-        if dot == 1 and scanline == 241 and BAND(0b10000000, ppuCtrl) > 0 then
+        if dot == 1 and scanline == 241 and BAND(PPUCTRL_MASK_V, ppuCtrl) > 0 then
             ppu.TriggerNmi()
         end
 
@@ -159,6 +314,7 @@ function m.NewClockClosure(
         end
     end
 end
+
 
 function m.Clock(
     ppu: PPU,

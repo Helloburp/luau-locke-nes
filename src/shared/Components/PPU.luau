@@ -90,17 +90,24 @@ function m.Clock(
     _setPixelForCycle: (i: number, color: number) -> ()
 )
     local state = ppu.State
-    local ppuMask = state.Registers.PPUMASK
+    local ppuMask, ppuCtrl =
+        state.Registers.PPUMASK,
+        state.Registers.PPUCTRL
     
     -- Perform skip cycle if at the beginning of an odd frame & BG set
     if state.FrameCounter%2 == 0 and state.ExecutionState.Cycles == 0 and
-        _ppuMaskGetBit("b", state.Registers.PPUMASK)
+        -- _ppuMaskGetBit("b", state.Registers.PPUMASK)
+        BAND(ppuMask, 0b00001000) > 0
     then
         state.ExecutionState.Cycles += 1
     end
 
     local cycles = state.ExecutionState.Cycles
-    local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
+
+    -- local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
+    local dot, scanline =
+        cycles%C.DOTS_PER_SCANLINE,
+        (cycles - cycles%C.DOTS_PER_SCANLINE) / C.DOTS_PER_SCANLINE
 
     local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
         BAND(ppuMask, 0b00010000) ~= 0
@@ -117,7 +124,8 @@ function m.Clock(
 
 
     -- Perform NMI if applicable
-    if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
+    -- if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
+    if dot == 1 and scanline == 241 and BAND(0b10000000, ppuCtrl) > 0 then
         ppu.TriggerNmi()
     end
 

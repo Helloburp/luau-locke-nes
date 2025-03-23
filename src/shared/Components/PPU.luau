@@ -585,7 +585,7 @@ function _fetchToLatchesBasedOnProgress(
             _getHighPatternTableAddress(
                 _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
             )
-    )
+        )
     end
 end
 

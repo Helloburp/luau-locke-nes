@@ -36,6 +36,8 @@ type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 type RunningEmulationContainer<T> = T_EMUCONTEXT.RunningEmulationContainer<T>
 type EmulationConfig = T_EMUCONTEXT.EmulationConfig
 
+local C_DISPLAY = require(inst_api["Display.constants"])
+
 
 
 local Nes = require(inst_nes.NES)
@@ -116,6 +118,7 @@ end
 
 function _configureNewEmulation_Return_Clock<T>(
     emulation: Emulation<T,ControllerState>,
+    screenBuffer: buffer,
     config: EmulationConfig
 ): (NES) -> ()
     local myNes = emulation.Nes
@@ -128,7 +131,7 @@ function _configureNewEmulation_Return_Clock<T>(
 
     local _myClock =
         if config.DebugLog then API.Debug.LogClock(Nes.Clock, config.DebugLog, 5)
-        else Nes.NewClockClosure(myNes)
+        else Nes.NewClockClosure(myNes, screenBuffer, C_DISPLAY.COLORS_U32)
 
     return _myClock
 end
@@ -145,7 +148,7 @@ function _createAndSetNewRunningEmulation<T>(
     local runningEmulation = {
         Emulation = emulation,
         Clock = _configureNewEmulation_Return_Clock(
-            emulation, config
+            emulation, context.ScreenBuffer, config
         )
     }
 

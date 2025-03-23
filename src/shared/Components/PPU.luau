@@ -548,29 +548,45 @@ function _fetchToLatchesBasedOnProgress(
 )
     if backgroundFetchProgress%2 == 1 then return end
 
-    local latchName, addr = unpack(
-        if backgroundFetchProgress == 0 then {
-            "Nametable", _getTileAddressFromVRamAddress(vramAddr)
-        }
-        elseif backgroundFetchProgress == 2 then {
-            "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
-        }
-        elseif backgroundFetchProgress == 4 then {
-            "PatternTableTileLow",
+    -- local latchName, addr = unpack(
+    --     if backgroundFetchProgress == 0 then {
+    --         "Nametable", _getTileAddressFromVRamAddress(vramAddr)
+    --     }
+    --     elseif backgroundFetchProgress == 2 then {
+    --         "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
+    --     }
+    --     elseif backgroundFetchProgress == 4 then {
+    --         "PatternTableTileLow",
+    --         _getLowPatternTableAddress(
+    --             _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
+    --         )
+    --     }
+    --     elseif backgroundFetchProgress == 6 then {
+    --         "PatternTableTileHigh",
+    --         _getHighPatternTableAddress(
+    --             _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
+    --         )
+    --     }
+    --     else error("Invalid input")
+    -- )
+
+    if backgroundFetchProgress == 0 then
+        latches.Nametable = _read(_getTileAddressFromVRamAddress(vramAddr))
+    elseif backgroundFetchProgress == 2 then
+        latches.AttributeTable = _read(_getAttributeAddressFromVRamAddress(vramAddr))
+    elseif backgroundFetchProgress == 4 then
+        latches.PatternTableTileLow = _read(
             _getLowPatternTableAddress(
                 _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
             )
-        }
-        elseif backgroundFetchProgress == 6 then {
-            "PatternTableTileHigh",
+        )
+    elseif backgroundFetchProgress == 6 then
+        latches.PatternTableTileHigh = _read(
             _getHighPatternTableAddress(
                 _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
             )
-        }
-        else error("Invalid input")
     )
-
-    latches[latchName] = _read(addr)
+    end
 end
 
 

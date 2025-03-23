@@ -30,7 +30,8 @@ function m.NewPaletteControl(regs: Regs, b: buffer): (Peripheral)
     assert(buffer.len(b) == 0x20)
 
     local function _offset(addr: u16)
-        local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
+        -- local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
+        local offset = (addr - 0x3F00)%0x20
 
         -- 0x3F00 and 3F10 refer to the same register.
         if offset%0x10 == 0 then offset = 0 end
@@ -40,10 +41,10 @@ function m.NewPaletteControl(regs: Regs, b: buffer): (Peripheral)
 
     local function _read(addr: u16)
         local offset = _offset(addr)
-        
-        local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
+        -- local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
         local color = RU8(b, offset)
-        return if not isGreyscale then color else BAND(color, 0x30)
+        -- return if not isGreyscale then color else BAND(color, 0x30)
+        return if BAND(regs.PPUMASK, 0b00000001) == 0 then color else BAND(color, 0x30)
     end
 
     local function _write(addr: u16, val: u8)

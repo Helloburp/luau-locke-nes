@@ -47,12 +47,13 @@ function m.NewClockClosure(nes: NES): () -> ()
         nes.State, nes.State.CpuPeripherals, nes.State.Ppu.OAM
     
     local cpu, cpuBus = nes.Cpu, nes.CpuBus
+    local ppu = nes.Ppu
     
     return function()
-        _ppuClock(nes.Ppu, _ppuBusRead, _ppuSetPixelForCycle)
+        _ppuClock(ppu, _ppuBusRead, _ppuSetPixelForCycle)
 
         -- An offset of 1 allows for accurate syncronization.
-        if (nes.State.Clock + 1)%3 == 0 then
+        if (nesState.Clock + 1)%3 == 0 then
             _clock2A03(cpuPeripheralState, cpu, cpuBus, ppuOamState)
         end
 

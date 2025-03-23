@@ -111,6 +111,13 @@ local PPUCTRL_MASK_N, PPUCTRL_MASK_I, PPUCTRL_MASK_S, PPUCTRL_MASK_B,
     C.PPUCTRL_MASKS["P" :: T.EPpuControlFlag],
     C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
 
+local PATTERN_TABLE_ADDR_MASK_FineY, PATTERN_TABLE_ADDR_MASK_BitPlane,
+    PATTERN_TABLE_ADDR_MASK_TileNumber, PATTERN_TABLE_ADDR_MASK_Half =
+    C.PATTERN_TABLE_ADDR_MASKS["FineY" :: T.EPatternTableAddressComponent],
+    C.PATTERN_TABLE_ADDR_MASKS["BitPlane" :: T.EPatternTableAddressComponent],
+    C.PATTERN_TABLE_ADDR_MASKS["TileNumber" :: T.EPatternTableAddressComponent],
+    C.PATTERN_TABLE_ADDR_MASKS["Half" :: T.EPatternTableAddressComponent]
+
 
 function m.NewClockClosure(
     ppu: PPU,
@@ -293,7 +300,7 @@ function m.NewClockClosure(
         -- _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
         local color = _read(0x3F00 + if returnedPixel%4 == 0 then 0 else returnedPixel)
         if dot < 256 and scanline < 240 then
-            buffer.writeu32(
+            WU32(
                 screenBuffer,
                 (dot + scanline*256)*4,
                 COLORS_U32[color] or COLORS_U32[0x28]
@@ -1078,14 +1085,12 @@ function _spritePixelAtScreenPosition(
     ppuCtrlSpriteSize: boolean,
     ppuCtrlSpriteBank: boolean
 ): u8
-    local spriteAttributes = _oamGettersAttributes(secondaryOam, objIndex)
+    -- local spriteAttributes = _oamGettersAttributes(secondaryOam, objIndex)
+    local spriteAttributes = RU8(secondaryOam, objIndex * 4 + 2)
 
     local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        -- _oamGettersTileNumber(secondaryOam, objIndex),
-        RU8(secondaryOam, objIndex * 4 + 1),
-
-        -- _oamGettersY(secondaryOam, objIndex),
-        RU8(secondaryOam, objIndex * 4 + 0),
+        RU8(secondaryOam, objIndex * 4 + 1),    -- TileNumber
+        RU8(secondaryOam, objIndex * 4 + 0),    -- Y
 
         -- _objectAttributeGetBit("FlipY", spriteAttributes),
         BAND(spriteAttributes, 0b10000000) ~= 0,
@@ -1095,15 +1100,18 @@ function _spritePixelAtScreenPosition(
         ppuCtrlSpriteBank
     )
 
+    local lowPatternTableAddress = row
+        + tileIndex*2^4
+        + (if isRightBank then 1 else 0)*2^12
+
     return _spritePixelFromProperties(
         dot,
         spriteAttributes,
 
-        -- _oamGettersX(secondaryOam, objIndex),
-        RU8(secondaryOam, objIndex * 4 + 3),
+        RU8(secondaryOam, objIndex * 4 + 3),    -- X
 
-        _read(_getLowPatternTableAddress(isRightBank, tileIndex, row)),
-        _read(_getHighPatternTableAddress(isRightBank, tileIndex, row))
+        _read(lowPatternTableAddress),
+        _read(BOR(lowPatternTableAddress, PATTERN_TABLE_ADDR_MASK_BitPlane))
     )
 end
 

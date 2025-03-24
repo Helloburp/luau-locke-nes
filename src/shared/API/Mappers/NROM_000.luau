@@ -28,25 +28,24 @@ local ADDR_RANGE = 0x8000
 
 
 function m.MapperInterface(rom: Rom): IMapper<nil>
+    local _prgRead, _chrRead = rom.Interface.PrgMem.Read, rom.Interface.ChrMem.Read
+    local prgRom16kBankCount = rom.Header.PrgRom16kBankCount
+
     return {
         FromState = function(_: EmulationState<nil,any>)
             return {
+
                 CpuPeripheral = {
-                    Read = function(addr: u16)
-                        return m.CpuReadFromBuffer(
-                            addr,
-                            rom.Header.PrgRom16kBankCount,
-                            rom.Interface.PrgMem.Read
-                        )
-                    end
+                    Read = _newCpuReadFromBuffer(prgRom16kBankCount, _prgRead)
                 },
+
                 PpuPeripheral = {
                     Read = function(addr: u16)
-                        return _ppuReadFromBuffer(
-                            addr, rom.Interface.ChrMem.Read
-                        )
+                        if addr >= 0x2000 then return nil end
+                        return _chrRead(addr)
                     end
                 },
+
                 MirrorVRam = if rom.Header.NametableArrangement == "Vertical"
                     then MirroringModes.Vertical
                     else MirroringModes.Horizontal
@@ -59,23 +58,24 @@ function m.MapperInterface(rom: Rom): IMapper<nil>
 end
 
 
-function m.CpuReadFromBuffer(
-    addr: u16,
+function _newCpuReadFromBuffer(
     prgRom16kBankCount: number,
     _readPrgRom: (u16) -> u8
-): u8?
-    if addr < ADDR_MIN then return nil end
-    addr = (addr - ADDR_MIN)%(ADDR_RANGE/(3 - prgRom16kBankCount))
-    return _readPrgRom(addr)
+)
+    return function(addr: u16)
+        if addr < ADDR_MIN then return nil end
+        addr = (addr - ADDR_MIN)%(ADDR_RANGE/(3 - prgRom16kBankCount))
+        return _readPrgRom(addr)
+    end
 end
 
 
-function _ppuReadFromBuffer(
+m.CpuReadFromBuffer = function(
     addr: u16,
-    _readChrRom: (u16) -> (u8)
-): u8?
-    if addr >= 0x2000 then return nil end
-    return _readChrRom(addr)
+    prgRom16kBankCount: number,
+    _readPrgRom: (u16) -> u8
+)
+    return _newCpuReadFromBuffer(prgRom16kBankCount, _readPrgRom)(addr)
 end
 
 

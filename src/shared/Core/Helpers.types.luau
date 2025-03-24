@@ -8,6 +8,7 @@ type FnRead<T> = (u16) -> (T)
 type FnWrite = (u16, u8) -> boolean
 
 
+export type TableBuffer = {[number]: number}
 
 -- These numeric types have no behavior, but are used to convey intent.
 export type u8 = number

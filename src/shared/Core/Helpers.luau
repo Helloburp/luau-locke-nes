@@ -7,12 +7,23 @@ type u16 = T.u16
 type Bus = T.Bus
 type BitfieldFunctions<T> = T.BitfieldFunctions<T>
 type Peripheral = T.Peripheral
+type TableBuffer = T.TableBuffer
 
 
 local BAND, BOR, BNOT, LSHIFT, RSHIFT =
     bit32.band, bit32.bor, bit32.bnot, bit32.lshift, bit32.rshift
 
 local RU8, WU8 = buffer.readu8, buffer.writeu8
+
+
+local TABLE_BUFFER_DEBUG_METATABLE = {
+    __newindex = function(t, k, v)
+        error(`Table buffer access out of bounds:`)
+    end,
+    __index = function(t, k, v)
+        error(`Table buffer access out of bounds:`)
+    end
+}
 
 
 local m = {}
@@ -219,6 +230,29 @@ function m.MemoryInterfaceFromBufferWithOffset(b: buffer, offset: number): Bus
     }
 end
 
+function m.MemoryInterfaceFromTableBufferWithOffset(t: TableBuffer, offset: number): Bus
+    return {
+        Read = function(addr: u16) return t[offset + addr] end,
+        Write = function(addr: u16, data: u8) t[offset + addr] = data end
+    }
+end
+
+
+function m.NewTableBuffer(size: number, initialValue: number?): TableBuffer
+    local t = table.create(size - 1, initialValue or 0x00)
+    t[0] = initialValue or 0x00
+    -- setmetatable(t, TABLE_BUFFER_DEBUG_METATABLE)
+    return t
+end
+
+
+function m.FillTableBuffer(t: TableBuffer, b: buffer, offset: number?, size: number?)
+    for i = 0, (size or buffer.len(b)) - 1 do
+        t[i] = RU8(b, (offset or 0) + i)
+    end
+    return t
+end
+
 
 function m.NewDebugBus(): Bus
     local t = {}
@@ -242,7 +276,6 @@ function m.NewBus(): Bus
         Write = function(val: u8) return true end
     }
 end
-
 
 m.SetValueInBitfield = _setValueInBitfield
 m.GetValueFromBitfield = _getValueFromBitfield

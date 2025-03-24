@@ -79,9 +79,13 @@ function m.RomInterface(rom: buffer): RomInterface
         header.HasTrainer, prgBanks, 0
     )
 
+    local romAsTableBuffer = h.FillTableBuffer(
+        h.NewTableBuffer(buffer.len(rom)), rom
+    )
+
     return {
-        PrgMem = h.MemoryInterfaceFromBufferWithOffset(rom, prgBank0),
-        ChrMem = h.MemoryInterfaceFromBufferWithOffset(rom, chrBank0)
+        PrgMem = h.MemoryInterfaceFromTableBufferWithOffset(romAsTableBuffer, prgBank0),
+        ChrMem = h.MemoryInterfaceFromTableBufferWithOffset(romAsTableBuffer, chrBank0)
     }
 end
 

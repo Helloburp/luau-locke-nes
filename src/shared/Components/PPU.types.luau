@@ -21,6 +21,12 @@ export type PPU = {
     OnScanline: () -> ()
 }
 
+export type PPUClosure = {
+    State: State,
+    Clock: () -> (),
+    UpdateRead: ((u16) -> u8) -> ()
+}
+
 
 export type Registers = {
     PPUCTRL: u8, PPUMASK: u8, PPUSTATUS: u8, OAMADDR: u8, PPUDATA: u8
@@ -58,6 +64,7 @@ export type State = {
     OAM: buffer,
     SecondaryOAM: buffer,
     IsSprite0BeingDrawn: boolean,
+    SpriteFoundCount: number,
 
     FrameCounter: number,
 }

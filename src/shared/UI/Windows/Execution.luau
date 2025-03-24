@@ -77,8 +77,8 @@ function m.Render<T>(
     end)(), [Iris.Args.Text.RichText] = true}
 
     Iris.Text(myNes and API.Log.GetLogRegs(myNes.Cpu.State.Registers) or "")
-    Iris.Text(myNes and API.Log.GetPpuRegLog(myNes.Ppu.State.Registers) or "")
-    Iris.Text(myNes and API.Log.GetPpuInternalRegLog(myNes.Ppu.State.InternalRegisters) or "")
+    Iris.Text(myNes and API.Log.GetPpuRegLog(myNes.State.Ppu.Registers) or "")
+    Iris.Text(myNes and API.Log.GetPpuInternalRegLog(myNes.State.Ppu.InternalRegisters) or "")
 
     Iris.SameLine()
     do

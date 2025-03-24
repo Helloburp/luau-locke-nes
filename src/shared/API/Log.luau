@@ -23,7 +23,7 @@ type u16 = T_H.u16
 type Bus = T_H.Bus
 
 local T_PPU = require(inst_components["PPU.types"])
-type PPU = T_PPU.PPU
+type PpuState = T_PPU.State
 type PpuRegisters = T_PPU.Registers
 type PpuInternalRegisters = T_PPU.InternalRegisters
 
@@ -196,9 +196,9 @@ function m.CompareCpuLog(
 end
 
 function m.ComparePpuLog(
-    ppu: PPU, goodPpuLog: string
+    ppuState: PpuState, goodPpuLog: string
 ): (boolean, string?)
-    local ppuLog = m.GetLogPpu(ppu.State.ExecutionState.Cycles)
+    local ppuLog = m.GetLogPpu(ppuState.ExecutionState.Cycles)
     if ppuLog ~= goodPpuLog then
         return false, `Expected Ppu to be {goodPpuLog}, got {ppuLog} instead.`
     end

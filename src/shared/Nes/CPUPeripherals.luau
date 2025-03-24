@@ -14,6 +14,8 @@ type CPU = T_CPU.CPU
 
 local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
+type PPUState = T_PPU.State
+
 
 local T_APU = require(inst_components["APU.types"])
 type APUState = T_APU.State
@@ -61,12 +63,17 @@ end
 
 
 function m.MapPeripheralsFromState(
-    cpuBus: Bus, ppuBus: Bus, ppu: PPU, state: State, portInterface: Ports
+    cpuBus: Bus,
+    ppuBus: Bus,
+    ppuState: PPUState,
+    state: State,
+    portInterface: Ports,
+    _nmi: () -> ()
 )
     _mapPeripherals(
         cpuBus,
         _newInternalRam(state.InternalRam),
-        _newPpuRegisters(ppu, ppuBus),
+        _newPpuRegisters(ppuState, ppuBus, _nmi),
         _newApuRegisters(state.APU),
         _newOAMDMA(state),
         _newPortLatch(state, portInterface.ControllerLatchUpdate),
@@ -182,13 +189,11 @@ function _newApuRegisters(state: APUState): (Peripheral)
 end
 
 
-function _newPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
+function _newPpuRegisters(ppuState: PPUState, ppuBus: Bus, _nmi: () -> ()): (Peripheral)
 
-    local iState, executionState, _nmi =
-        ppu.State, ppu.State.ExecutionState, ppu.TriggerNmi
-    
+    local executionState = ppuState.ExecutionState
     local regs, iRegs =
-        iState.Registers, iState.InternalRegisters
+        ppuState.Registers, ppuState.InternalRegisters
 
     local function _offset(addr: u16)
         return addr%8
@@ -199,7 +204,7 @@ function _newPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
         if offset == 2 then
             return Ppu.PpuStatusRead(regs, iRegs)
         elseif offset == 4 then
-            return Ppu.OamDataRead(regs, iState.OAM)
+            return Ppu.OamDataRead(regs, ppuState.OAM)
         elseif offset == 7 then
             return Ppu.PpuDataRead(ppuBus, regs, iRegs)
         end
@@ -223,7 +228,7 @@ function _newPpuRegisters(ppu: PPU, ppuBus: Bus): (Peripheral)
         elseif offset == 3 then
             Ppu.OamAddrWrite(regs, val)
         elseif offset == 4 then
-            Ppu.OamDataWrite(regs, val, Ppu.GetScanlineInFrame(cyclesThisFrame), iState.OAM)
+            Ppu.OamDataWrite(regs, val, Ppu.GetScanlineInFrame(cyclesThisFrame), ppuState.OAM)
         elseif offset == 5 then
             Ppu.PpuScrollWrite(iRegs, val)
         elseif offset == 6 then

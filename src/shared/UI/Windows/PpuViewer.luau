@@ -205,7 +205,7 @@ function _newRenderNametable(nes: NES, nt: number)
         API.Display.RefreshNametable(
             b, image, nes.PpuBus, nt,
             C_PPU.BITFIELD_UTIL.PpuControl.GetBit(
-                "B", nes.Ppu.State.Registers.PPUCTRL
+                "B", nes.State.Ppu.Registers.PPUCTRL
             )
         )
     end

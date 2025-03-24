@@ -35,13 +35,9 @@ type Ports = T_CPUP.Ports
 
 local m = {}
 
-function m.NewClockClosure(
-    nes: NES,
-    screenBuffer: buffer,
-    COLORS_U32: {[number]: number}
-): () -> ()
-    local _ppuClock = Ppu.NewClockClosure(nes.Ppu, screenBuffer, COLORS_U32, nes.PpuBus.Read)
-    
+function m.NewClockClosure(nes: NES): () -> ()
+
+    local _ppuClock = nes.PpuClosure.Clock
     local _clock2A03 = CpuPeripherals.Clock2A03
 
     local nesState, cpuPeripheralState, ppuOamState =
@@ -63,7 +59,7 @@ end
 
 -- Clock amounts divided by 4 (common denominator)
 function m.Clock(nes: NES)
-    Ppu.Clock(nes.Ppu, nes.PpuBus.Read, nes.Ppu.SetPixelForCycle)
+    nes.PpuClosure.Clock()
 
     -- An offset of 1 allows for accurate syncronization.
     if (nes.State.Clock + 1)%3 == 0 then
@@ -100,11 +96,12 @@ function m.New(
     displayInterface: Display,
     portInterface: Ports,
     cartridge: Cartridge,
-    state: State
+    oldState: State
 ): NES
     local nes: NES
     local cpuBus = h.NewBus()
     local ppuBus = h.NewBus()
+    local state = m.CopyState(oldState)
 
     -- The cartridge can effectively map & observe all reads and writes.
     h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
@@ -116,16 +113,20 @@ function m.New(
 
 
     local cpu = Cpu.New(Cpu.AddressingModes, Cpu.Instructions, state.Cpu)
-    local ppu = Ppu.New(
+    local ppuClosure = Ppu.NewClosure(
+        oldState.Ppu,
+        displayInterface.ScreenBuffer,
+        displayInterface.COLORS_U32,
+        function() error("Unimplemented") end,
         _nmi,
         displayInterface.OnFrameComplete,
-        cartridge.OnScanline or function() end,
-        displayInterface.SetPixelForPpuCycle,
-        state.Ppu
+        cartridge.OnScanline or function() end
     )
 
+    state.Ppu = ppuClosure.State
+
     CpuPeripherals.MapPeripheralsFromState(
-        cpuBus, ppuBus, ppu, state.CpuPeripherals, portInterface
+        cpuBus, ppuBus, state.Ppu, state.CpuPeripherals, portInterface, _nmi
     )
 
     PpuPeripherals.MapPeripheralsFromState(
@@ -135,9 +136,11 @@ function m.New(
         state.PpuPeripherals
     )
 
+    ppuClosure.UpdateRead(ppuBus.Read)
+
     nes = {
         Cpu = cpu,
-        Ppu = ppu,
+        PpuClosure = ppuClosure,
         CpuBus = cpuBus,
         PpuBus = ppuBus,
 

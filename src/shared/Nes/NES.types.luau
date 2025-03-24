@@ -9,6 +9,8 @@ type CPUState = T_CPU.State
 local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
 type PPUState = T_PPU.State
+type PPUClosure = T_PPU.PPUClosure
+
 
 
 local T = require(inst_core["Helpers.types"])
@@ -27,7 +29,7 @@ type PPUPeripheralState = T_PPUP.State
 
 export type NES = {
     CpuBus: Bus,    PpuBus: Bus,
-    Cpu: CPU,       Ppu: PPU,
+    Cpu: CPU,       PpuClosure: PPUClosure,
 
     State: State
 }
@@ -50,7 +52,9 @@ export type State = {
 
 export type Display = {
     OnFrameComplete: () -> (),
-    SetPixelForPpuCycle: (cycleInFrame: number, color: u8) -> (),
+    ScreenBuffer: buffer,
+    COLORS_U32: {[number]: number}
+    -- SetPixelForPpuCycle: (cycleInFrame: number, color: u8) -> (),
 }
 
 

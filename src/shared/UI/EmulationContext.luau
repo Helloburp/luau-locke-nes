@@ -118,7 +118,6 @@ end
 
 function _configureNewEmulation_Return_Clock<T>(
     emulation: Emulation<T,ControllerState>,
-    screenBuffer: buffer,
     config: EmulationConfig
 ): (NES) -> ()
     local myNes = emulation.Nes
@@ -131,7 +130,7 @@ function _configureNewEmulation_Return_Clock<T>(
 
     local _myClock =
         if config.DebugLog then API.Debug.LogClock(Nes.Clock, config.DebugLog, 5)
-        else Nes.NewClockClosure(myNes, screenBuffer, C_DISPLAY.COLORS_U32)
+        else Nes.NewClockClosure(myNes)
 
     return _myClock
 end
@@ -147,9 +146,7 @@ function _createAndSetNewRunningEmulation<T>(
 
     local runningEmulation = {
         Emulation = emulation,
-        Clock = _configureNewEmulation_Return_Clock(
-            emulation, context.ScreenBuffer, config
-        )
+        Clock = _configureNewEmulation_Return_Clock(emulation, config)
     }
 
     context.RunningEmulation = runningEmulation
@@ -179,9 +176,8 @@ end
 function _newBufferDisplayInterface(b: buffer): Display
     return {
         OnFrameComplete = function() end,
-        SetPixelForPpuCycle = API.Display.NewPlacePixelInFrame(
-            API.Display.NewWriteColorValueToBuffer(b)
-        ),
+        ScreenBuffer = b,
+        COLORS_U32 = C_DISPLAY.COLORS_U32
     }
 end
 

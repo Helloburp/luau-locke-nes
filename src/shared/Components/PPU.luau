@@ -12,6 +12,8 @@ type Latches = T.Latches
 type Shifters = T.Shifters
 type State = T.State
 type PPU = T.PPU
+type PpuClosure = T.PPUClosure
+
 
 local T_H = require(inst_core["Helpers.types"])
 type u8 = T_H.u8
@@ -40,6 +42,7 @@ local LSHIFT, RSHIFT, BOR, BAND =
 local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
+local MIN = math.min
 
 local _oamGettersX, _oamGettersY, _oamGettersTileNumber, _oamGettersAttributes =
     OAMGetters.X,
@@ -118,186 +121,282 @@ local PATTERN_TABLE_ADDR_MASK_FineY, PATTERN_TABLE_ADDR_MASK_BitPlane,
     C.PATTERN_TABLE_ADDR_MASKS["TileNumber" :: T.EPatternTableAddressComponent],
     C.PATTERN_TABLE_ADDR_MASKS["Half" :: T.EPatternTableAddressComponent]
 
-
-function m.NewClockClosure(
-    ppu: PPU,
+function m.NewClosure(
+    oldState: State,
     screenBuffer: buffer,
     COLORS_U32: {[number]: number},
-    _read: (u16) -> u8
-)
-    local state = ppu.State
+    _read: (u16) -> (u8),
+    _triggerNmi: () -> (),
+    _onFrameComplete: () -> (),
+    _onScanline: () -> ()
+): PpuClosure
 
-    local regs, executionState, shifters, latches, iRegs, oam, secondaryOam =
-        state.Registers, state.ExecutionState, state.Shifters,
-        state.Latches, state.InternalRegisters,
-        state.OAM, state.SecondaryOAM
+    -- Establish variables
+    local reg_ppuCtrl, reg_ppuMask, reg_ppuStatus, reg_oamAddr, reg_ppuData
+    local ireg_v, ireg_t, ireg_x, ireg_w
+    local latch_nt, latch_attr, latch_ptLo, latch_ptHi
+    local shift_attrHi, shift_attrLo, shift_patternHi, shift_patternLo
+    local execution_clock, execution_cycles
+    local isSprite0BeingDrawn, frameCounter, spriteFoundCount
+    local oam, secondaryOam
 
-    return function()
-        local ppuMask, ppuCtrl =
-            regs.PPUMASK,
-            regs.PPUCTRL
+    -- Initialize old state
+    do
+        local oldRegs = oldState.Registers
+        reg_ppuCtrl, reg_ppuMask, reg_ppuStatus, reg_oamAddr, reg_ppuData =
+            oldRegs.PPUCTRL, oldRegs.PPUMASK, oldRegs.PPUSTATUS,
+            oldRegs.OAMADDR, oldRegs.PPUDATA
         
+        local oldIRegs = oldState.InternalRegisters
+        ireg_v, ireg_t, ireg_x, ireg_w = oldIRegs.v, oldIRegs.t, oldIRegs.x, oldIRegs.w
+
+        local oldShifters = oldState.Shifters
+        shift_attrHi, shift_attrLo, shift_patternHi, shift_patternLo =
+            oldShifters.AttributeHi, oldShifters.AttributeLo,
+            oldShifters.PatternHi, oldShifters.PatternLo
+        
+        local oldLatches = oldState.Latches
+        latch_nt, latch_attr, latch_ptLo, latch_ptHi =
+            oldLatches.Nametable, oldLatches.AttributeTable,
+            oldLatches.PatternTableTileLow, oldLatches.PatternTableTileHigh
+        
+        local oldExecution = oldState.ExecutionState
+        execution_clock, execution_cycles = oldExecution.Clock, oldExecution.Cycles
+
+        isSprite0BeingDrawn, frameCounter, spriteFoundCount =
+            oldState.IsSprite0BeingDrawn,
+            oldState.FrameCounter,
+            oldState.SpriteFoundCount
+
+        oam, secondaryOam =
+            h.CopyBuffer(oldState.OAM),
+            h.CopyBuffer(oldState.SecondaryOAM)
+
+    end
+
+
+    -- Utility functions
+    local function _myFetchToLatchesBasedOnProgress(
+        ppuCtrl: u8, vramAddr: u16, backgroundFetchProgress: number
+    )
+        if backgroundFetchProgress%2 == 1 then return end
+
+        if backgroundFetchProgress == 0 then
+            latch_nt = _read(_getTileAddressFromVRamAddress(vramAddr))
+        elseif backgroundFetchProgress == 2 then
+            latch_attr = _read(_getAttributeAddressFromVRamAddress(vramAddr))
+        elseif backgroundFetchProgress == 4 then
+            latch_ptLo = _read(
+                _getLowPatternTableAddress(
+                    _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
+                )
+            )
+        elseif backgroundFetchProgress == 6 then
+            latch_ptHi = _read(
+                _getHighPatternTableAddress(
+                    _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
+                )
+            )
+        end
+    end
+
+
+    local function _myShift()
+        shift_attrHi = RSHIFT(shift_attrHi, 1)
+        shift_attrLo = RSHIFT(shift_attrLo, 1)
+        shift_patternHi = RSHIFT(shift_patternHi, 1)
+        shift_patternLo = RSHIFT(shift_patternLo, 1)
+    end
+
+
+    local function _myReloadShifters(vramAddr: u16)
+        local offsetInAttributeByte =
+            _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
+
+        shift_attrLo = BAND(shift_attrLo, 0x00FF) +
+            LSHIFT(
+                0xFF * if _hGetBit(
+                    offsetInAttributeByte,
+                    latch_attr
+                ) then 1 else 0,
+                8
+            )
+
+        shift_attrHi = BAND(shift_attrHi, 0x00FF) +
+            LSHIFT(
+                0xFF * if _hGetBit(
+                    offsetInAttributeByte + 1,
+                    latch_attr
+                ) then 1 else 0,
+                8
+            )
+
+        shift_patternLo = BAND(shift_patternLo, 0x00FF) +
+            LSHIFT(_hReverseBitOrderU8(latch_ptLo), 8)
+
+        shift_patternHi = BAND(shift_patternHi, 0x00FF) +
+            LSHIFT(_hReverseBitOrderU8(latch_ptHi), 8)
+    end
+
+
+    -- Main clock function
+    local function _clock()
+
         -- Perform skip cycle if at the beginning of an odd frame & BG set
-        if state.FrameCounter%2 == 0 and executionState.Cycles == 0 and
-            -- _ppuMaskGetBit("b", state.Registers.PPUMASK)
-            BAND(ppuMask, PPUMASK_MASK_b) > 0
+        if frameCounter%2 == 0 and execution_cycles == 0 and
+            BAND(reg_ppuMask, PPUMASK_MASK_b) > 0
         then
-            executionState.Cycles += 1
+            execution_cycles += 1
         end
 
-        local cycles = executionState.Cycles
 
-        -- local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
+        -- Establish variables
         local dot, scanline =
-            cycles%DOTS_PER_SCANLINE,
-            (cycles - cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
+            execution_cycles%DOTS_PER_SCANLINE,
+            (execution_cycles - execution_cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
 
-        local isRenderingEnabled = BAND(ppuMask, PPUMASK_MASK_b) ~= 0 or
-            BAND(ppuMask, PPUMASK_MASK_s) ~= 0
+        local isRenderingEnabled = BAND(reg_ppuMask, PPUMASK_MASK_b) ~= 0 or
+            BAND(reg_ppuMask, PPUMASK_MASK_s) ~= 0
 
-
-        -- Perform main arithmetic and return pixel for this cycle
-        -- local pixel = _cycleAndReturnPixel(
-        --     _read, state, dot, scanline
-        -- )
 
         -- Cycle and return pixel
         local returnedPixel = 0b00000
-        do
-            local isVisibleScanline = scanline >= 0 and scanline <= 239
-            local isPreRenderLine = scanline == 261
+        local isVisibleScanline = scanline >= 0 and scanline <= 239
+        local isPreRenderLine = scanline == 261
 
 
-            if isPreRenderLine and dot == 1 then
-                regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)
-                regs.PPUSTATUS = _ppuStatusSet("S", regs.PPUSTATUS, 0)
-                regs.PPUSTATUS = _ppuStatusSet("O", regs.PPUSTATUS, 0)
+        -- At beginning of frame; clear status
+        if isPreRenderLine and dot == 1 then
+            reg_ppuStatus = _ppuStatusSet("V", reg_ppuStatus, 0)
+            reg_ppuStatus = _ppuStatusSet("S", reg_ppuStatus, 0)
+            reg_ppuStatus = _ppuStatusSet("O", reg_ppuStatus, 0)
+        end
+
+
+        -- If we need to calculate the pixel, do so
+        if isVisibleScanline or isPreRenderLine then
+            local bgPixel: u8 = 0b00000
+            local spriteIndex, spritePixel
+            if spriteFoundCount > 0 then
+                spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
+                    _read, scanline, dot, secondaryOam, reg_ppuCtrl, spriteFoundCount
+                )
+            else
+                spriteIndex, spritePixel = nil, 0b00000
             end
 
-            if isVisibleScanline or isPreRenderLine then
-                local bgPixel: u8 = 0b00000
-                local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-                    _read, scanline, dot, secondaryOam, regs.PPUCTRL
-                )
+            -- Fetch cycles
+            if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
-                if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
+                local fetchProgress = (dot - 1)%8
+                _myFetchToLatchesBasedOnProgress(reg_ppuCtrl, ireg_v, fetchProgress)
 
-                    local fetchProgress = (dot - 1)%8
-                    _fetchToLatchesBasedOnProgress(
-                        _read, regs.PPUCTRL, iRegs.v, latches,
-                        fetchProgress
-                    )
-
-                    if fetchProgress == 7 then
-                        _reloadShifters(latches, shifters, iRegs.v)
-
-                        if isRenderingEnabled then
-                            iRegs.v = _getAddressAfterIncrementHorizontal(iRegs.v)
-                        end
-
-                        if isRenderingEnabled and dot == 256 then
-                            iRegs.v = _getAddressAfterIncrementVertical(iRegs.v)
-                        end
-                    end
-
-                    -- bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
-                    local fineX = iRegs.x
-
-                    bgPixel = (
-                        (if BAND(shifters.PatternLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
-                        (if BAND(shifters.PatternHi, LSHIFT(1, fineX)) > 0 then 2 else 0) +
-                        (if BAND(shifters.AttributeLo, LSHIFT(1, fineX)) > 0 then 4 else 0) +
-                        (if BAND(shifters.AttributeHi, LSHIFT(1, fineX)) > 0 then 8 else 0)
-                    )
-
-                    if _ppuMaskGetBit("b", regs.PPUMASK) then
-                        _shift(shifters)
-                    end
-
-                elseif dot >= 257 and dot <= 320 then
-                    if isRenderingEnabled and dot == 257 then
-                        iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
-                    end
-                    if isRenderingEnabled and dot >= 280 and dot <= 304 then
-                        if isPreRenderLine then
-                            iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
-                        end
-                    end
+                if fetchProgress == 7 then
+                    _myReloadShifters(ireg_v)
 
                     if isRenderingEnabled then
-                        regs.OAMADDR = 0x00
+                        ireg_v = _getAddressAfterIncrementHorizontal(ireg_v)
                     end
 
-                    --[[
-                        Dots 257-320:
-                        Data for sprites on next scanline are fetched. (2 dots each)
-                        In order:
-                        - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
-                        - Pattern table tile low
-                        - Pattern table tile high
-                    ]]
-                    if dot == 320 then
-                        _initializeSecondaryOAM(secondaryOam)
-                        local isSpriteOverflow, isSprite0BeingDrawn =
-                            _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
-                                scanline + 1,
-                                _ppuControlGetBit("H", regs.PPUCTRL),
-                                oam,
-                                secondaryOam
-                            )
-
-                        state.IsSprite0BeingDrawn = isSprite0BeingDrawn
-
-                        -- Technically this flag should only be set once per frame.
-                        -- If bugs are apparent, make sure to change this.
-                        if not _ppuStatusGetBit("O", regs.PPUSTATUS) then
-                            regs.PPUSTATUS = _ppuStatusSetBit("O", regs.PPUSTATUS, isSpriteOverflow)
-                        end
+                    if isRenderingEnabled and dot == 256 then
+                        ireg_v = _getAddressAfterIncrementVertical(ireg_v)
                     end
-                    
-                elseif dot == 337 or dot == 339 then
-                    _fetchToLatchesBasedOnProgress(
-                        _read, regs.PPUCTRL, iRegs.v, latches,
-                        0 -- 0 progress implies nametable fetch
-                    )
                 end
 
-                if spriteIndex then
-                    local isBgTransparent = BAND(bgPixel, 0b11) == 0
-                    local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
 
-                    local spriteAttributes = _oamGettersAttributes(secondaryOam, spriteIndex)
-                    local spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
-                    local shouldSpriteBeRendered = _shouldSpriteBeRendered(
-                        isBgTransparent, isSpriteTransparent, spritePriority
-                    )
+                bgPixel = (
+                    (if BAND(shift_patternLo, LSHIFT(1, ireg_x)) > 0 then 1 else 0) +
+                    (if BAND(shift_patternHi, LSHIFT(1, ireg_x)) > 0 then 2 else 0) +
+                    (if BAND(shift_attrLo, LSHIFT(1, ireg_x)) > 0 then 4 else 0) +
+                    (if BAND(shift_attrHi, LSHIFT(1, ireg_x)) > 0 then 8 else 0)
+                )
 
+                if _ppuMaskGetBit("b", reg_ppuMask) then
+                    _myShift()
+                end
+
+            elseif dot >= 257 and dot <= 320 then
+                if isRenderingEnabled and dot == 257 then
+                    ireg_v = _getAddressAfterTransferX(ireg_v, ireg_t)
+                end
+                if isRenderingEnabled and dot >= 280 and dot <= 304 then
+                    if isPreRenderLine then
+                        ireg_v = _getAddressAfterTransferY(ireg_v, ireg_t)
+                    end
+                end
+
+                if isRenderingEnabled then
+                    reg_oamAddr = 0x00
+                end
+
+                --[[
+                    Dots 257-320:
+                    Data for sprites on next scanline are fetched. (2 dots each)
+                    In order:
+                    - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
+                    - Pattern table tile low
+                    - Pattern table tile high
+                ]]
+                if dot == 320 then
+                    _initializeSecondaryOAM(secondaryOam)
+                    spriteFoundCount, isSprite0BeingDrawn =
+                        _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0(
+                            scanline + 1,
+                            _ppuControlGetBit("H", reg_ppuCtrl),
+                            oam,
+                            secondaryOam
+                        )
+
+                    -- Overflow flag.
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
-                    if not _ppuStatusGetBit("S", regs.PPUSTATUS) then
-                        local isSprite0Hit = state.IsSprite0BeingDrawn
-                            and spriteIndex == 0
-                            and not (isBgTransparent or isSpriteTransparent)
-
-                        regs.PPUSTATUS = _ppuStatusSetBit("S", regs.PPUSTATUS, isSprite0Hit)
+                    if not _ppuStatusGetBit("O", reg_ppuStatus) then
+                        reg_ppuStatus = _ppuStatusSetBit("O", reg_ppuStatus, spriteFoundCount > 7)
                     end
-                    
-                    returnedPixel = shouldSpriteBeRendered
-                        and spritePixel
-                        or bgPixel
-                else
-                    returnedPixel = bgPixel
                 end
+                
+            elseif dot == 337 or dot == 339 then
+                _myFetchToLatchesBasedOnProgress(
+                    reg_ppuCtrl, ireg_v, 0 -- 0 progress implies nametable fetch
+                )
+            end
 
-            elseif scanline >= 241 and scanline <= 261 then
-                if scanline == 241 and dot == 1 then
-                    regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 1)
+            -- Get pixel to return
+            if spriteIndex then
+                local isBgTransparent = BAND(bgPixel, 0b11) == 0
+                local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
+
+                local spriteAttributes = _oamGettersAttributes(secondaryOam, spriteIndex)
+                local spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
+                local shouldSpriteBeRendered = _shouldSpriteBeRendered(
+                    isBgTransparent, isSpriteTransparent, spritePriority
+                )
+
+                -- Technically this flag should only be set once per frame.
+                -- If bugs are apparent, make sure to change this.
+                if not _ppuStatusGetBit("S", reg_ppuStatus) then
+                    local isSprite0Hit = isSprite0BeingDrawn
+                        and spriteIndex == 0
+                        and not (isBgTransparent or isSpriteTransparent)
+
+                    reg_ppuStatus = _ppuStatusSetBit("S", reg_ppuStatus, isSprite0Hit)
                 end
+                
+                returnedPixel = shouldSpriteBeRendered
+                    and spritePixel
+                    or bgPixel
+            else
+                returnedPixel = bgPixel
+            end
+
+        elseif scanline >= 241 and scanline <= 261 then
+            if scanline == 241 and dot == 1 then
+                reg_ppuStatus = _ppuStatusSet("V", reg_ppuStatus, 1)
             end
         end
 
-        -- _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
-        -- _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
+
+        -- Write to screen
         local color = _read(0x3F00 + if returnedPixel%4 == 0 then 0 else returnedPixel)
         if dot < 256 and scanline < 240 then
             WU32(
@@ -309,86 +408,167 @@ function m.NewClockClosure(
 
 
         -- Perform NMI if applicable
-        -- if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
-        if dot == 1 and scanline == 241 and BAND(PPUCTRL_MASK_V, ppuCtrl) > 0 then
-            ppu.TriggerNmi()
+        if dot == 1 and scanline == 241 and BAND(PPUCTRL_MASK_V, reg_ppuCtrl) > 0 then
+            _triggerNmi()
         end
 
         -- Scanline callback for MMC3 IRQ
         if dot == 260 and scanline < 240 and isRenderingEnabled then
-            ppu.OnScanline()
+            _onScanline()
         end
 
 
-        executionState.Cycles = (cycles + 1)%CYCLES_PER_FRAME_NOSKIP
-        executionState.Clock += 1
+        local oldCycles = execution_cycles
+        execution_cycles = (execution_cycles + 1)%CYCLES_PER_FRAME_NOSKIP
+        execution_clock += 1
 
-        if executionState.Cycles < cycles then
-            ppu.OnFrameComplete()
-            state.FrameCounter += 1
+        if execution_cycles < oldCycles then
+            _onFrameComplete()
+            frameCounter += 1
         end
     end
+
+
+    -- State API
+    local state: any
+    do
+        local mt_execution = {
+            __index = function(_, k)
+                return
+                    if k == "Clock" then execution_clock
+                    elseif k == "Cycles" then execution_cycles
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "Clock" then execution_clock = v
+                elseif k == "Cycles" then execution_cycles = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_registers = {
+            __index = function(_, k)
+                return
+                    if k == "PPUCTRL" then reg_ppuCtrl
+                    elseif k == "PPUMASK" then reg_ppuMask
+                    elseif k == "PPUSTATUS" then reg_ppuStatus
+                    elseif k == "OAMADDR" then reg_oamAddr
+                    elseif k == "PPUDATA" then reg_ppuData
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "PPUCTRL" then reg_ppuCtrl = v
+                elseif k == "PPUMASK" then reg_ppuMask = v
+                elseif k == "PPUSTATUS" then reg_ppuStatus = v
+                elseif k == "OAMADDR" then reg_oamAddr = v
+                elseif k == "PPUDATA" then reg_ppuData = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_latches = {
+            __index = function(_, k)
+                return
+                    if k == "Nametable" then latch_nt
+                    elseif k == "AttributeTable" then latch_attr
+                    elseif k == "PatternTableLow" then latch_ptLo
+                    elseif k == "PatternTableHigh" then latch_ptHi
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "Nametable" then latch_nt = v
+                elseif k == "AttributeTable" then latch_attr = v
+                elseif k == "PatternTableLow" then latch_ptLo = v
+                elseif k == "PatternTableHigh" then latch_ptHi = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_shifters = {
+            __index = function(_, k)
+                return
+                    if k == "AttributeHi" then shift_attrHi
+                    elseif k == "AttributeLo" then shift_attrLo
+                    elseif k == "PatternHi" then shift_patternHi
+                    elseif k == "PatternLo" then shift_patternLo
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "AttributeHi" then shift_attrHi = v
+                elseif k == "AttributeLo" then shift_attrLo = v
+                elseif k == "PatternHi" then shift_patternHi = v
+                elseif k == "PatternLo" then shift_patternLo = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_iregs = {
+            __index = function(_, k)
+                return
+                    if k == "v" then ireg_v
+                    elseif k == "t" then ireg_t
+                    elseif k == "x" then ireg_x
+                    elseif k == "w" then ireg_w
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "v" then ireg_v = v
+                elseif k == "t" then ireg_t = v
+                elseif k == "x" then ireg_x = v
+                elseif k == "w" then ireg_w = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        -- OAM buffer pointers are readonly
+        local mt_state = {
+            __index = function(_, k)
+                return
+                    if k == "OAM" then oam
+                    elseif k == "SecondaryOAM" then secondaryOam
+                    elseif k == "IsSprite0BeingDrawn" then isSprite0BeingDrawn
+                    elseif k == "FrameCounter" then frameCounter
+                    elseif k == "SpriteFoundCount" then spriteFoundCount
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "IsSprite0BeingDrawn" then isSprite0BeingDrawn = v
+                elseif k == "FrameCounter" then frameCounter = v
+                elseif k == "SpriteFoundCount" then spriteFoundCount = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        state = setmetatable({
+            ExecutionState = setmetatable({}, mt_execution),
+            Registers = setmetatable({}, mt_registers),
+            InternalRegisters = setmetatable({}, mt_iregs),
+            Latches = setmetatable({}, mt_latches),
+            Shifters = setmetatable({}, mt_shifters)
+        }, mt_state)
+    end
+
+
+    local function _updateRead(_newRead: (u16) -> (u8))
+        _read = _newRead
+    end
+
+
+    return {
+        State = state,
+        Clock = _clock,
+        UpdateRead = _updateRead
+    }
 end
 
-
-function m.Clock(
-    ppu: PPU,
-    _read: (u16) -> u8,
-    _setPixelForCycle: (i: number, color: number) -> ()
-)
-    local state = ppu.State
-    local ppuMask, ppuCtrl =
-        state.Registers.PPUMASK,
-        state.Registers.PPUCTRL
-    
-    -- Perform skip cycle if at the beginning of an odd frame & BG set
-    if state.FrameCounter%2 == 0 and state.ExecutionState.Cycles == 0 and
-        -- _ppuMaskGetBit("b", state.Registers.PPUMASK)
-        BAND(ppuMask, 0b00001000) > 0
-    then
-        state.ExecutionState.Cycles += 1
-    end
-
-    local cycles = state.ExecutionState.Cycles
-
-    -- local dot, scanline = _getDotInFrame(cycles), _getScanlineInFrame(cycles)
-    local dot, scanline =
-        cycles%C.DOTS_PER_SCANLINE,
-        (cycles - cycles%C.DOTS_PER_SCANLINE) / C.DOTS_PER_SCANLINE
-
-    local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
-        BAND(ppuMask, 0b00010000) ~= 0
-
-
-
-    -- Perform main arithmetic and return pixel for this cycle
-    local pixel = _cycleAndReturnPixel(
-        _read, state, dot, scanline
-    )
-
-    -- _setPixelForCycle(cycles, _getColorByPixelValue(pixel, _read))
-    _setPixelForCycle(cycles, _read(0x3F00 + if pixel%4 == 0 then 0 else pixel))
-
-
-    -- Perform NMI if applicable
-    -- if dot == 1 and scanline == 241 and _ppuControlGetBit("V", state.Registers.PPUCTRL) then
-    if dot == 1 and scanline == 241 and BAND(0b10000000, ppuCtrl) > 0 then
-        ppu.TriggerNmi()
-    end
-
-    -- Scanline callback for MMC3 IRQ
-    if dot == 260 and scanline < 240 and isRenderingEnabled then
-        ppu.OnScanline()
-    end
-
-
-    state.ExecutionState.Cycles = (cycles + 1)%C.CYCLES_PER_FRAME_NOSKIP
-    state.ExecutionState.Clock += 1
-
-    if state.ExecutionState.Cycles < cycles then
-        ppu.OnFrameComplete()
-        state.FrameCounter += 1
-    end
+function _invalidIndex(k)
+    error(`Invalid index '{k}'`)
 end
 
 
@@ -416,6 +596,7 @@ function m.NewState(): State
         OAM = buffer.create(0x100),
         SecondaryOAM = buffer.create(0x40),
         IsSprite0BeingDrawn = false,
+        SpriteFoundCount = 0,
         FrameCounter = 0
     }
 end
@@ -423,17 +604,40 @@ end
 
 function m.CopyState(state: State): State
     return {
-        ExecutionState = table.clone(state.ExecutionState),
-        Registers = table.clone(state.Registers),
-        InternalRegisters = table.clone(state.InternalRegisters),
-        Latches = table.clone(state.Latches),
-        Shifters = table.clone(state.Shifters),
+        ExecutionState = {
+            Cycles = state.ExecutionState.Cycles,
+            Clock = state.ExecutionState.Clock
+        },
+        Registers = {
+            PPUCTRL = state.Registers.PPUCTRL,
+            PPUMASK = state.Registers.PPUMASK,
+            PPUSTATUS = state.Registers.PPUSTATUS,
+            OAMADDR = state.Registers.OAMADDR,
+            PPUDATA = state.Registers.PPUDATA
+        },
+        InternalRegisters = {
+            v = state.InternalRegisters.v, t = state.InternalRegisters.t,
+            x = state.InternalRegisters.x, w = state.InternalRegisters.w
+        },
+        Latches = {
+            Nametable = state.Latches.Nametable,
+            AttributeTable = state.Latches.AttributeTable,
+            PatternTableTileLow = state.Latches.PatternTableTileLow,
+            PatternTableTileHigh = state.Latches.PatternTableTileHigh
+        },
+        Shifters = {
+            AttributeHi = state.Shifters.AttributeHi,
+            AttributeLo = state.Shifters.AttributeLo,
+            PatternHi = state.Shifters.PatternHi,
+            PatternLo = state.Shifters.PatternLo
+        },
 
         OAM = h.CopyBuffer(state.OAM),
         SecondaryOAM = h.CopyBuffer(state.SecondaryOAM),
         IsSprite0BeingDrawn = state.IsSprite0BeingDrawn,
 
-        FrameCounter = state.FrameCounter
+        FrameCounter = state.FrameCounter,
+        SpriteFoundCount = state.SpriteFoundCount
     }
 end
 
@@ -616,9 +820,10 @@ function _spriteIndexAndPixelAtScreenPosition(
     scanline: number,
     dot: number,
     secondaryOam: buffer,
-    ppuCtrl: number
+    ppuCtrl: number,
+    spriteFoundCount: number
 ): (number?, u8)
-    for i = 0, 7 do
+    for i = 0, MIN(spriteFoundCount, 7) do
         -- local y = _oamGettersY(iState.SecondaryOAM, i)
         local y = RU8(secondaryOam, i * 4 + 0)
 
@@ -677,12 +882,12 @@ function _initializeSecondaryOAM(secondaryOam: buffer)
 end
 
 
-function _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
+function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0(
     scanline: number,
     spriteSizeFlag: boolean,
     oam: buffer,
     secondaryOam: buffer
-): (boolean, boolean)
+): (number, boolean)
     local spriteFoundCount = 0
     local spriteSize = if spriteSizeFlag then 16 else 8
     local isSprite0BeingDrawn = false
@@ -702,7 +907,7 @@ function _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
         if spriteFoundCount > 7 then break end
     end
 
-    return spriteFoundCount > 7, isSprite0BeingDrawn
+    return spriteFoundCount, isSprite0BeingDrawn
 end
 
 
@@ -790,102 +995,6 @@ function _getAddressAfterTransferY(v: u16, t: u16): u16
 end
 
 
---[[
-    Performs memory fetching logic for dots 321-336 and 1-256.
-    "Progress" is the stage of the fetching in these dots per tile.
-    I.e, a progress of 1 means the second cycle of the nametable fetch.
-
-    vramAddr is likely the v register.
-]]
-function _fetchToLatchesBasedOnProgress(
-    _read: (u16) -> u8, ppuCtrl: u8, vramAddr: u16,
-    latches: Latches, backgroundFetchProgress: number
-)
-    if backgroundFetchProgress%2 == 1 then return end
-
-    -- local latchName, addr = unpack(
-    --     if backgroundFetchProgress == 0 then {
-    --         "Nametable", _getTileAddressFromVRamAddress(vramAddr)
-    --     }
-    --     elseif backgroundFetchProgress == 2 then {
-    --         "AttributeTable", _getAttributeAddressFromVRamAddress(vramAddr)
-    --     }
-    --     elseif backgroundFetchProgress == 4 then {
-    --         "PatternTableTileLow",
-    --         _getLowPatternTableAddress(
-    --             _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
-    --         )
-    --     }
-    --     elseif backgroundFetchProgress == 6 then {
-    --         "PatternTableTileHigh",
-    --         _getHighPatternTableAddress(
-    --             _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
-    --         )
-    --     }
-    --     else error("Invalid input")
-    -- )
-
-    if backgroundFetchProgress == 0 then
-        latches.Nametable = _read(_getTileAddressFromVRamAddress(vramAddr))
-    elseif backgroundFetchProgress == 2 then
-        latches.AttributeTable = _read(_getAttributeAddressFromVRamAddress(vramAddr))
-    elseif backgroundFetchProgress == 4 then
-        latches.PatternTableTileLow = _read(
-            _getLowPatternTableAddress(
-                _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
-            )
-        )
-    elseif backgroundFetchProgress == 6 then
-        latches.PatternTableTileHigh = _read(
-            _getHighPatternTableAddress(
-                _ppuControlGetBit("B", ppuCtrl), latches.Nametable, _vramAddressGet("y", vramAddr)
-            )
-        )
-    end
-end
-
-
-function _shift(shifters: Shifters)
-    shifters.AttributeHi = RSHIFT(shifters.AttributeHi, 1)
-    shifters.AttributeLo = RSHIFT(shifters.AttributeLo, 1)
-    shifters.PatternHi = RSHIFT(shifters.PatternHi, 1)
-    shifters.PatternLo = RSHIFT(shifters.PatternLo, 1)
-end
-
-
-function _reloadShifters(
-    latches: Latches, shifters: Shifters, vramAddr: u16
-)
-
-    local offsetInAttributeByte =
-        _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
-
-    shifters.AttributeLo = BAND(shifters.AttributeLo, 0x00FF) +
-        LSHIFT(
-            0xFF * if _hGetBit(
-                offsetInAttributeByte,
-                latches.AttributeTable
-            ) then 1 else 0,
-            8
-        )
-
-    shifters.AttributeHi = BAND(shifters.AttributeHi, 0x00FF) +
-        LSHIFT(
-            0xFF * if _hGetBit(
-                offsetInAttributeByte + 1,
-                latches.AttributeTable
-            ) then 1 else 0,
-            8
-        )
-
-    shifters.PatternLo = BAND(shifters.PatternLo, 0x00FF) +
-        LSHIFT(_hReverseBitOrderU8(latches.PatternTableTileLow), 8)
-
-    shifters.PatternHi = BAND(shifters.PatternHi, 0x00FF) +
-        LSHIFT(_hReverseBitOrderU8(latches.PatternTableTileHigh), 8)
-end
-
-
 function _isRenderingEnabled(ppuMask: u8)
         -- _ppuMaskGet("b", ppuMask),
     return BAND(ppuMask, 0b00001000) ~= 0 or
@@ -896,171 +1005,6 @@ end
 
 function _isInVBlank(scanline: number)
     return scanline < 261 and scanline >= 240
-end
-
-
-function _cycleAndReturnPixel(
-    _read: (u16) -> u8, iState: State, dot: number, scanline: number
-): u8
-    local returnedPixel = 0b00000
-
-    local regs, shifters, latches, iRegs, secondaryOam =
-        iState.Registers, iState.Shifters,
-        iState.Latches, iState.InternalRegisters,
-        iState.SecondaryOAM
-    
-    local ppuMask = regs.PPUMASK
-    
-    local isVisibleScanline = scanline >= 0 and scanline <= 239
-    local isPreRenderLine = scanline == 261
-
-    -- _isRenderingEnabled(ppuMask)
-    local isRenderingEnabled = BAND(ppuMask, 0b00001000) ~= 0 or
-        BAND(ppuMask, 0b00010000) ~= 0
-
-
-    if isPreRenderLine and dot == 1 then
-        regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 0)
-        regs.PPUSTATUS = _ppuStatusSet("S", regs.PPUSTATUS, 0)
-        regs.PPUSTATUS = _ppuStatusSet("O", regs.PPUSTATUS, 0)
-    end
-
-    if isVisibleScanline or isPreRenderLine then
-        local bgPixel: u8 = 0b00000
-        local spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-            _read, scanline, dot, secondaryOam, regs.PPUCTRL
-        )
-
-        if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
-
-            local fetchProgress = (dot - 1)%8
-            _fetchToLatchesBasedOnProgress(
-                _read, regs.PPUCTRL, iRegs.v, latches,
-                fetchProgress
-            )
-
-            if fetchProgress == 7 then
-                _reloadShifters(latches, shifters, iRegs.v)
-
-                if isRenderingEnabled then
-                    iRegs.v = _getAddressAfterIncrementHorizontal(iRegs.v)
-                end
-
-                if isRenderingEnabled and dot == 256 then
-                    iRegs.v = _getAddressAfterIncrementVertical(iRegs.v)
-                end
-            end
-
-            bgPixel = _getBackgroundPixelValue(shifters, iRegs.x)
-
-            if _ppuMaskGetBit("b", regs.PPUMASK) then
-                _shift(shifters)
-            end
-
-        elseif dot >= 257 and dot <= 320 then
-            if isRenderingEnabled and dot == 257 then
-                iRegs.v = _getAddressAfterTransferX(iRegs.v, iRegs.t)
-            end
-            if isRenderingEnabled and dot >= 280 and dot <= 304 then
-                if isPreRenderLine then
-                    iRegs.v = _getAddressAfterTransferY(iRegs.v, iRegs.t)
-                end
-            end
-
-            if isRenderingEnabled then
-                regs.OAMADDR = 0x00
-            end
-
-            --[[
-                Dots 257-320:
-                Data for sprites on next scanline are fetched. (2 dots each)
-                In order:
-                - 2 garbage nametable bytes (Occur to share circuitry w/ bg)
-                - Pattern table tile low
-                - Pattern table tile high
-            ]]
-            if dot == 320 then
-                _initializeSecondaryOAM(iState.SecondaryOAM)
-                local isSpriteOverflow, isSprite0BeingDrawn =
-                    _putDrawnObjectsInSecondaryOam_Return_IfOverflow_And_IfSprite0(
-                        scanline + 1,
-                        _ppuControlGetBit("H", regs.PPUCTRL),
-                        iState.OAM,
-                        iState.SecondaryOAM
-                    )
-
-                iState.IsSprite0BeingDrawn = isSprite0BeingDrawn
-
-                -- Technically this flag should only be set once per frame.
-                -- If bugs are apparent, make sure to change this.
-                if not _ppuStatusGetBit("O", regs.PPUSTATUS) then
-                    regs.PPUSTATUS = _ppuStatusSetBit("O", regs.PPUSTATUS, isSpriteOverflow)
-                end
-            end
-            
-        elseif dot == 337 or dot == 339 then
-            _fetchToLatchesBasedOnProgress(
-                _read, regs.PPUCTRL, iRegs.v, latches,
-                0 -- 0 progress implies nametable fetch
-            )
-        end
-
-        if spriteIndex then
-            local isBgTransparent = BAND(bgPixel, 0b11) == 0
-            local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
-
-            local spriteAttributes = _oamGettersAttributes(iState.SecondaryOAM, spriteIndex)
-            local spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
-            local shouldSpriteBeRendered = _shouldSpriteBeRendered(
-                isBgTransparent, isSpriteTransparent, spritePriority
-            )
-
-            -- Technically this flag should only be set once per frame.
-            -- If bugs are apparent, make sure to change this.
-            if not _ppuStatusGetBit("S", regs.PPUSTATUS) then
-                local isSprite0Hit = iState.IsSprite0BeingDrawn
-                    and spriteIndex == 0
-                    and not (isBgTransparent or isSpriteTransparent)
-
-                regs.PPUSTATUS = _ppuStatusSetBit("S", regs.PPUSTATUS, isSprite0Hit)
-            end
-            
-            returnedPixel = shouldSpriteBeRendered
-                and spritePixel
-                or bgPixel
-        else
-            returnedPixel = bgPixel
-        end
-
-    elseif scanline >= 241 and scanline <= 261 then
-        if scanline == 241 and dot == 1 then
-            regs.PPUSTATUS = _ppuStatusSet("V", regs.PPUSTATUS, 1)
-        end
-    end
-
-
-    return returnedPixel
-end
-
-
-function _getBackgroundPixelValue(shifters: Shifters, fineX: u8)
-    local patternValue = 
-        -- (if _hGetBit(fineX, shifters.PatternLo) then 1 else 0) +
-        (if BAND(shifters.PatternLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
-        -- (if _hGetBit(fineX, shifters.PatternHi) then 2 else 0)
-        (if BAND(shifters.PatternHi, LSHIFT(1, fineX)) > 0 then 2 else 0)
-
-    local attributeValue = 
-        -- (if _hGetBit(fineX, shifters.AttributeLo) then 1 else 0) +
-        (if BAND(shifters.AttributeLo, LSHIFT(1, fineX)) > 0 then 1 else 0) +
-        -- (if _hGetBit(fineX, shifters.AttributeHi) then 2 else 0)
-        (if BAND(shifters.AttributeHi, LSHIFT(1, fineX)) > 0 then 2 else 0)
-
-    -- return _getPixelValue(patternValue, attributeValue, false)
-    return (
-        patternValue +
-        LSHIFT(attributeValue, 2)
-    )
 end
 
 

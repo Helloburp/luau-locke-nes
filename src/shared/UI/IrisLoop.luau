@@ -160,9 +160,9 @@ function m.Render<T>(emulationContext: EmulationContext<T>, uiState: State)
             Windows.PpuViewer.Render(
                 uiState.PpuViewer,
                 {
-                    OAM = nes and API.Log.GetFullOAMLog(nes.Ppu.State.OAM) or "",
+                    OAM = nes and API.Log.GetFullOAMLog(nes.State.Ppu.OAM) or "",
                     SecondaryOAM = nes
-                        and API.Log.GetSecondaryOAMLog(nes.Ppu.State.SecondaryOAM)
+                        and API.Log.GetSecondaryOAMLog(nes.State.Ppu.SecondaryOAM)
                         or ""
                 }
             )

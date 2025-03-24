@@ -84,10 +84,10 @@ end
 
 function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
     local state = C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
-        "V", nes.Ppu.State.Registers.PPUSTATUS
+        "V", nes.State.Ppu.Registers.PPUSTATUS
     ) 
     while state == C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
-        "V", nes.Ppu.State.Registers.PPUSTATUS
+        "V", nes.State.Ppu.Registers.PPUSTATUS
     ) 
     do
         _clock(nes)

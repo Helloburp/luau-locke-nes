@@ -3,11 +3,14 @@
 
 
 local inst_root = script.Parent.Parent.Parent.Parent.Shared
-local inst_core, inst_nes = inst_root.Core, inst_root.Nes
+local inst_core, inst_nes, inst_api = inst_root.Core, inst_root.Nes, inst_root.API
 local Nes = require(inst_nes.NES)
 
 local inst_util = script.Parent.Parent.Parent.Util
 local NestestUtil = require(inst_util.Nestest)
+
+local Display = require(inst_api.Display)
+local C_DISPLAY = require(inst_api["Display.constants"])
 
 local T_NES = require(inst_nes["NES.types"])
 type NES = T_NES.NES
@@ -25,7 +28,8 @@ return function()
         nes = Nes.New(
             {
                 OnFrameComplete = function() end,
-                SetPixelForPpuCycle = function() end
+                ScreenBuffer = Display.NewDisplayBuffer(C_DISPLAY.RESOLUTIONS.SCREEN),
+                COLORS_U32 = C_DISPLAY.COLORS_U32
             } :: T_NES.Display,
             iPorts.FromState(nil),
             iMapper.FromState(nil),
@@ -63,7 +67,7 @@ return function()
         shouldCompareLogs: boolean
     ): (boolean, string?)
         return NestestUtil.RunNesTest(
-            maxCycles, shouldCompareLogs, nes.Cpu, nes.CpuBus, nes.Ppu,
+            maxCycles, shouldCompareLogs, nes.Cpu, nes.CpuBus, nes.State.Ppu,
             _doCycle, function() end, function() return false end
         )
     end

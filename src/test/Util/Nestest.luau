@@ -19,7 +19,7 @@ local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 
 local T_PPU = require(inst_components["PPU.types"])
-type PPU = T_PPU.PPU
+type PpuState = T_PPU.State
 
 
 local T_H = require(inst_core["Helpers.types"])
@@ -37,9 +37,9 @@ local m = {}
 
 function m.NewPortsInterface(): IPorts<nil>
     return {
-        CopyState = function(state: nil) return nil end,
+        CopyState = function(state) return nil end,
         NewState = function() return nil end,
-        FromState = function(state: nil)
+        FromState = function(state)
             return {
                 ControllerLatchUpdate = function() end,
                 ReadPort1 = function() return 0x00 end,
@@ -59,7 +59,7 @@ end
 
 function m.RunNesTest(
     maxCycles: number, shouldCompareLogs: boolean,
-    cpu: CPU, bus: Bus, ppu: PPU?,
+    cpu: CPU, bus: Bus, ppuState: PpuState?,
     _runCpuCycle: () -> (boolean, string?),
     _onEnd: (() -> ()),  -- When PC reaches C663
     _shouldAbort: () -> (boolean)
@@ -81,9 +81,9 @@ function m.RunNesTest(
             local logBreakdown = Log.BreakdownLog(nextLog)
             local s, e = Log.CompareCpuLog(cpu, bus, logBreakdown)
 
-            if not ppu or not s then return s, e end
+            if not ppuState or not s then return s, e end
 
-            return Log.ComparePpuLog(ppu, logBreakdown.Ppu)
+            return Log.ComparePpuLog(ppuState, logBreakdown.Ppu)
         end
         else function() return true end
 

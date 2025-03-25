@@ -13,6 +13,7 @@ type Shifters = T.Shifters
 type State = T.State
 type PPU = T.PPU
 type PpuClosure = T.PPUClosure
+type SpriteEvalResult = T.SpriteEvalResult
 
 
 local T_H = require(inst_core["Helpers.types"])
@@ -114,8 +115,10 @@ function m.NewClosure(
     local latch_nt, latch_attr, latch_ptLo, latch_ptHi
     local shift_attrHi, shift_attrLo, shift_patternHi, shift_patternLo
     local execution_clock, execution_cycles
-    local isSprite0BeingDrawn, frameCounter, spriteFoundCount
+    local eval_isSprite0BeingDrawn, eval_spriteFoundCount,
+        eval_pixelCache, eval_spriteIndexCache, eval_isOverflow
     local oam, secondaryOam
+    local frameCounter
 
     -- Initialize old state
     do
@@ -140,15 +143,164 @@ function m.NewClosure(
         local oldExecution = oldState.ExecutionState
         execution_clock, execution_cycles = oldExecution.Clock, oldExecution.Cycles
 
-        isSprite0BeingDrawn, frameCounter, spriteFoundCount =
-            oldState.IsSprite0BeingDrawn,
-            oldState.FrameCounter,
-            oldState.SpriteFoundCount
+        local oldEval = oldState.SpriteEvalResult
+        eval_isSprite0BeingDrawn, eval_spriteFoundCount, eval_isOverflow =
+            oldEval.IsSprite0BeingDrawn, oldEval.SpriteFoundCount, oldEval.IsOverflow
+
+        eval_pixelCache, eval_spriteIndexCache =
+            table.clone(oldEval.PixelCache),
+            table.clone(oldEval.SpriteIndexCache)
+
+        frameCounter = oldState.FrameCounter
 
         oam, secondaryOam =
             h.CopyBuffer(oldState.OAM),
             h.CopyBuffer(oldState.SecondaryOAM)
 
+    end
+
+
+    -- State API
+    local OUT_STATE: State
+    do
+        local mt_execution = {
+            __index = function(_, k)
+                return
+                    if k == "Clock" then execution_clock
+                    elseif k == "Cycles" then execution_cycles
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "Clock" then execution_clock = v
+                elseif k == "Cycles" then execution_cycles = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_registers = {
+            __index = function(_, k)
+                return
+                    if k == "PPUCTRL" then reg_ppuCtrl
+                    elseif k == "PPUMASK" then reg_ppuMask
+                    elseif k == "PPUSTATUS" then reg_ppuStatus
+                    elseif k == "OAMADDR" then reg_oamAddr
+                    elseif k == "PPUDATA" then reg_ppuData
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "PPUCTRL" then reg_ppuCtrl = v
+                elseif k == "PPUMASK" then reg_ppuMask = v
+                elseif k == "PPUSTATUS" then reg_ppuStatus = v
+                elseif k == "OAMADDR" then reg_oamAddr = v
+                elseif k == "PPUDATA" then reg_ppuData = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_latches = {
+            __index = function(_, k)
+                return
+                    if k == "Nametable" then latch_nt
+                    elseif k == "AttributeTable" then latch_attr
+                    elseif k == "PatternTableLow" then latch_ptLo
+                    elseif k == "PatternTableHigh" then latch_ptHi
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "Nametable" then latch_nt = v
+                elseif k == "AttributeTable" then latch_attr = v
+                elseif k == "PatternTableLow" then latch_ptLo = v
+                elseif k == "PatternTableHigh" then latch_ptHi = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_shifters = {
+            __index = function(_, k)
+                return
+                    if k == "AttributeHi" then shift_attrHi
+                    elseif k == "AttributeLo" then shift_attrLo
+                    elseif k == "PatternHi" then shift_patternHi
+                    elseif k == "PatternLo" then shift_patternLo
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "AttributeHi" then shift_attrHi = v
+                elseif k == "AttributeLo" then shift_attrLo = v
+                elseif k == "PatternHi" then shift_patternHi = v
+                elseif k == "PatternLo" then shift_patternLo = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_iregs = {
+            __index = function(_, k)
+                return
+                    if k == "v" then ireg_v
+                    elseif k == "t" then ireg_t
+                    elseif k == "x" then ireg_x
+                    elseif k == "w" then ireg_w
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "v" then ireg_v = v
+                elseif k == "t" then ireg_t = v
+                elseif k == "x" then ireg_x = v
+                elseif k == "w" then ireg_w = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        local mt_eval = {
+            __index = function(_, k)
+                return
+                    if k == "SpriteFoundCount" then eval_spriteFoundCount
+                    elseif k == "IsSprite0BeingDrawn" then eval_isSprite0BeingDrawn
+                    elseif k == "IsOverflow" then eval_isOverflow
+                    elseif k == "PixelCache" then eval_pixelCache
+                    elseif k == "SpriteIndexCache" then eval_spriteIndexCache
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "SpriteFoundCount" then eval_spriteFoundCount = v
+                elseif k == "IsSprite0BeingDrawn" then eval_isSprite0BeingDrawn = v
+                elseif k == "IsOverflow" then eval_isOverflow = v
+                elseif k == "PixelCache" then eval_pixelCache = v
+                elseif k == "SpriteIndexCache" then eval_spriteIndexCache = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        -- OAM buffer pointers are readonly
+        local mt_state = {
+            __index = function(_, k)
+                return
+                    if k == "OAM" then oam
+                    elseif k == "SecondaryOAM" then secondaryOam
+                    elseif k == "FrameCounter" then frameCounter
+                    else _invalidIndex(k)
+            end,
+            __newindex = function(_, k, v)
+                if k == "FrameCounter" then frameCounter = v
+                else _invalidIndex(k)
+                end
+            end
+        }
+
+        OUT_STATE = setmetatable({
+            ExecutionState = setmetatable({}, mt_execution),
+            Registers = setmetatable({}, mt_registers),
+            InternalRegisters = setmetatable({}, mt_iregs),
+            Latches = setmetatable({}, mt_latches),
+            Shifters = setmetatable({}, mt_shifters),
+            SpriteEvalResult = setmetatable({}, mt_eval)
+        }, mt_state) :: any
     end
 
 
@@ -254,10 +406,14 @@ function m.NewClosure(
         if isVisibleScanline or isPreRenderLine then
             local bgPixel: u8 = 0b00000
             local spriteIndex, spritePixel
-            if spriteFoundCount > 0 then
-                spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-                    _read, scanline, dot, secondaryOam, reg_ppuCtrl, spriteFoundCount
-                )
+            if eval_spriteFoundCount > 0 then
+                -- spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
+                --     _read, scanline, dot, secondaryOam, reg_ppuCtrl, eval_spriteFoundCount
+                -- )
+                spriteIndex, spritePixel =
+                    eval_spriteIndexCache[dot + 1] or -1,
+                    eval_pixelCache[dot + 1] or 0x00
+                spriteIndex = if spriteIndex < 0 then nil else spriteIndex
             else
                 spriteIndex, spritePixel = nil, 0b00000
             end
@@ -316,20 +472,21 @@ function m.NewClosure(
                 ]]
                 if dot == 320 then
                     _initializeSecondaryOAM(secondaryOam)
-                    local isOverflow
-                    spriteFoundCount, isSprite0BeingDrawn, isOverflow =
-                        _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0_And_IfOverflow(
-                            scanline + 1,
-                            _ppuControlGetBit("H", reg_ppuCtrl),
-                            oam,
-                            secondaryOam
-                        )
+                    _putDrawnObjectsInSecondaryOam_Out_EvalResult(
+                        _read,
+                        scanline + 1,
+                        _ppuControlGetBit("H", reg_ppuCtrl),
+                        _ppuControlGetBit("S", reg_ppuCtrl),
+                        oam,
+                        secondaryOam,
+                        OUT_STATE.SpriteEvalResult
+                    )
 
                     -- Overflow flag.
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
                     if not _ppuStatusGetBit("O", reg_ppuStatus) then
-                        reg_ppuStatus = _ppuStatusSetBit("O", reg_ppuStatus, isOverflow)
+                        reg_ppuStatus = _ppuStatusSetBit("O", reg_ppuStatus, eval_isOverflow)
                     end
                 end
                 
@@ -353,7 +510,7 @@ function m.NewClosure(
                 -- Technically this flag should only be set once per frame.
                 -- If bugs are apparent, make sure to change this.
                 if not _ppuStatusGetBit("S", reg_ppuStatus) then
-                    local isSprite0Hit = isSprite0BeingDrawn
+                    local isSprite0Hit = eval_isSprite0BeingDrawn
                         and spriteIndex == 0
                         and not (isBgTransparent or isSpriteTransparent)
 
@@ -407,139 +564,13 @@ function m.NewClosure(
     end
 
 
-    -- State API
-    local state: any
-    do
-        local mt_execution = {
-            __index = function(_, k)
-                return
-                    if k == "Clock" then execution_clock
-                    elseif k == "Cycles" then execution_cycles
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "Clock" then execution_clock = v
-                elseif k == "Cycles" then execution_cycles = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        local mt_registers = {
-            __index = function(_, k)
-                return
-                    if k == "PPUCTRL" then reg_ppuCtrl
-                    elseif k == "PPUMASK" then reg_ppuMask
-                    elseif k == "PPUSTATUS" then reg_ppuStatus
-                    elseif k == "OAMADDR" then reg_oamAddr
-                    elseif k == "PPUDATA" then reg_ppuData
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "PPUCTRL" then reg_ppuCtrl = v
-                elseif k == "PPUMASK" then reg_ppuMask = v
-                elseif k == "PPUSTATUS" then reg_ppuStatus = v
-                elseif k == "OAMADDR" then reg_oamAddr = v
-                elseif k == "PPUDATA" then reg_ppuData = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        local mt_latches = {
-            __index = function(_, k)
-                return
-                    if k == "Nametable" then latch_nt
-                    elseif k == "AttributeTable" then latch_attr
-                    elseif k == "PatternTableLow" then latch_ptLo
-                    elseif k == "PatternTableHigh" then latch_ptHi
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "Nametable" then latch_nt = v
-                elseif k == "AttributeTable" then latch_attr = v
-                elseif k == "PatternTableLow" then latch_ptLo = v
-                elseif k == "PatternTableHigh" then latch_ptHi = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        local mt_shifters = {
-            __index = function(_, k)
-                return
-                    if k == "AttributeHi" then shift_attrHi
-                    elseif k == "AttributeLo" then shift_attrLo
-                    elseif k == "PatternHi" then shift_patternHi
-                    elseif k == "PatternLo" then shift_patternLo
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "AttributeHi" then shift_attrHi = v
-                elseif k == "AttributeLo" then shift_attrLo = v
-                elseif k == "PatternHi" then shift_patternHi = v
-                elseif k == "PatternLo" then shift_patternLo = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        local mt_iregs = {
-            __index = function(_, k)
-                return
-                    if k == "v" then ireg_v
-                    elseif k == "t" then ireg_t
-                    elseif k == "x" then ireg_x
-                    elseif k == "w" then ireg_w
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "v" then ireg_v = v
-                elseif k == "t" then ireg_t = v
-                elseif k == "x" then ireg_x = v
-                elseif k == "w" then ireg_w = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        -- OAM buffer pointers are readonly
-        local mt_state = {
-            __index = function(_, k)
-                return
-                    if k == "OAM" then oam
-                    elseif k == "SecondaryOAM" then secondaryOam
-                    elseif k == "IsSprite0BeingDrawn" then isSprite0BeingDrawn
-                    elseif k == "FrameCounter" then frameCounter
-                    elseif k == "SpriteFoundCount" then spriteFoundCount
-                    else _invalidIndex(k)
-            end,
-            __newindex = function(_, k, v)
-                if k == "IsSprite0BeingDrawn" then isSprite0BeingDrawn = v
-                elseif k == "FrameCounter" then frameCounter = v
-                elseif k == "SpriteFoundCount" then spriteFoundCount = v
-                else _invalidIndex(k)
-                end
-            end
-        }
-
-        state = setmetatable({
-            ExecutionState = setmetatable({}, mt_execution),
-            Registers = setmetatable({}, mt_registers),
-            InternalRegisters = setmetatable({}, mt_iregs),
-            Latches = setmetatable({}, mt_latches),
-            Shifters = setmetatable({}, mt_shifters)
-        }, mt_state)
-    end
-
-
     local function _updateRead(_newRead: (u16) -> (u8))
         _read = _newRead
     end
 
 
     return {
-        State = state,
+        State = OUT_STATE,
         Clock = _clock,
         UpdateRead = _updateRead
     }
@@ -571,10 +602,15 @@ function m.NewState(): State
             PatternLo = 0x00,   PatternHi = 0x00,
             AttributeLo = 0x00, AttributeHi = 0x00
         },
+        SpriteEvalResult = {
+            IsSprite0BeingDrawn = false,
+            SpriteFoundCount = 0,
+            IsOverflow = false,
+            PixelCache = table.create(DOTS_PER_SCANLINE, 0x00),
+            SpriteIndexCache = table.create(DOTS_PER_SCANLINE, -1)
+        },
         OAM = buffer.create(0x100),
         SecondaryOAM = buffer.create(0x40),
-        IsSprite0BeingDrawn = false,
-        SpriteFoundCount = 0,
         FrameCounter = 0
     }
 end
@@ -609,13 +645,18 @@ function m.CopyState(state: State): State
             PatternHi = state.Shifters.PatternHi,
             PatternLo = state.Shifters.PatternLo
         },
+        SpriteEvalResult = {
+            IsSprite0BeingDrawn = state.SpriteEvalResult.IsSprite0BeingDrawn,
+            SpriteFoundCount = state.SpriteEvalResult.SpriteFoundCount,
+            IsOverflow = state.SpriteEvalResult.IsOverflow,
+            PixelCache = state.SpriteEvalResult.PixelCache,
+            SpriteIndexCache = state.SpriteEvalResult.SpriteIndexCache
+        },
 
         OAM = h.CopyBuffer(state.OAM),
         SecondaryOAM = h.CopyBuffer(state.SecondaryOAM),
-        IsSprite0BeingDrawn = state.IsSprite0BeingDrawn,
 
         FrameCounter = state.FrameCounter,
-        SpriteFoundCount = state.SpriteFoundCount
     }
 end
 
@@ -861,19 +902,38 @@ end
 
 
 
-function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0_And_IfOverflow(
+function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
+    _read: (u16) -> u8,
     scanline: number,
     spriteSizeFlag: boolean,
+    spriteBankFlag: boolean,
     oam: buffer,
-    secondaryOam: buffer
-): (number, boolean, boolean)
+    secondaryOam: buffer,
+    spriteEvalResult: SpriteEvalResult
+)
     local spriteFoundCount = 0
     local spriteSize = if spriteSizeFlag then 16 else 8
     local isSprite0BeingDrawn = false
+    local pixelCache, spriteIndexCache =
+        spriteEvalResult.PixelCache,
+        spriteEvalResult.SpriteIndexCache
+    
+    for i = 1, DOTS_PER_SCANLINE do
+        pixelCache[i] = 0x00
+        spriteIndexCache[i] = -1
+    end
+    
 
     for i = 0, 63 do
-        local y = OAMGetters.Y(oam, i) + 1
+        local y = RU8(oam, i * 4 + 0) + 1 -- Plus one due to internal offset
+
         if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
+
+        local tileNumber, attr, x =
+            RU8(oam, i * 4 + 1),
+            RU8(oam, i * 4 + 2),
+            RU8(oam, i * 4 + 3)
+
         isSprite0BeingDrawn = isSprite0BeingDrawn or i == 0
         
         WU32(
@@ -882,11 +942,51 @@ function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0_An
             RU32(oam, i * 4)
         )
 
+        -- Compute pixel information
+        local row = scanline - y
+        local isRightBank, tileIndex
+
+        if spriteSizeFlag then
+            isRightBank = BAND(0x01, tileNumber) ~= 0
+            tileIndex = RSHIFT(tileNumber, 1)
+        else
+            isRightBank = spriteBankFlag
+            tileIndex = tileNumber
+        end
+        row = if _objectAttributeGetBit("FlipY", attr)
+            then 7 - row
+            else row
+        
+        local lowPatternTableAddress = row
+            + tileIndex*2^4
+            + (if isRightBank then 0x1000 else 0)
+        
+        local lowPatternTableValue, highPatternTableValue =
+            _read(lowPatternTableAddress),
+            _read(BOR(lowPatternTableAddress, PATTERN_TABLE_ADDR_MASK_BitPlane))
+        
+        for dot = x, x + 8 do
+            if spriteIndexCache[dot + 1] >= 0 then continue end
+            -- Fill cache with pixels and index
+            local pixel = _spritePixelFromProperties(
+                dot, attr, x,
+                lowPatternTableValue,
+                highPatternTableValue
+            )
+
+            local isSpriteTransparent = BAND(pixel, 0b11) == 0
+            if isSpriteTransparent then continue end
+            spriteIndexCache[dot + 1] = spriteFoundCount
+            pixelCache[dot + 1] = pixel
+        end
+
         spriteFoundCount += 1
         if spriteFoundCount > 7 then break end
     end
 
-    return MIN(spriteFoundCount, 7), isSprite0BeingDrawn, spriteFoundCount > 7
+    spriteEvalResult.SpriteFoundCount = MIN(spriteFoundCount, 7)
+    spriteEvalResult.IsSprite0BeingDrawn = isSprite0BeingDrawn
+    spriteEvalResult.IsOverflow = spriteFoundCount > 7
 end
 
 

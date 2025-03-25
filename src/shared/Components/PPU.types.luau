@@ -54,17 +54,24 @@ export type InternalRegisters = {
     w: boolean  -- 1st/second write toggle
 }
 
+export type SpriteEvalResult = {
+    SpriteFoundCount: number,
+    IsSprite0BeingDrawn: boolean,
+    IsOverflow: boolean,
+    PixelCache: {u8},       -- Default: 0x00; otherwise a pixel value
+    SpriteIndexCache: {u8}  -- Default: -1 (no sprite); otherwise, an index into SecondaryOAM
+}
+
 export type State = {
     ExecutionState: ExecutionState,
     Registers: Registers,
     InternalRegisters: InternalRegisters,
     Latches: Latches,
     Shifters: Shifters,
+    SpriteEvalResult: SpriteEvalResult,
 
     OAM: buffer,
     SecondaryOAM: buffer,
-    IsSprite0BeingDrawn: boolean,
-    SpriteFoundCount: number,
 
     FrameCounter: number,
 }

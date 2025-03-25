@@ -88,38 +88,15 @@ local _patternTableAddressSet, _patternTableAddressCompose =
 
 local _attributeAddressCompose = AttributeAddress.Compose
 
-local PPUSTATUS_MASK_O, PPUSTATUS_MASK_S, PPUSTATUS_MASK_V  =
-    C.PPUSTATUS_MASKS["O" :: T.EPpuStatusFlag],
-    C.PPUSTATUS_MASKS["S" :: T.EPpuStatusFlag],
-    C.PPUSTATUS_MASKS["V" :: T.EPpuStatusFlag]
 
-local PPUMASK_MASK_Greyscale, PPUMASK_MASK_m, PPUMASK_MASK_M, PPUMASK_MASK_b,
-    PPUMASK_MASK_s, PPUMASK_MASK_R, PPUMASK_MASK_G, PPUMASK_MASK_B =
-    C.PPUMASK_MASKS["Greyscale" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["m" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["M" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["b" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["s" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["R" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["G" :: T.EPpuMaskFlag],
-    C.PPUMASK_MASKS["B" :: T.EPpuMaskFlag]
+local PPUMASK_MASK_s = C.PPUMASK_MASKS["s" :: T.EPpuMaskFlag]
+local PPUMASK_MASK_b = C.PPUMASK_MASKS["b" :: T.EPpuMaskFlag]
 
-local PPUCTRL_MASK_N, PPUCTRL_MASK_I, PPUCTRL_MASK_S, PPUCTRL_MASK_B,
-    PPUCTRL_MASK_H, PPUCTRL_MASK_P, PPUCTRL_MASK_V =
-    C.PPUCTRL_MASKS["N" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["I" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["S" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["B" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["H" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["P" :: T.EPpuControlFlag],
-    C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
+local PPUCTRL_MASK_V = C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
 
-local PATTERN_TABLE_ADDR_MASK_FineY, PATTERN_TABLE_ADDR_MASK_BitPlane,
-    PATTERN_TABLE_ADDR_MASK_TileNumber, PATTERN_TABLE_ADDR_MASK_Half =
-    C.PATTERN_TABLE_ADDR_MASKS["FineY" :: T.EPatternTableAddressComponent],
-    C.PATTERN_TABLE_ADDR_MASKS["BitPlane" :: T.EPatternTableAddressComponent],
-    C.PATTERN_TABLE_ADDR_MASKS["TileNumber" :: T.EPatternTableAddressComponent],
-    C.PATTERN_TABLE_ADDR_MASKS["Half" :: T.EPatternTableAddressComponent]
+local PATTERN_TABLE_ADDR_MASK_BitPlane =
+    C.PATTERN_TABLE_ADDR_MASKS["BitPlane" :: T.EPatternTableAddressComponent]
+
 
 function m.NewClosure(
     oldState: State,
@@ -339,8 +316,9 @@ function m.NewClosure(
                 ]]
                 if dot == 320 then
                     _initializeSecondaryOAM(secondaryOam)
-                    spriteFoundCount, isSprite0BeingDrawn =
-                        _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0(
+                    local isOverflow
+                    spriteFoundCount, isSprite0BeingDrawn, isOverflow =
+                        _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0_And_IfOverflow(
                             scanline + 1,
                             _ppuControlGetBit("H", reg_ppuCtrl),
                             oam,
@@ -351,7 +329,7 @@ function m.NewClosure(
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
                     if not _ppuStatusGetBit("O", reg_ppuStatus) then
-                        reg_ppuStatus = _ppuStatusSetBit("O", reg_ppuStatus, spriteFoundCount > 7)
+                        reg_ppuStatus = _ppuStatusSetBit("O", reg_ppuStatus, isOverflow)
                     end
                 end
                 
@@ -823,7 +801,7 @@ function _spriteIndexAndPixelAtScreenPosition(
     ppuCtrl: number,
     spriteFoundCount: number
 ): (number?, u8)
-    for i = 0, MIN(spriteFoundCount, 7) do
+    for i = 0, spriteFoundCount do
         -- local y = _oamGettersY(iState.SecondaryOAM, i)
         local y = RU8(secondaryOam, i * 4 + 0)
 
@@ -882,12 +860,13 @@ function _initializeSecondaryOAM(secondaryOam: buffer)
 end
 
 
-function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0(
+
+function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0_And_IfOverflow(
     scanline: number,
     spriteSizeFlag: boolean,
     oam: buffer,
     secondaryOam: buffer
-): (number, boolean)
+): (number, boolean, boolean)
     local spriteFoundCount = 0
     local spriteSize = if spriteSizeFlag then 16 else 8
     local isSprite0BeingDrawn = false
@@ -907,7 +886,7 @@ function _putDrawnObjectsInSecondaryOam_Return_spriteFoundCount_And_IfSprite0(
         if spriteFoundCount > 7 then break end
     end
 
-    return spriteFoundCount, isSprite0BeingDrawn
+    return MIN(spriteFoundCount, 7), isSprite0BeingDrawn, spriteFoundCount > 7
 end
 
 
@@ -1013,7 +992,6 @@ function _getColorByPixelValue(index: number, _read: (u16) -> (u8))
     return _read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
-
 --[[
     Todo:
     - Look at & implement bank logic
@@ -1029,7 +1007,6 @@ function _spritePixelAtScreenPosition(
     ppuCtrlSpriteSize: boolean,
     ppuCtrlSpriteBank: boolean
 ): u8
-    -- local spriteAttributes = _oamGettersAttributes(secondaryOam, objIndex)
     local spriteAttributes = RU8(secondaryOam, objIndex * 4 + 2)
 
     local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
@@ -1109,11 +1086,7 @@ function _getSpritePatternTablePropertiesAtScreenPosition(
     local isRightBank, tileIndex
 
     if ppuCtrlSpriteSize then
-
-        -- isRightBank = _objectTileNumberGetBit("Bank", spriteTileNumber)
         isRightBank = BAND(0x01, spriteTileNumber) ~= 0
-
-        -- tileIndex = _objectTileNumberGet("TileNumber", spriteTileNumber)
         tileIndex = RSHIFT(spriteTileNumber, 1)
     else
         isRightBank = ppuCtrlSpriteBank

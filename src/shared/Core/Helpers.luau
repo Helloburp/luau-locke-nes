@@ -16,16 +16,6 @@ local BAND, BOR, BNOT, LSHIFT, RSHIFT =
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 
 
-local TABLE_BUFFER_DEBUG_METATABLE = {
-    __newindex = function(t, k, v)
-        error(`Table buffer access out of bounds:`)
-    end,
-    __index = function(t, k, v)
-        error(`Table buffer access out of bounds:`)
-    end
-}
-
-
 local m = {}
 
 

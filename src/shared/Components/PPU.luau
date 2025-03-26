@@ -358,19 +358,25 @@ function m.NewClosure(
 
         shift_attrLo = BAND(shift_attrLo, 0x00FF) +
             LSHIFT(
-                0xFF * if _hGetBit(
-                    offsetInAttributeByte,
-                    latch_attr
-                ) then 1 else 0,
+                -- 0xFF * if _hGetBit(
+                --     offsetInAttributeByte,
+                --     latch_attr
+                -- ) then 1 else 0,
+                (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte)) > 0)
+                    and 0xFF
+                    or 0x00,
                 8
             )
 
         shift_attrHi = BAND(shift_attrHi, 0x00FF) +
             LSHIFT(
-                0xFF * if _hGetBit(
-                    offsetInAttributeByte + 1,
-                    latch_attr
-                ) then 1 else 0,
+                -- 0xFF * if _hGetBit(
+                --     offsetInAttributeByte + 1,
+                --     latch_attr
+                -- ) then 1 else 0,
+                (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte + 1)) > 0)
+                    and 0xFF
+                    or 0x00,
                 8
             )
 

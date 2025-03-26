@@ -94,9 +94,15 @@ local PPUMASK_MASK_s = C.PPUMASK_MASKS["s" :: T.EPpuMaskFlag]
 local PPUMASK_MASK_b = C.PPUMASK_MASKS["b" :: T.EPpuMaskFlag]
 
 local PPUCTRL_MASK_V = C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
+local PPUCTRL_MASK_B = C.PPUCTRL_MASKS["B" :: T.EPpuControlFlag]
 
 local PATTERN_TABLE_ADDR_MASK_BitPlane =
     C.PATTERN_TABLE_ADDR_MASKS["BitPlane" :: T.EPatternTableAddressComponent]
+
+local VRAM_ADDR_MASK_N = C.VRAM_ADDR_MASKS["N" :: T.EVRamAddressComponent]
+local VRAM_ADDR_MASK_y = C.VRAM_ADDR_MASKS["y" :: T.EVRamAddressComponent]
+local VRAM_ADDR_MASK_X = C.VRAM_ADDR_MASKS["X" :: T.EVRamAddressComponent]
+local VRAM_ADDR_MASK_Y = C.VRAM_ADDR_MASKS["Y" :: T.EVRamAddressComponent]
 
 
 function m.NewClosure(
@@ -319,13 +325,19 @@ function m.NewClosure(
         elseif backgroundFetchProgress == 4 then
             latch_ptLo = _read(
                 _getLowPatternTableAddress(
-                    _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
+                    BAND(ppuCtrl, PPUCTRL_MASK_B) > 0,
+                    latch_nt,
+                    RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_y), 12)
+                    -- _vramAddressGet("y", vramAddr)
                 )
             )
         elseif backgroundFetchProgress == 6 then
             latch_ptHi = _read(
                 _getHighPatternTableAddress(
-                    _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
+                    -- _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
+                    BAND(ppuCtrl, PPUCTRL_MASK_B) > 0,
+                    latch_nt,
+                    RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_y), 12)
                 )
             )
         end
@@ -791,7 +803,6 @@ function _getTileAddressFromVRamAddress(v: u16)
     return 0x2000 + BAND(v, BNOT(VRAM_ADDR_MASK_y))
 end
 
-local VRAM_ADDR_MASK_N = C.VRAM_ADDR_MASKS["N" :: T.EVRamAddressComponent]
 
 function _getAttributeAddressFromVRamAddress(v: u16)
     
@@ -817,8 +828,12 @@ end
 
 
 function _getHighPatternTableAddress(right, tileNumber, row)
-    return _patternTableAddressSet(
-        "BitPlane", _getLowPatternTableAddress(right, tileNumber, row), 1
+    -- return _patternTableAddressSet(
+    --     "BitPlane", _getLowPatternTableAddress(right, tileNumber, row), 1
+    -- )
+    return BOR(
+        _getLowPatternTableAddress(right, tileNumber, row),
+        PATTERN_TABLE_ADDR_MASK_BitPlane
     )
 end
 
@@ -833,8 +848,8 @@ end
 
 function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
     return (
-        (if _vramAddressGet("X", vramAddr)%4 >= 2 then 1 else 0) +
-        (if _vramAddressGet("Y", vramAddr)%4 >= 2 then 1 else 0) * 2
+        (BAND(vramAddr, VRAM_ADDR_MASK_X)%4 >= 2 and 1 or 0) +
+        (RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_Y), 5)%4 >= 2 and 2 or 0)
     ) * 2
 end
 

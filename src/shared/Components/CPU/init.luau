@@ -19,6 +19,7 @@ local C = require(script.Parent["CPU.constants"])
 local h = require(inst_core.Helpers)
 
 local Instructions = require(script.Instructions)
+local AddressingModes = require(script.AddressingModes)
 
 local m = {}
 
@@ -26,9 +27,19 @@ local LSHIFT, BAND = bit32.lshift, bit32.band
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
-local StatusFlag = C.BITFIELD_UTIL.StatusFlag
-
 local STATUS_MASK_I = C.StatusFlagMasks["I" :: T.EStatusFlag]
+
+
+local OPCODE_BEHAVIOR = {}
+for i, data in C.SlowOpcodeLookup do
+	OPCODE_BEHAVIOR[i] = {
+        [1] = Instructions[data.Instruction],
+        [2] = AddressingModes[data.AddressingMode],
+        [3] = data.Cycles,
+        [4] = data.HasOopsCycle,
+        [5] = C.BytesPerAddressingMode[data.AddressingMode]
+	}
+end
 
 function m.NewRegisters(): Regs
     return {
@@ -39,14 +50,6 @@ function m.NewRegisters(): Regs
 end
 
 
---[[
-    OpcodeData format:
-    [1] = DisplayName,
-    [2] = InstructionId (Function name),
-    [3] = AddrModeName,
-    [4] = InstructionCycles,
-    [5] = InstructionOopsCycle
-]]
 function m.RunInstructionAndReturnCycles(
     regs: Regs, bus: Bus,
     addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
@@ -55,10 +58,8 @@ function m.RunInstructionAndReturnCycles(
     local opcode = bus.Read(regs.PC)
     regs.PC = (regs.PC + 1)%0x10000
 
-    local opcodeData = C.OpcodeLookup[opcode + 1] -- Lua moment
-    local addrModeName = opcodeData[3]
-
-    local addrModeBytes = C.BytesPerAddressingMode[addrModeName]
+    local opcodeBehavior = OPCODE_BEHAVIOR[opcode + 1] -- Lua moment
+    local addrModeBytes = opcodeBehavior[5]
 
     local lo = bus.Read(regs.PC)
     local hi = bus.Read((regs.PC + 1)%0x10000)
@@ -69,17 +70,20 @@ function m.RunInstructionAndReturnCycles(
         else 0
     
 
-    local addr, addrOopsCycle = (addressingModes[addrModeName])(
+    -- Addressing mode
+    local addr, addrOopsCycle = (opcodeBehavior[2])(
         regs, addrModeArg, bus
     )
 
-    local extraCycles = (instructions[opcodeData[2]])(
+
+    -- Instruction
+    local extraCycles = (opcodeBehavior[1])(
         regs, addr, bus
     )
 
     
-    return opcodeData[4] + (extraCycles or 0) + (
-        (addrOopsCycle and opcodeData[5]) and 1 or 0    -- Should oops cycle?
+    return opcodeBehavior[3] + (extraCycles or 0) + (
+        (addrOopsCycle and opcodeBehavior[4]) and 1 or 0    -- Should oops cycle?
     )
 end
 

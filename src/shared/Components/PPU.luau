@@ -407,13 +407,10 @@ function m.NewClosure(
             local bgPixel: u8 = 0b00000
             local spriteIndex, spritePixel
             if eval_spriteFoundCount > 0 then
-                -- spriteIndex, spritePixel = _spriteIndexAndPixelAtScreenPosition(
-                --     _read, scanline, dot, secondaryOam, reg_ppuCtrl, eval_spriteFoundCount
-                -- )
                 spriteIndex, spritePixel =
                     eval_spriteIndexCache[dot + 1] or -1,
                     eval_pixelCache[dot + 1] or 0x00
-                spriteIndex = if spriteIndex < 0 then nil else spriteIndex
+                spriteIndex = spriteIndex >= 0 and spriteIndex or nil
             else
                 spriteIndex, spritePixel = nil, 0b00000
             end
@@ -834,47 +831,6 @@ function _getOffsetInAttributeByteFromVRamAddress(vramAddr: u16)
 end
 
 
-function _spriteIndexAndPixelAtScreenPosition(
-    _read: (u16) -> u8,
-    scanline: number,
-    dot: number,
-    secondaryOam: buffer,
-    ppuCtrl: number,
-    spriteFoundCount: number
-): (number?, u8)
-    for i = 0, spriteFoundCount do
-        -- local y = _oamGettersY(iState.SecondaryOAM, i)
-        local y = RU8(secondaryOam, i * 4 + 0)
-
-        if y >= 0xEF then continue end
-
-        local spritePixel = _spritePixelAtScreenPosition(
-            _read,
-            i,
-            scanline,
-            dot,
-            secondaryOam,
-            -- _ppuControlGetBit("H", iState.Registers.PPUCTRL),
-            BAND(ppuCtrl, 0b00100000) > 0,
-            -- _ppuControlGetBit("S", iState.Registers.PPUCTRL)
-            BAND(ppuCtrl, 0b00001000) > 0
-        )
-
-        local isSpriteTransparent = BAND(spritePixel, 0b11) == 0
-        if isSpriteTransparent then continue end
-
-        -- local x = _oamGettersX(iState.SecondaryOAM, i)
-        local x = RU8(secondaryOam, i * 4 + 3)
-
-        if dot >= x and x + 8 > dot then
-            return i, spritePixel
-        end
-    end
-
-    return nil, 0x00
-end
-
-
 function _getDotInFrame(cyclesThisFrame: number)
     return cyclesThisFrame%C.DOTS_PER_SCANLINE
 end
@@ -1075,10 +1031,8 @@ end
 
 
 function _isRenderingEnabled(ppuMask: u8)
-        -- _ppuMaskGet("b", ppuMask),
-    return BAND(ppuMask, 0b00001000) ~= 0 or
-        -- _ppuMaskGet("s", ppuMask)
-        BAND(ppuMask, 0b00010000) ~= 0
+    return BAND(ppuMask, PPUMASK_MASK_b) ~= 0 or
+        BAND(ppuMask, PPUMASK_MASK_s) ~= 0
 end
 
 
@@ -1092,50 +1046,6 @@ function _getColorByPixelValue(index: number, _read: (u16) -> (u8))
     return _read(0x3F00 + if index%4 == 0 then 0 else index)
 end
 
---[[
-    Todo:
-    - Look at & implement bank logic
-    - Implement 8x16 mode
-    - Implement flipping
-]]
-function _spritePixelAtScreenPosition(
-    _read: (u16) -> u8,
-    objIndex: number,
-    scanline: number,
-    dot: number,
-    secondaryOam: buffer,
-    ppuCtrlSpriteSize: boolean,
-    ppuCtrlSpriteBank: boolean
-): u8
-    local spriteAttributes = RU8(secondaryOam, objIndex * 4 + 2)
-
-    local isRightBank, tileIndex, row = _getSpritePatternTablePropertiesAtScreenPosition(
-        RU8(secondaryOam, objIndex * 4 + 1),    -- TileNumber
-        RU8(secondaryOam, objIndex * 4 + 0),    -- Y
-
-        -- _objectAttributeGetBit("FlipY", spriteAttributes),
-        BAND(spriteAttributes, 0b10000000) ~= 0,
-
-        scanline,
-        ppuCtrlSpriteSize,
-        ppuCtrlSpriteBank
-    )
-
-    local lowPatternTableAddress = row
-        + tileIndex*2^4
-        + (if isRightBank then 1 else 0)*2^12
-
-    return _spritePixelFromProperties(
-        dot,
-        spriteAttributes,
-
-        RU8(secondaryOam, objIndex * 4 + 3),    -- X
-
-        _read(lowPatternTableAddress),
-        _read(BOR(lowPatternTableAddress, PATTERN_TABLE_ADDR_MASK_BitPlane))
-    )
-end
-
 
 function _spritePixelFromProperties(
     dot: number,
@@ -1146,25 +1056,15 @@ function _spritePixelFromProperties(
 ): u8
     local column = dot - spriteX
 
-    -- column = if _objectAttributeGetBit("FlipX", spriteAttributes)
     column = if BAND(0b01000000, spriteAttributes) ~= 0
         then column
         else 7 - column
-    
 
-    -- local patternValue = _getPatternValueFromBitPlanes(
-    --     lowPatternValue, highPatternValue, column
-    -- )
     local patternValue = 
-        -- (if _hGetBit(column, lowPatternValue) then 1 else 0) +
         (if BAND(lowPatternValue, LSHIFT(1, column)) > 0 then 1 else 0) +
         (if BAND(highPatternValue, LSHIFT(1, column)) > 0 then 2 else 0)
-        -- (if _hGetBit(column, highPatternValue) then 2 else 0)
     
-    -- local attributeValue = _objectAttributeGet("Palette", spriteAttributes)
 
-    -- return _getPixelValue(patternValue, attributeValue, true)
-    -- return _getPixelValue(patternValue, BAND(0x03, spriteAttributes), true)
     return (
         patternValue +
         LSHIFT(BAND(0x03, spriteAttributes), 2) + 

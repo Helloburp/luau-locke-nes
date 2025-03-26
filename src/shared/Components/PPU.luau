@@ -788,14 +788,27 @@ function _getTileAddressFromVRamAddress(v: u16)
     return 0x2000 + _vramAddressSet("y", v, 0)
 end
 
+local VRAM_ADDR_MASK_N = C.VRAM_ADDR_MASKS["N" :: T.EVRamAddressComponent]
+
 function _getAttributeAddressFromVRamAddress(v: u16)
-    local attrAddr = _attributeAddressCompose{
-        ["N"] = _vramAddressGet("N", v),
-        ["AttributeOffset"] = 0b1111,
-        ["Y"] = RSHIFT(_vramAddressGet("Y", v), 2),
-        ["X"] = RSHIFT(_vramAddressGet("X", v), 2)
-    }
-    return 0x2000 + attrAddr
+    -- local attrAddr = _attributeAddressCompose{
+    --     ["N"] = _vramAddressGet("N", v),
+    --     ["AttributeOffset"] = 0b1111,
+    --     ["Y"] = RSHIFT(_vramAddressGet("Y", v), 2),
+    --     ["X"] = RSHIFT(_vramAddressGet("X", v), 2)
+    -- }
+    
+    return 0x2000
+        + BAND(v, VRAM_ADDR_MASK_N) -- Nametable select
+        + 0b001111000000            -- AttributeOffset (The attribute offset within the nametable)
+        + RSHIFT(BAND(
+            0b000001110000000,  -- High 3 bits of the Y component
+            v
+        ), 4)
+        + RSHIFT(BAND(
+            0b00000000011100,   -- High 3 bits of the X component
+            v
+        ), 2)
 end
 
 

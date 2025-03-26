@@ -22,11 +22,13 @@ local Instructions = require(script.Instructions)
 
 local m = {}
 
-local LSHIFT = bit32.lshift
+local LSHIFT, BAND = bit32.lshift, bit32.band
 
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
 local StatusFlag = C.BITFIELD_UTIL.StatusFlag
+
+local STATUS_MASK_I = C.StatusFlagMasks["I" :: T.EStatusFlag]
 
 function m.NewRegisters(): Regs
     return {
@@ -37,59 +39,60 @@ function m.NewRegisters(): Regs
 end
 
 
+--[[
+    OpcodeData format:
+    [1] = DisplayName,
+    [2] = InstructionId (Function name),
+    [3] = AddrModeName,
+    [4] = InstructionCycles,
+    [5] = InstructionOopsCycle
+]]
 function m.RunInstructionAndReturnCycles(
     regs: Regs, bus: Bus,
     addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
     instructions: {[T.EInstruction]: T.GenericInstruction}
 ): number
     local opcode = bus.Read(regs.PC)
-    regs.PC = _u16(regs.PC + 1)
+    regs.PC = (regs.PC + 1)%0x10000
 
     local opcodeData = C.OpcodeLookup[opcode + 1] -- Lua moment
-
-    local instructionId = opcodeData[2]
     local addrModeName = opcodeData[3]
-    local instructionCycles = opcodeData[4]
-    local instructionOopsCycle = opcodeData[5]
 
     local addrModeBytes = C.BytesPerAddressingMode[addrModeName]
-    assert(addrModeBytes, `Did not find address mode bytes for mode {addrModeName}`)
 
     local lo = bus.Read(regs.PC)
-    local hi = bus.Read(_u16(regs.PC + 1))
-    regs.PC = _u16(regs.PC + addrModeBytes)
+    local hi = bus.Read((regs.PC + 1)%0x10000)
+    regs.PC = (regs.PC + addrModeBytes)%0x10000
 
     local addrModeArg = if addrModeBytes == 1 then lo
         elseif addrModeBytes == 2 then lo + LSHIFT(hi, 8)
         else 0
     
 
-    assert(addressingModes[addrModeName], `Did not find address mode named "{addrModeName}"`)
     local addr, addrOopsCycle = (addressingModes[addrModeName])(
         regs, addrModeArg, bus
     )
 
-    assert(instructions[instructionId], `Could not find instruction {instructionId}`)
-    local extraCycles = (instructions[instructionId])(
+    local extraCycles = (instructions[opcodeData[2]])(
         regs, addr, bus
     )
 
-    local shouldOopsCycle = addrOopsCycle and instructionOopsCycle
     
-    return instructionCycles + (extraCycles or 0) + if shouldOopsCycle then 1 else 0
+    return opcodeData[4] + (extraCycles or 0) + (
+        (addrOopsCycle and opcodeData[5]) and 1 or 0    -- Should oops cycle?
+    )
 end
 
 
 function m.Clock(cpu: CPU, bus: Bus)
     local state = cpu.State
-    assert(state.ExecutionState.Cycles >= 0, "CPU cycles should be >= 0")
 
     if state.ExecutionState.Cycles == 0 then
          state.ExecutionState.Cycles +=
             if state.NMIInput then _nmi(cpu, bus)
 
-            elseif state.IRQInput and not StatusFlag.GetBit(
-                "I", state.Registers.STATUS
+            elseif (
+                state.IRQInput and BAND(state.Registers.STATUS, STATUS_MASK_I) == 0
             ) then _irq(cpu, bus)
 
             else m.RunInstructionAndReturnCycles(

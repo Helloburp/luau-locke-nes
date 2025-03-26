@@ -782,10 +782,13 @@ function m.New(
     }
 end
 
+local VRAM_ADDR_MASK_y = C.VRAM_ADDR_MASKS["y" :: T.EVRamAddressComponent]
+local BNOT = bit32.bnot
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
 function _getTileAddressFromVRamAddress(v: u16)
-    return 0x2000 + _vramAddressSet("y", v, 0)
+    -- return 0x2000 + _vramAddressSet("y", v, 0)
+    return 0x2000 + BAND(v, BNOT(VRAM_ADDR_MASK_y))
 end
 
 local VRAM_ADDR_MASK_N = C.VRAM_ADDR_MASKS["N" :: T.EVRamAddressComponent]

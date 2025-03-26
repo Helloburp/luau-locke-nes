@@ -39,7 +39,7 @@ export type EmulationConfig = {
 
 export type RunningEmulationContainer<T> = {
     Emulation: Emulation<T,ControllerState>,
-    Clock: (NES) -> ()
+    ClockCycles: (number) -> ()
 }
 
 

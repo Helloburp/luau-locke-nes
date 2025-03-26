@@ -83,7 +83,7 @@ function m.Render<T>(
     Iris.SameLine()
     do
         local _myClock = if context.RunningEmulation
-            then context.RunningEmulation.Clock
+            then context.RunningEmulation.ClockCycles
             else nil
         
         if Iris.Button(

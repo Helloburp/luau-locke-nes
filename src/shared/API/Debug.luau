@@ -71,18 +71,18 @@ function m.LogClock(
 end
 
 
-function m.StepCpuInstruction(nes: NES, _clock: (NES) -> ())
+function m.StepCpuInstruction(nes: NES, _clock: (number) -> ())
     local cpuState = nes.Cpu.State
     while cpuState.ExecutionState.Cycles > 0 do
-        _clock(nes)
+        _clock(1)
     end
     local lastClock = cpuState.ExecutionState.Clock
     while cpuState.ExecutionState.Clock == lastClock do
-        _clock(nes)
+        _clock(1)
     end
 end
 
-function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
+function m.StepToVBlank(nes: NES, _clock: (number) -> ())
     local state = C_PPU.BITFIELD_UTIL.PpuStatus.GetBit(
         "V", nes.State.Ppu.Registers.PPUSTATUS
     ) 
@@ -90,7 +90,7 @@ function m.StepToVBlank(nes: NES, _clock: (NES) -> ())
         "V", nes.State.Ppu.Registers.PPUSTATUS
     ) 
     do
-        _clock(nes)
+        _clock(1)
     end
 end
 

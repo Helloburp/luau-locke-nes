@@ -589,6 +589,12 @@ function m.NewClosure(
     return {
         State = OUT_STATE,
         Clock = _clock,
+
+        -- best function ive written in my life. incredible
+        ClockThree = function()
+            _clock(); _clock(); _clock();
+        end,
+
         UpdateRead = _updateRead
     }
 end

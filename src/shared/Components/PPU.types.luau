@@ -24,6 +24,7 @@ export type PPU = {
 export type PPUClosure = {
     State: State,
     Clock: () -> (),
+    ClockThree: () -> (),
     UpdateRead: ((u16) -> u8) -> ()
 }
 

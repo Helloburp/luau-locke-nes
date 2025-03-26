@@ -27,6 +27,8 @@ type NES = T.NES
 type Cartridge = T.Cartridge
 type State = T.State
 type Display = T.Display
+type NesClosure = T.NesClosure
+
 
 local T_CPUP = require(script.Parent["CPUPeripherals.types"])
 type Ports = T_CPUP.Ports
@@ -35,9 +37,9 @@ type Ports = T_CPUP.Ports
 
 local m = {}
 
-function m.NewClockClosure(nes: NES): () -> ()
+function m.NewClosure(nes: NES): NesClosure
 
-    local _ppuClock = nes.PpuClosure.Clock
+    local _ppuClock, _ppuClockThree = nes.PpuClosure.Clock, nes.PpuClosure.ClockThree
     local _clock2A03 = CpuPeripherals.Clock2A03
 
     local nesState, cpuPeripheralState, ppuOamState =
@@ -45,7 +47,7 @@ function m.NewClockClosure(nes: NES): () -> ()
     
     local cpu, cpuBus = nes.Cpu, nes.CpuBus
     
-    return function()
+    local function _clock()
         _ppuClock()
 
         -- An offset of 1 allows for accurate syncronization.
@@ -55,6 +57,35 @@ function m.NewClockClosure(nes: NES): () -> ()
 
         nesState.Clock += 1
     end
+
+    local function _clockThreeAligned()
+        _ppuClockThree()
+        _clock2A03(cpuPeripheralState, cpu, cpuBus, ppuOamState)
+
+        nesState.Clock += 3
+    end
+
+    local function _clockCycles(cyclesRemaining: number)
+        assert(cyclesRemaining == math.floor(cyclesRemaining), "Cycles must be an Integer")
+
+        while (nesState.Clock)%3 > 0 do
+            _clock()
+            cyclesRemaining -= 1
+        end
+        while cyclesRemaining >= 3 do
+            _clockThreeAligned()
+            cyclesRemaining -= 3
+        end
+        while cyclesRemaining > 0 do
+            _clock()
+            cyclesRemaining -= 1
+        end
+    end
+
+    return {
+        Clock = _clock,
+        ClockCycles = _clockCycles
+    }
 end
 
 -- Clock amounts divided by 4 (common denominator)

@@ -126,7 +126,7 @@ function m.ClockFrame<T>(
     _clockFrame(
         uiState,
         context.RunningEmulation.Emulation.Nes,
-        context.RunningEmulation.Clock,
+        context.RunningEmulation.ClockCycles,
         dt
     )
 end
@@ -218,7 +218,7 @@ end
 function _clockFrame<T>(
     uiState: State,
     myNes: NES,
-    _clock: (NES) -> (),
+    _clockCycles: (number) -> (),
     dt: number
 )
     local runningState, emulationSpeedState, executionSpeedState =
@@ -231,9 +231,7 @@ function _clockFrame<T>(
 
     local tic = os.clock()
 
-    for x = 1, cycles do
-        _clock(myNes)
-    end
+    _clockCycles(math.floor(cycles))
 
     local toc = os.clock()
 

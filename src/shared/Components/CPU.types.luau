@@ -38,6 +38,13 @@ export type CPU = {
     AddressingModes: {[EAddressingMode]: AddressingMode},
 }
 
+
+export type CPUClosure = {
+    State: State,
+    Clock: () -> (),
+    UpdateBus: (Bus) -> ()
+}
+
 -- In bitwise order
 export type EStatusFlag = "C" | "Z" | "I" | "D" | "B" | "U" | "V" | "N"
 

@@ -27,6 +27,11 @@ local T_PPUP = require(script.Parent["PPUPeripherals.types"])
 type PPUPeripheralState = T_PPUP.State
 
 
+export type NesClosure = {
+    Clock: () -> (),
+    ClockCycles: (number) -> (),
+}
+
 export type NES = {
     CpuBus: Bus,    PpuBus: Bus,
     Cpu: CPU,       PpuClosure: PPUClosure,

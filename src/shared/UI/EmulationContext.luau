@@ -119,7 +119,7 @@ end
 function _configureNewEmulation_Return_Clock<T>(
     emulation: Emulation<T,ControllerState>,
     config: EmulationConfig
-): (NES) -> ()
+): (number) -> ()
     local myNes = emulation.Nes
     if config.CpuDebugger then
         h.MapPeripheral(myNes.CpuBus, nil, config.CpuDebugger)
@@ -129,8 +129,8 @@ function _configureNewEmulation_Return_Clock<T>(
     end
 
     local _myClock =
-        if config.DebugLog then API.Debug.LogClock(Nes.Clock, config.DebugLog, 5)
-        else Nes.NewClockClosure(myNes)
+        if config.DebugLog then error("Unimplemented") -- API.Debug.LogClock(Nes.Clock, config.DebugLog, 5)
+        else Nes.NewClosure(myNes).ClockCycles
 
     return _myClock
 end
@@ -146,7 +146,7 @@ function _createAndSetNewRunningEmulation<T>(
 
     local runningEmulation = {
         Emulation = emulation,
-        Clock = _configureNewEmulation_Return_Clock(emulation, config)
+        ClockCycles = _configureNewEmulation_Return_Clock(emulation, config)
     }
 
     context.RunningEmulation = runningEmulation

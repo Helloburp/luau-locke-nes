@@ -5,6 +5,8 @@ local inst_components = inst_root.Components
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 type CPUState = T_CPU.State
+type CPUClosure = T_CPU.CPUClosure
+
 
 local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
@@ -33,8 +35,9 @@ export type NesClosure = {
 }
 
 export type NES = {
-    CpuBus: Bus,    PpuBus: Bus,
-    Cpu: CPU,       PpuClosure: PPUClosure,
+    CpuBus: Bus, PpuBus: Bus,
+    CpuClosure: CPUClosure,
+    PpuClosure: PPUClosure,
 
     State: State
 }

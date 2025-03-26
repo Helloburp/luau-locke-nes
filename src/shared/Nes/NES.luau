@@ -40,19 +40,16 @@ local m = {}
 function m.NewClosure(nes: NES): NesClosure
 
     local _ppuClock, _ppuClockThree = nes.PpuClosure.Clock, nes.PpuClosure.ClockThree
-    local _clock2A03 = CpuPeripherals.Clock2A03
+    local _clock2A03 = nes.CpuClosure.Clock
 
-    local nesState, cpuPeripheralState, ppuOamState =
-        nes.State, nes.State.CpuPeripherals, nes.State.Ppu.OAM
-    
-    local cpu, cpuBus = nes.Cpu, nes.CpuBus
+    local nesState = nes.State
     
     local function _clock()
         _ppuClock()
 
         -- An offset of 1 allows for accurate syncronization.
         if (nesState.Clock + 1)%3 == 0 then
-            _clock2A03(cpuPeripheralState, cpu, cpuBus, ppuOamState)
+            _clock2A03()
         end
 
         nesState.Clock += 1
@@ -60,7 +57,7 @@ function m.NewClosure(nes: NES): NesClosure
 
     local function _clockThreeAligned()
         _ppuClockThree()
-        _clock2A03(cpuPeripheralState, cpu, cpuBus, ppuOamState)
+        _clock2A03()
 
         nesState.Clock += 3
     end
@@ -94,7 +91,9 @@ function m.Clock(nes: NES)
 
     -- An offset of 1 allows for accurate syncronization.
     if (nes.State.Clock + 1)%3 == 0 then
-        CpuPeripherals.Clock2A03(nes.State.CpuPeripherals, nes.Cpu, nes.CpuBus, nes.State.Ppu.OAM)
+        CpuPeripherals.Clock2A03(
+            nes.State.CpuPeripherals, nes.State.Cpu, nes.CpuBus, nes.State.Ppu.OAM
+        )
     end
 
     nes.State.Clock += 1
@@ -139,11 +138,10 @@ function m.New(
     h.MapPeripheral(ppuBus, nil, cartridge.PpuPeripheral)
 
     local function _nmi()
-        nes.Cpu.State.NMIInput = true
+        nes.State.Cpu.NMIInput = true
     end
 
 
-    local cpu = Cpu.New(Cpu.AddressingModes, Cpu.Instructions, state.Cpu)
     local ppuClosure = Ppu.NewClosure(
         oldState.Ppu,
         displayInterface.ScreenBuffer,
@@ -155,6 +153,15 @@ function m.New(
     )
 
     state.Ppu = ppuClosure.State
+
+
+    local cpuClosure = CpuPeripherals.NewClock2A03Closure(
+        state.CpuPeripherals,
+        oldState.Cpu,
+        state.Ppu.OAM
+    )
+    state.Cpu = cpuClosure.State
+
 
     CpuPeripherals.MapPeripheralsFromState(
         cpuBus, ppuBus, state.Ppu, state.CpuPeripherals, portInterface, _nmi
@@ -169,9 +176,10 @@ function m.New(
     )
 
     ppuClosure.UpdateRead(ppuBus.Read)
+    cpuClosure.UpdateBus(cpuBus)
 
     nes = {
-        Cpu = cpu,
+        CpuClosure = cpuClosure,
         PpuClosure = ppuClosure,
         CpuBus = cpuBus,
         PpuBus = ppuBus,
@@ -187,7 +195,7 @@ end
 
 -- Not complete/accurate. Just used for starting programs
 function m.Reset<T>(nes: NES)
-    nes.Cpu.State.Registers.PC = h.ReadAddressFromVector(nes.CpuBus, 0xFFFC)
+    nes.State.Cpu.Registers.PC = h.ReadAddressFromVector(nes.CpuBus, 0xFFFC)
 end
 
 return m

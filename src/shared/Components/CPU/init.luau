@@ -168,11 +168,7 @@ function m.NewRegisters(): Regs
 end
 
 
-function m.RunInstructionAndReturnCycles(
-    regs: Regs, bus: Bus,
-    addressingModes: {[T.EAddressingMode]: T.GenericAddressingMode},
-    instructions: {[T.EInstruction]: T.GenericInstruction}
-): number
+function m.RunInstructionAndReturnCycles(regs: Regs, bus: Bus): number
     local opcode = bus.Read(regs.PC)
     regs.PC = (regs.PC + 1)%0x10000
 
@@ -206,8 +202,7 @@ function m.RunInstructionAndReturnCycles(
 end
 
 
-function m.Clock(cpu: CPU, bus: Bus)
-    local state = cpu.State
+function m.Clock(state: State, bus: Bus)
 
     if state.ExecutionState.Cycles == 0 then
          state.ExecutionState.Cycles +=
@@ -216,9 +211,7 @@ function m.Clock(cpu: CPU, bus: Bus)
                 state.IRQInput and BAND(state.Registers.STATUS, STATUS_MASK_I) == 0
             ) then _irq(state, bus)
             else m.RunInstructionAndReturnCycles(
-                state.Registers, bus,
-                cpu.AddressingModes :: any,
-                cpu.Instructions :: any
+                state.Registers, bus
             )
     end
 

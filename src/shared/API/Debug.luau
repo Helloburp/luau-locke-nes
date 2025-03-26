@@ -56,7 +56,7 @@ function m.LogClock(
     _clock: (NES) -> (), log: DebugLog, maxLogHistory: number
 ): (NES) -> ()
     return function(nes: NES)
-        local cpuState = nes.Cpu.State
+        local cpuState = nes.State.Cpu
         local oldCpuCycle = cpuState.ExecutionState.Cycles
         _clock(nes)
 
@@ -72,7 +72,7 @@ end
 
 
 function m.StepCpuInstruction(nes: NES, _clock: (number) -> ())
-    local cpuState = nes.Cpu.State
+    local cpuState = nes.State.Cpu
     while cpuState.ExecutionState.Cycles > 0 do
         _clock(1)
     end

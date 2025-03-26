@@ -14,6 +14,8 @@ type EInput = T_CONTROLLER.EInput
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
 type Regs = T_CPU.Registers
+type CpuState = T_CPU.State
+
 
 local h = require(inst_core.Helpers)
 
@@ -173,9 +175,8 @@ end
 
 
 function m.CompareCpuLog(
-    cpu: CPU, cpuBus: Bus, goodLog: LogBreakdown
+    state: CpuState, cpuBus: Bus, goodLog: LogBreakdown
 ): (boolean, string?)
-    local state = cpu.State
     local pcLog, regLog, cycLog =
         m.GetLogPc(state.Registers.PC, cpuBus),
         m.GetLogRegs(state.Registers),

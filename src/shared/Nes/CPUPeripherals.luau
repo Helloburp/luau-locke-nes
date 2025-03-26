@@ -11,6 +11,9 @@ local Apu = require(inst_components.APU)
 
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
+type CPUState = T_CPU.State
+type CPUClosure = T_CPU.CPUClosure
+
 
 local T_PPU = require(inst_components["PPU.types"])
 type PPU = T_PPU.PPU
@@ -82,13 +85,49 @@ function m.MapPeripheralsFromState(
 end
 
 
+function m.NewClock2A03Closure(
+    cpuPeripheralState: State,
+    oldCpuState: CPUState,
+    oam: buffer
+): CPUClosure
+    local cpuClosure = Cpu.NewClosure(oldCpuState)
+    local executionState = cpuClosure.State.ExecutionState
+
+    local _innerClock, _innerUpdateBus = cpuClosure.Clock, cpuClosure.UpdateBus
+    local bus: Bus = h.NewBus()
+
+    local _clock2A03 = function()
+        if not cpuPeripheralState.ActiveDMA then
+            _innerClock()
+        elseif _clockDmaAndReturnIfFinished(
+            cpuPeripheralState.ActiveDMA,
+            executionState,
+            bus,
+            oam
+        ) then
+            cpuPeripheralState.ActiveDMA = nil
+        end
+    end
+
+    cpuClosure.Clock = _clock2A03
+
+    cpuClosure.UpdateBus = function(newBus: Bus)
+        bus = newBus
+        _innerUpdateBus(newBus)
+    end
+
+
+    return cpuClosure
+end
+
+
 -- CPU clock with added DMA logic.
-function m.Clock2A03(state: State, cpu: CPU, cpuBus: Bus, oam: buffer)
+function m.Clock2A03(state: State, cpuState: CPUState, cpuBus: Bus, oam: buffer)
     if not state.ActiveDMA then
-        Cpu.Clock(cpu, cpuBus)
+        Cpu.Clock(cpuState, cpuBus)
     elseif _clockDmaAndReturnIfFinished(
         state.ActiveDMA,
-        cpu.State.ExecutionState,
+        cpuState.ExecutionState,
         cpuBus,
         oam
     ) then

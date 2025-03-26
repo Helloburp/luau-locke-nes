@@ -76,7 +76,7 @@ function m.Render<T>(
         return table.concat(logTexts, "\n")
     end)(), [Iris.Args.Text.RichText] = true}
 
-    Iris.Text(myNes and API.Log.GetLogRegs(myNes.Cpu.State.Registers) or "")
+    Iris.Text(myNes and API.Log.GetLogRegs(myNes.State.Cpu.Registers) or "")
     Iris.Text(myNes and API.Log.GetPpuRegLog(myNes.State.Ppu.Registers) or "")
     Iris.Text(myNes and API.Log.GetPpuInternalRegLog(myNes.State.Ppu.InternalRegisters) or "")
 

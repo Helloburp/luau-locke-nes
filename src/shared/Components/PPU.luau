@@ -791,12 +791,6 @@ end
 local VRAM_ADDR_MASK_N = C.VRAM_ADDR_MASKS["N" :: T.EVRamAddressComponent]
 
 function _getAttributeAddressFromVRamAddress(v: u16)
-    -- local attrAddr = _attributeAddressCompose{
-    --     ["N"] = _vramAddressGet("N", v),
-    --     ["AttributeOffset"] = 0b1111,
-    --     ["Y"] = RSHIFT(_vramAddressGet("Y", v), 2),
-    --     ["X"] = RSHIFT(_vramAddressGet("X", v), 2)
-    -- }
     
     return 0x2000
         + BAND(v, VRAM_ADDR_MASK_N) -- Nametable select
@@ -813,12 +807,6 @@ end
 
 
 function _getLowPatternTableAddress(right: boolean, tileNumber: u8, row: number)
-    -- return _patternTableAddressCompose{
-    --     ["FineY"] = row,
-    --     ["BitPlane"] = 0,
-    --     ["TileNumber"] = tileNumber,
-    --     ["Half"] = if right then 1 else 0
-    -- }
     return row
         + tileNumber*2^4
         + (if right then 1 else 0)*2^12

@@ -52,7 +52,7 @@ return function()
 
 
     local _doCycle = function()
-        local state = nes.Cpu.State
+        local state = nes.State.Cpu
         local oldCpuClock = state.ExecutionState.Clock
         while state.ExecutionState.Clock == oldCpuClock do
             local s, e = pcall(Nes.Clock, nes)
@@ -67,7 +67,7 @@ return function()
         shouldCompareLogs: boolean
     ): (boolean, string?)
         return NestestUtil.RunNesTest(
-            maxCycles, shouldCompareLogs, nes.Cpu, nes.CpuBus, nes.State.Ppu,
+            maxCycles, shouldCompareLogs, nes.State.Cpu, nes.CpuBus, nes.State.Ppu,
             _doCycle, function() end, function() return false end
         )
     end

@@ -60,7 +60,7 @@ return function()
     end)
 
     local _doCycle = function()
-        return pcall(m.Clock, cpu, bus)
+        return pcall(m.Clock, cpu.State, bus)
     end
 
     local function _runNesTest(
@@ -68,7 +68,7 @@ return function()
         shouldCompareLogs: boolean
     ): (boolean, string?)
         return NestestUtil.RunNesTest(
-            maxCycles, shouldCompareLogs, cpu, bus, nil,
+            maxCycles, shouldCompareLogs, cpu.State, bus, nil,
             _doCycle, function() end, function() return false end
         )
     end

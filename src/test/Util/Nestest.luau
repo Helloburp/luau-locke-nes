@@ -17,6 +17,8 @@ local C_CPU = require(inst_components["CPU.constants"])
 
 local T_CPU = require(inst_components["CPU.types"])
 type CPU = T_CPU.CPU
+type CpuState = T_CPU.State
+
 
 local T_PPU = require(inst_components["PPU.types"])
 type PpuState = T_PPU.State
@@ -59,12 +61,12 @@ end
 
 function m.RunNesTest(
     maxCycles: number, shouldCompareLogs: boolean,
-    cpu: CPU, bus: Bus, ppuState: PpuState?,
+    cpuState: CpuState, bus: Bus, ppuState: PpuState?,
     _runCpuCycle: () -> (boolean, string?),
     _onEnd: (() -> ()),  -- When PC reaches C663
     _shouldAbort: () -> (boolean)
 ): (boolean, string?)
-    local executionState, regs = cpu.State.ExecutionState, cpu.State.Registers
+    local executionState, regs = cpuState.ExecutionState, cpuState.Registers
     local _getNextLog = Log.IterLogMultiple(C_NESTEST.LOGFILES)
 
     local instructionNumber = 0
@@ -79,7 +81,7 @@ function m.RunNesTest(
                 return false, "Logs finished without reaching completion!"
             end
             local logBreakdown = Log.BreakdownLog(nextLog)
-            local s, e = Log.CompareCpuLog(cpu, bus, logBreakdown)
+            local s, e = Log.CompareCpuLog(cpuState, bus, logBreakdown)
 
             if not ppuState or not s then return s, e end
 
@@ -88,7 +90,7 @@ function m.RunNesTest(
         else function() return true end
 
     -- Enable automation mode
-    cpu.State.Registers.PC = 0xC000
+    cpuState.Registers.PC = 0xC000
     
     while executionState.Clock < maxCycles and not _shouldAbort() do
         if executionState.Cycles == 0 then

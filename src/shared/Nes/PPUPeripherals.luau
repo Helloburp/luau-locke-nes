@@ -15,19 +15,20 @@ type Regs = T_PPU.Registers
 local T = require(script.Parent["PPUPeripherals.types"])
 type State = T.State
 
-
 local C_PPU = require(inst_components["PPU.constants"])
-local PpuMask = C_PPU.BITFIELD_UTIL.PpuMask
+
 local h = require(inst_core.Helpers)
 
 local RU8, WU8 = buffer.readu8, buffer.writeu8
 local BAND = bit32.band
 
+local PPUMASK_MASK_isGreyscale = C_PPU.PPUMASK_MASKS["Greyscale" :: T_PPU.EPpuMaskFlag]
 
 local m = {}
 
-function m.NewPaletteControl(regs: Regs, b: buffer): (Peripheral)
-    assert(buffer.len(b) == 0x20)
+
+function m.NewPaletteControl(regs: Regs, t: {u8}): (Peripheral)
+    assert(#t == 0x20)
 
     local function _offset(addr: u16)
         -- local offset = h.UnmirrorAddress(addr, 0x3F00, 0x20)
@@ -41,14 +42,12 @@ function m.NewPaletteControl(regs: Regs, b: buffer): (Peripheral)
 
     local function _read(addr: u16)
         local offset = _offset(addr)
-        -- local isGreyscale = PpuMask.GetBit("Greyscale", regs.PPUMASK)
-        local color = RU8(b, offset)
-        -- return if not isGreyscale then color else BAND(color, 0x30)
-        return if BAND(regs.PPUMASK, 0b00000001) == 0 then color else BAND(color, 0x30)
+        local color = t[offset + 1]
+        return BAND(regs.PPUMASK, PPUMASK_MASK_isGreyscale) == 0 and color or BAND(color, 0x30)
     end
 
     local function _write(addr: u16, val: u8)
-        WU8(b, _offset(addr), val)
+        t[_offset(addr) + 1] = val
     end
 
     return {
@@ -89,14 +88,16 @@ end
 
 
 function m.MapPeripheralsFromState(
-    bus: Bus, ppuRegisters: Regs,
+    bus: Bus,
+    ppuRegisters: Regs,
+    paletteControl: {u8},
     _mirrorVRam: (u16) -> (u16),
     state: State
 )
     m.MapPeripherals(
         bus,
         m.NewVRam(_mirrorVRam, state.VRam),
-        m.NewPaletteControl(ppuRegisters, state.PaletteControl)
+        m.NewPaletteControl(ppuRegisters, paletteControl)
     )
 end
 
@@ -104,7 +105,6 @@ end
 function m.NewState(): State
     return {
         VRam = buffer.create(0x800),
-        PaletteControl = buffer.create(0x20)
     }
 end
 
@@ -112,7 +112,6 @@ end
 function m.CopyState(state: State): State
     return {
         VRam = h.CopyBuffer(state.VRam),
-        PaletteControl = h.CopyBuffer(state.PaletteControl)
     }
 end
 

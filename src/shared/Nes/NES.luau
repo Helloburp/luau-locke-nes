@@ -132,6 +132,7 @@ function m.New(
     PpuPeripherals.MapPeripheralsFromState(
         ppuBus,
         state.Ppu.Registers,
+        state.Ppu.PaletteControl,
         cartridge.MirrorVRam,
         state.PpuPeripherals
     )

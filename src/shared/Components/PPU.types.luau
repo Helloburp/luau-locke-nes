@@ -72,6 +72,7 @@ export type State = {
 
     OAM: buffer,
     SecondaryOAM: buffer,
+    PaletteControl: {u8},   -- Offset by one because... lua :)
 
     FrameCounter: number,
 }

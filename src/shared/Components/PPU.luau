@@ -117,7 +117,7 @@ function m.NewClosure(
     local execution_clock, execution_cycles
     local eval_isSprite0BeingDrawn, eval_spriteFoundCount,
         eval_pixelCache, eval_spriteIndexCache, eval_isOverflow
-    local oam, secondaryOam
+    local oam, secondaryOam, paletteControl
     local frameCounter
 
     -- Initialize old state
@@ -153,9 +153,10 @@ function m.NewClosure(
 
         frameCounter = oldState.FrameCounter
 
-        oam, secondaryOam =
+        oam, secondaryOam, paletteControl =
             h.CopyBuffer(oldState.OAM),
-            h.CopyBuffer(oldState.SecondaryOAM)
+            h.CopyBuffer(oldState.SecondaryOAM),
+            table.clone(oldState.PaletteControl)
 
     end
 
@@ -277,12 +278,13 @@ function m.NewClosure(
             end
         }
 
-        -- OAM buffer pointers are readonly
+        -- Buffer pointers are readonly
         local mt_state = {
             __index = function(_, k)
                 return
                     if k == "OAM" then oam
                     elseif k == "SecondaryOAM" then secondaryOam
+                    elseif k == "PaletteControl" then paletteControl
                     elseif k == "FrameCounter" then frameCounter
                     else _invalidIndex(k)
             end,
@@ -529,7 +531,7 @@ function m.NewClosure(
 
 
         -- Write to screen
-        local color = _read(0x3F00 + if returnedPixel%4 == 0 then 0 else returnedPixel)
+        local color = paletteControl[1 + (returnedPixel%4 == 0 and 0 or returnedPixel)]
         if dot < 256 and scanline < 240 then
             WU32(
                 screenBuffer,
@@ -608,6 +610,7 @@ function m.NewState(): State
         },
         OAM = buffer.create(0x100),
         SecondaryOAM = buffer.create(0x40),
+        PaletteControl = table.create(0x20, 0x00),
         FrameCounter = 0
     }
 end
@@ -652,6 +655,7 @@ function m.CopyState(state: State): State
 
         OAM = h.CopyBuffer(state.OAM),
         SecondaryOAM = h.CopyBuffer(state.SecondaryOAM),
+        PaletteControl = table.clone(state.PaletteControl),
 
         FrameCounter = state.FrameCounter,
     }

@@ -576,7 +576,8 @@ function m.NewClosure(
                 if eval_spriteFoundCount > 0 then
                     spriteIndex = eval_spriteIndexCache[dot + 1]
 
-                    if spriteIndex then
+                    if spriteIndex and spriteIndex >= 0 then
+                        spriteIndex = spriteIndex >= 0 and spriteIndex or nil
                         spritePixel = eval_pixelCache[dot + 1] or 0x00
                         isBgTransparent = BAND(bgPixel, 0b11) == 0
 

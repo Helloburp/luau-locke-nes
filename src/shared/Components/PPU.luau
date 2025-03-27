@@ -1019,17 +1019,20 @@ end
 
 
 function _getAddressAfterIncrementHorizontal(vramAddr: u16): u16
-    if _vramAddressGet("X", vramAddr) == 31 then
-        local n = _vramAddressGet("N", vramAddr)
-        vramAddr = _vramAddressSet("X", vramAddr, 0)
+    if BAND(vramAddr, VRAM_ADDR_MASK_X) == 31 then
+        -- local n = _vramAddressGet("N", vramAddr)
+        -- vramAddr = _vramAddressSet("X", vramAddr, 0)
+        vramAddr = BAND(vramAddr, BNOT(VRAM_ADDR_MASK_X))
 
         -- Flip X nametable bit
-        return _vramAddressSet(
-            "N", vramAddr,
-            _hSetBit(0, n, not _hGetBit(0, n))
-        )
+        -- return _vramAddressSet(
+        --     "N", vramAddr,
+        --     _hSetBit(0, n, not _hGetBit(0, n))
+        -- )
+        return BXOR(vramAddr, 0b010000000000)
     else
-        return _vramAddressSet("X", vramAddr, _vramAddressGet("X", vramAddr) + 1)
+        -- return _vramAddressSet("X", vramAddr, _vramAddressGet("X", vramAddr) + 1)
+        return vramAddr + 1
     end
 end
 

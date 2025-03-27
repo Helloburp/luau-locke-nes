@@ -376,8 +376,8 @@ function m.NewClosure(
         ]]
 
         -- Main clock function
-        local dot, scanline, isRenderingEnabled
-        local returnedPixel, isVisibleScanline, isPreRenderLine
+        local dot, scanline
+        local returnedPixel
         local color, oldCycles
         
         -- Rendering state
@@ -408,18 +408,13 @@ function m.NewClosure(
                 execution_cycles%DOTS_PER_SCANLINE,
                 (execution_cycles - execution_cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
 
-            isRenderingEnabled = BAND(reg_ppuMask, PPUMASK_MASK_b) ~= 0 or
-                BAND(reg_ppuMask, PPUMASK_MASK_s) ~= 0
-
 
             -- Cycle and return pixel
             returnedPixel = 0b00000
-            isVisibleScanline = scanline >= 0 and scanline <= 239
-            isPreRenderLine = scanline == 261
 
 
             -- At beginning of frame; clear status
-            if isPreRenderLine and dot == 1 then
+            if scanline == 261 and dot == 1 then
                 reg_ppuStatus = _ppuStatusSet("V", reg_ppuStatus, 0)
                 reg_ppuStatus = _ppuStatusSet("S", reg_ppuStatus, 0)
                 reg_ppuStatus = _ppuStatusSet("O", reg_ppuStatus, 0)
@@ -427,7 +422,7 @@ function m.NewClosure(
 
 
             -- If we need to calculate the pixel, do so
-            if isVisibleScanline or isPreRenderLine then
+            if (scanline >= 0 and scanline <= 239) or scanline == 261 then
 
                 -- Fetch cycles
                 if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
@@ -501,12 +496,13 @@ function m.NewClosure(
                             LSHIFT(_hReverseBitOrderU8(latch_ptHi), 8)
                         
 
-                        if isRenderingEnabled then
-                            ireg_v = _getAddressAfterIncrementHorizontal(ireg_v)
-                        end
+                        if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 or
+                            BAND(reg_ppuMask, PPUMASK_MASK_s) > 0 then
 
-                        if isRenderingEnabled and dot == 256 then
-                            ireg_v = _getAddressAfterIncrementVertical(ireg_v)
+                            ireg_v = _getAddressAfterIncrementHorizontal(ireg_v)
+                            if dot == 256 then
+                                ireg_v = _getAddressAfterIncrementVertical(ireg_v)
+                            end
                         end
                     end
 
@@ -529,18 +525,23 @@ function m.NewClosure(
                     end
 
                 elseif dot >= 257 and dot <= 320 then
-                    if isRenderingEnabled and dot == 257 then
-                        ireg_v = _getAddressAfterTransferX(ireg_v, ireg_t)
-                    end
-                    if isRenderingEnabled and dot >= 280 and dot <= 304 then
-                        if isPreRenderLine then
-                            ireg_v = _getAddressAfterTransferY(ireg_v, ireg_t)
-                        end
-                    end
 
-                    if isRenderingEnabled then
+                    if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 or
+                        BAND(reg_ppuMask, PPUMASK_MASK_s) > 0 then
+
+                        if dot == 257 then
+                            ireg_v = _getAddressAfterTransferX(ireg_v, ireg_t)
+                        end
+
+                        if dot >= 280 and dot <= 304 then
+                            if scanline == 261 then
+                                ireg_v = _getAddressAfterTransferY(ireg_v, ireg_t)
+                            end
+                        end
+
                         reg_oamAddr = 0x00
                     end
+
 
                     --[[
                         Dots 257-320:
@@ -628,7 +629,9 @@ function m.NewClosure(
             end
 
             -- Scanline callback for MMC3 IRQ
-            if dot == 260 and scanline < 240 and isRenderingEnabled then
+            if dot == 260 and scanline < 240
+                and (BAND(reg_ppuMask, PPUMASK_MASK_b) > 0
+                    or BAND(reg_ppuMask, PPUMASK_MASK_s) > 0) then
                 _onScanline()
             end
 

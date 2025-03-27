@@ -989,7 +989,7 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
     
     
     -- Inner loop variables
-    local pixel, isSpriteTransparent
+    local pixel, isSpriteTransparent, column, patternValue
 
     for i = 0, 63 do
         y = RU8(oam, i * 4 + 0) + 1 -- Plus one due to internal offset
@@ -1036,11 +1036,20 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
         for dot = x, x + 8 do
             if spriteIndexCache[dot + 1] >= 0 then continue end
             -- Fill cache with pixels and index
-            pixel = _spritePixelFromProperties(
-                dot, attr, x,
-                lowPatternTableValue,
-                highPatternTableValue
-            )
+            column = dot - x
+
+            column = BAND(0b01000000, attr) ~= 0
+                and dot - x
+                or 7 - (dot - x)
+
+            patternValue = 
+                (BAND(lowPatternTableValue, LSHIFT(1, column)) > 0 and 1 or 0) +
+                (BAND(highPatternTableValue, LSHIFT(1, column)) > 0 and 2 or 0)
+
+            pixel =
+                patternValue +
+                LSHIFT(BAND(0x03, attr), 2) + 
+                0x10
 
             isSpriteTransparent = BAND(pixel, 0b11) == 0
             if isSpriteTransparent then continue end

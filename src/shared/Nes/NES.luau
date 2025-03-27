@@ -129,13 +129,11 @@ function m.New(
     oldState: State
 ): NES
     local nes: NES
-    local cpuBus = h.NewBus()
-    local ppuBus = h.NewBus()
     local state = m.CopyState(oldState)
 
     -- The cartridge can effectively map & observe all reads and writes.
-    h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
-    h.MapPeripheral(ppuBus, nil, cartridge.PpuPeripheral)
+    -- h.MapPeripheral(cpuBus, nil, cartridge.CpuPeripheral)
+    -- h.MapPeripheral(ppuBus, nil, cartridge.PpuPeripheral)
 
     local function _nmi()
         nes.State.Cpu.NMIInput = true
@@ -162,18 +160,20 @@ function m.New(
     )
     state.Cpu = cpuClosure.State
 
-
-    CpuPeripherals.MapPeripheralsFromState(
-        cpuBus, ppuBus, state.Ppu, state.CpuPeripherals, portInterface, _nmi
-    )
-
-    PpuPeripherals.MapPeripheralsFromState(
-        ppuBus,
+    local ppuBus = PpuPeripherals.NewBusFromState(
         state.Ppu.Registers,
         state.Ppu.PaletteControl,
+        cartridge.PpuPeripheral,
         cartridge.MirrorVRam,
         state.PpuPeripherals
     )
+
+    local cpuBus = CpuPeripherals.NewBusFromState(
+        ppuBus, state.Ppu,
+        state.CpuPeripherals, portInterface,
+        cartridge.CpuPeripheral, _nmi
+    )
+
 
     ppuClosure.UpdateRead(ppuBus.Read)
     cpuClosure.UpdateBus(cpuBus)

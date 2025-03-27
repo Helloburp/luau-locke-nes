@@ -27,7 +27,7 @@ local PPUMASK_MASK_isGreyscale = C_PPU.PPUMASK_MASKS["Greyscale" :: T_PPU.EPpuMa
 local m = {}
 
 
-function m.NewPaletteControl(regs: Regs, t: {u8}): (Peripheral)
+function m.NewPaletteControl(regs: Regs, t: {u8}): Bus
     assert(#t == 0x20)
 
     local function _offset(addr: u16)
@@ -48,6 +48,7 @@ function m.NewPaletteControl(regs: Regs, t: {u8}): (Peripheral)
 
     local function _write(addr: u16, val: u8)
         t[_offset(addr) + 1] = val
+        return true
     end
 
     return {
@@ -59,7 +60,7 @@ end
 
 function m.NewVRam(
     _mirrorVRam: (u16) -> u16, b: buffer
-): (Peripheral)
+): Bus
     assert(buffer.len(b) == 0x800)
 
     local function _read(addr: u16)
@@ -68,6 +69,7 @@ function m.NewVRam(
 
     local function _write(addr: u16, val: u8)
         WU8(b, _mirrorVRam(addr), val)
+        return true
     end
 
     return {
@@ -77,27 +79,47 @@ function m.NewVRam(
 end
 
 
-function m.MapPeripherals(
-    bus: Bus,
-    vram: Peripheral,
-    paletteControl: Peripheral
-)
-    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x2FFF), vram)
-    h.MapPeripheral(bus, NumberRange.new(0x3F00, 0x3FFF), paletteControl)
+function m.NewBus(
+    vram: Bus,
+    paletteControl: Bus,
+    cartridgePpuPeripheral: Peripheral
+): Bus
+    local _readVram, _writeVram = vram.Read, vram.Write
+    local _readPalette, _writePalette = paletteControl.Read, paletteControl.Write
+    local _readCart, _writeCart =
+        cartridgePpuPeripheral.Read or function() return nil end,
+        cartridgePpuPeripheral.Write or function() return false end
+
+    -- h.MapPeripheral(bus, NumberRange.new(0x2000, 0x2FFF), vram)
+    -- h.MapPeripheral(bus, NumberRange.new(0x3F00, 0x3FFF), paletteControl)
+    return {
+        Read = function(addr: u16)
+            return _readCart(addr) or
+                if addr >= 0x2000 and addr < 0x3000 then _readVram(addr)
+                elseif addr >= 0x3F00 and addr < 0x4000 then _readPalette(addr)
+                else nil
+        end,
+        Write = function(addr: u16, data: u8)
+            return _writeCart(addr, data) or
+                if addr >= 0x2000 and addr < 0x3000 then _writeVram(addr, data)
+                elseif addr >= 0x3F00 and addr < 0x4000 then _writePalette(addr, data)
+                else false
+        end
+    }
 end
 
 
-function m.MapPeripheralsFromState(
-    bus: Bus,
+function m.NewBusFromState(
     ppuRegisters: Regs,
     paletteControl: {u8},
+    cartridgePpuPeripheral: Peripheral,
     _mirrorVRam: (u16) -> (u16),
     state: State
 )
-    m.MapPeripherals(
-        bus,
+    return m.NewBus(
         m.NewVRam(_mirrorVRam, state.VRam),
-        m.NewPaletteControl(ppuRegisters, paletteControl)
+        m.NewPaletteControl(ppuRegisters, paletteControl),
+        cartridgePpuPeripheral
     )
 end
 

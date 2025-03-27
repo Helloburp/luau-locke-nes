@@ -156,11 +156,28 @@ end
 
 
 function _newIO(rom: buffer, screenBuffer: buffer): IO
+    local keysDown = {}
+
+    UserInputService.InputBegan:Connect(function(inputObject: InputObject)
+        if not inputObject.KeyCode then return end
+        for eInput, keycode in KEYCODES_BY_INPUT do
+            if inputObject.KeyCode ~= keycode then continue end
+            keysDown[eInput] = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inputObject: InputObject)
+        if not inputObject.KeyCode then return end
+        for eInput, keycode in KEYCODES_BY_INPUT do
+            if inputObject.KeyCode ~= keycode then continue end
+            keysDown[eInput] = false
+        end
+    end)
+
     return {
         Rom = API.Parse.FromBuffer(rom),
         Display = _newBufferDisplayInterface(screenBuffer),
         GetPort1ButtonDown = function(eInput: EInput)
-            return UserInputService:IsKeyDown(KEYCODES_BY_INPUT[eInput])
+            return keysDown[eInput]
         end,
         GetPort2ButtonDown = function()
             return false

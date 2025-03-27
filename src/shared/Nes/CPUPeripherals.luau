@@ -65,22 +65,22 @@ function m.CopyState(state: State): State
 end
 
 
-function m.MapPeripheralsFromState(
-    cpuBus: Bus,
+function m.NewBusFromState(
     ppuBus: Bus,
     ppuState: PPUState,
     state: State,
     portInterface: Ports,
+    cartridgeCpuPeripheral: Peripheral,
     _nmi: () -> ()
 )
-    _mapPeripherals(
-        cpuBus,
+    return _newBus(
         _newInternalRam(state.InternalRam),
         _newPpuRegisters(ppuState, ppuBus, _nmi),
-        _newApuRegisters(state.APU),
-        _newOAMDMA(state),
-        _newPortLatch(state, portInterface.ControllerLatchUpdate),
-        _newControllerInput(portInterface)
+        cartridgeCpuPeripheral,
+        _newApuRegistersWrite(state.APU),
+        _newOAMDMAWrite(state),
+        _newPortLatchWrite(state, portInterface.ControllerLatchUpdate),
+        _newControllerInputRead(portInterface)
     )
 end
 
@@ -136,21 +136,63 @@ function m.Clock2A03(state: State, cpuState: CPUState, cpuBus: Bus, oam: buffer)
 end
 
 
-function _mapPeripherals(
-    bus: Bus,
-    internalRam: Peripheral,
+function _newBus(
+    internalRam: Bus,
     ppuRegisters: Peripheral,
-    apuRegisters: Peripheral,
-    oamDma: Peripheral,
-    controllerLatch: Peripheral,
-    controllerInput: Peripheral
+    cartridgeCpuPeripheral: Peripheral,
+    _apuWrite: (u16, u8) -> boolean,
+    _oamDmaWrite: (u16, u8) -> true,
+    _controllerLatchWrite: (u16, u8) -> true,
+    _controllerInputRead: (u16) -> u8?
 )
-    h.MapPeripheral(bus, NumberRange.new(0x0000, 0x1FFF), internalRam)
-    h.MapPeripheral(bus, NumberRange.new(0x2000, 0x3FFF), ppuRegisters)
-    h.MapPeripheral(bus, NumberRange.new(0x4014), oamDma)
-    h.MapPeripheral(bus, NumberRange.new(0x4016), controllerLatch)
-    h.MapPeripheral(bus, NumberRange.new(0x4000, 0x4017), apuRegisters)
-    h.MapPeripheral(bus, NumberRange.new(0x4016, 0x4017), controllerInput)
+    -- h.MapPeripheral(bus, NumberRange.new(0x0000, 0x1FFF), internalRam)
+    -- h.MapPeripheral(bus, NumberRange.new(0x2000, 0x3FFF), ppuRegisters)
+    -- h.MapPeripheral(bus, NumberRange.new(0x4014), oamDma)
+    -- h.MapPeripheral(bus, NumberRange.new(0x4016), controllerLatch)
+    -- h.MapPeripheral(bus, NumberRange.new(0x4000, 0x4017), apuRegisters)
+    -- h.MapPeripheral(bus, NumberRange.new(0x4016, 0x4017), controllerInput)
+
+    local _iramRead, _iramWrite = internalRam.Read, internalRam.Write
+    local _ppuRead, _ppuWrite =
+        ppuRegisters.Read or error("Ppu Register peripheral must be readable"),
+        ppuRegisters.Write or error("Ppu Register peripheral must be writable")
+
+    local _cartRead, _cartWrite =
+        cartridgeCpuPeripheral.Read or function() return nil end,
+        cartridgeCpuPeripheral.Write or function() return false end
+
+    return {
+        Read = function(addr: u16): u8?
+            if addr > 0x4017 then
+                return _cartRead(addr)
+            elseif addr < 0x2000 then
+                return _iramRead(addr)
+            elseif addr < 0x4000 then
+                return _ppuRead(addr)
+            elseif addr == 0x4016 or addr == 0x4017 then
+                return _controllerInputRead(addr)
+            else
+                return nil
+            end
+        end,
+        Write = function(addr: u16, data: u8): boolean
+            if addr > 0x4017 then
+                return _cartWrite(addr, data)
+            elseif addr < 0x2000 then
+                return _iramWrite(addr, data)
+            elseif addr < 0x4000 then
+                return _ppuWrite(addr, data)
+            else
+                if _apuWrite(addr, data) then return true end
+                if addr == 0x4014 then
+                    return _oamDmaWrite(addr, data)
+                elseif addr == 0x4016 then
+                    return _controllerLatchWrite(addr, data)
+                end
+                return false
+            end
+        end
+    }
 end
 
 
@@ -183,7 +225,7 @@ function _clockDmaAndReturnIfFinished(
 end
 
 
-function _newOAMDMA(state: State): (Peripheral)
+function _newOAMDMAWrite(state: State): (u16, u8) -> true
     local function _write(addr: u16, val: u8)
         state.ActiveDMA = {
             IdleCycleComplete = false,
@@ -194,13 +236,11 @@ function _newOAMDMA(state: State): (Peripheral)
         return true
     end
 
-    return {
-        Write = _write
-    }
+    return _write
 end
 
 
-function _newApuRegisters(state: APUState): (Peripheral)
+function _newApuRegistersWrite(state: APUState): (u16, u8) -> boolean
 
     local function _write(addr: u16, data: u8)
         if addr == 0x4002 then
@@ -222,9 +262,7 @@ function _newApuRegisters(state: APUState): (Peripheral)
         return false
     end
 
-    return {
-        Write = _write
-    }
+    return _write
 end
 
 
@@ -286,7 +324,7 @@ function _newPpuRegisters(ppuState: PPUState, ppuBus: Bus, _nmi: () -> ()): (Per
 end
 
 
-function _newInternalRam(b: buffer): (Peripheral)
+function _newInternalRam(b: buffer): Bus
     assert(buffer.len(b) == 0x800)
 
     local function _offset(addr: u16)
@@ -309,24 +347,22 @@ function _newInternalRam(b: buffer): (Peripheral)
 end
 
 
-function _newPortLatch(
+function _newPortLatchWrite(
     state: State,
     _controllerLatchUpdate: (boolean) -> ()
-): Peripheral
+): (u16, u8) -> true
 
-    local function _write(_: u16, val: u8): boolean
+    local function _write(_: u16, val: u8): true
         state.ControllerLatch = h.GetBit(0, val)
         _controllerLatchUpdate(state.ControllerLatch)
         return true
     end
 
-    return {
-        Write = _write
-    }
+    return _write
 end
 
 
-function _newControllerInput(portInterface: Ports): Peripheral
+function _newControllerInputRead(portInterface: Ports): (u16) -> u8
 
     local function _read(addr: u16): u8
         return
@@ -335,9 +371,7 @@ function _newControllerInput(portInterface: Ports): Peripheral
             else error(`Invalid controller input address 0x{string.format("%X", addr)}`)
     end
 
-    return {
-        Read = _read
-    }
+    return _read
 end
 
 

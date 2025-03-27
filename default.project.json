@@ -29,8 +29,11 @@
 
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": {
-          "$path": "src/client"
+        "Actor": {
+          "Client": {
+            "$path": "src/client"
+          },
+          "$className": "Actor"
         }
       },
       "$properties": {

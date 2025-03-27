@@ -85,6 +85,7 @@ local m = {
     PPUCTRL_MASKS = PPUCTRL_MASKS,
     PPUMASK_MASKS = PPUMASK_MASKS,
     PPUSTATUS_MASKS = PPUSTATUS_MASKS,
+    OBJECT_ATTRIBUTE_MASKS = OBJECT_ATTRIBUTE,
 
     BITFIELD_UTIL = {
         VRamAddress         = _bff(VRAM_ADDR_MASKS) :: BitfieldFunctions<T.EVRamAddressComponent>,

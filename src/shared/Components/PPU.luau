@@ -98,6 +98,8 @@ local PPUMASK_MASK_b = C.PPUMASK_MASKS["b" :: T.EPpuMaskFlag]
 local PPUCTRL_MASK_V = C.PPUCTRL_MASKS["V" :: T.EPpuControlFlag]
 local PPUCTRL_MASK_B = C.PPUCTRL_MASKS["B" :: T.EPpuControlFlag]
 
+local PPUSTATUS_MASK_S = C.PPUSTATUS_MASKS["S" :: T.EPpuStatusFlag]
+
 local PATTERN_TABLE_ADDR_MASK_BitPlane =
     C.PATTERN_TABLE_ADDR_MASKS["BitPlane" :: T.EPatternTableAddressComponent]
 
@@ -106,6 +108,7 @@ local VRAM_ADDR_MASK_y = C.VRAM_ADDR_MASKS["y" :: T.EVRamAddressComponent]
 local VRAM_ADDR_MASK_X = C.VRAM_ADDR_MASKS["X" :: T.EVRamAddressComponent]
 local VRAM_ADDR_MASK_Y = C.VRAM_ADDR_MASKS["Y" :: T.EVRamAddressComponent]
 
+local OBJECT_ATTRIBUTE_MASK_Priority = C.OBJECT_ATTRIBUTE_MASKS["Priority" :: T.EObjectAttribute]
 
 function m.NewClosure(
     oldState: State,
@@ -338,7 +341,6 @@ function m.NewClosure(
             elseif backgroundFetchProgress == 6 then
                 latch_ptHi = _read(
                     _getHighPatternTableAddress(
-                        -- _ppuControlGetBit("B", ppuCtrl), latch_nt, _vramAddressGet("y", vramAddr)
                         BAND(ppuCtrl, PPUCTRL_MASK_B) > 0,
                         latch_nt,
                         RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_y), 12)
@@ -362,10 +364,6 @@ function m.NewClosure(
 
             shift_attrLo = BAND(shift_attrLo, 0x00FF) +
                 LSHIFT(
-                    -- 0xFF * if _hGetBit(
-                    --     offsetInAttributeByte,
-                    --     latch_attr
-                    -- ) then 1 else 0,
                     (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte)) > 0)
                         and 0xFF
                         or 0x00,
@@ -374,10 +372,6 @@ function m.NewClosure(
 
             shift_attrHi = BAND(shift_attrHi, 0x00FF) +
                 LSHIFT(
-                    -- 0xFF * if _hGetBit(
-                    --     offsetInAttributeByte + 1,
-                    --     latch_attr
-                    -- ) then 1 else 0,
                     (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte + 1)) > 0)
                         and 0xFF
                         or 0x00,
@@ -546,20 +540,20 @@ function m.NewClosure(
                     isBgTransparent = BAND(bgPixel, 0b11) == 0
                     isSpriteTransparent = BAND(spritePixel, 0b11) == 0
 
-                    spriteAttributes = _oamGettersAttributes(secondaryOam, spriteIndex)
-                    spritePriority = _objectAttributeGetBit("Priority", spriteAttributes)
+                    spriteAttributes = RU8(secondaryOam, spriteIndex*4 + 2)
+                    spritePriority = BAND(spriteAttributes, OBJECT_ATTRIBUTE_MASK_Priority) > 0
                     shouldSpriteBeRendered = _shouldSpriteBeRendered(
                         isBgTransparent, isSpriteTransparent, spritePriority
                     )
 
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
-                    if not _ppuStatusGetBit("S", reg_ppuStatus) then
+                    if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
                         local isSprite0Hit = eval_isSprite0BeingDrawn
                             and spriteIndex == 0
                             and not (isBgTransparent or isSpriteTransparent)
 
-                        reg_ppuStatus = _ppuStatusSetBit("S", reg_ppuStatus, isSprite0Hit)
+                        reg_ppuStatus = BOR(reg_ppuStatus, isSprite0Hit and PPUSTATUS_MASK_S or 0)
                     end
                     
                     returnedPixel = shouldSpriteBeRendered

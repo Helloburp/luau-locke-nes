@@ -39,13 +39,13 @@ local m = {}
 
 function m.NewClosure(nes: NES): NesClosure
 
-    local _ppuClock, _ppuClockThree = nes.PpuClosure.Clock, nes.PpuClosure.ClockThree
+    local _ppuClock = nes.PpuClosure.Clock
     local _clock2A03 = nes.CpuClosure.Clock
 
     local nesState = nes.State
     
     local function _clock()
-        _ppuClock()
+        _ppuClock(1)
 
         -- An offset of 1 allows for accurate syncronization.
         if (nesState.Clock + 1)%3 == 0 then
@@ -56,7 +56,7 @@ function m.NewClosure(nes: NES): NesClosure
     end
 
     local function _clockThreeAligned()
-        _ppuClockThree()
+        _ppuClock(3)
         _clock2A03()
 
         nesState.Clock += 3
@@ -87,7 +87,7 @@ end
 
 -- Clock amounts divided by 4 (common denominator)
 function m.Clock(nes: NES)
-    nes.PpuClosure.Clock()
+    nes.PpuClosure.Clock(1)
 
     -- An offset of 1 allows for accurate syncronization.
     if (nes.State.Clock + 1)%3 == 0 then

@@ -574,7 +574,6 @@ function m.NewClosure(
                     spriteIndex = eval_spriteIndexCache[dot + 1]
 
                     if spriteIndex and spriteIndex >= 0 then
-                        spriteIndex = spriteIndex >= 0 and spriteIndex or nil
                         spritePixel = eval_pixelCache[dot + 1] or 0x00
 
                         -- Technically this flag should only be set once per frame.

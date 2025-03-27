@@ -611,8 +611,8 @@ function m.NewClosure(
 
 
             -- Write to screen
-            color = paletteControl[1 + (returnedPixel%4 == 0 and 0 or returnedPixel)]
             if dot < 256 and scanline < 240 then
+                color = paletteControl[1 + (returnedPixel%4 == 0 and 0 or returnedPixel)]
                 WU32(
                     screenBuffer,
                     (dot + scanline*256)*4,

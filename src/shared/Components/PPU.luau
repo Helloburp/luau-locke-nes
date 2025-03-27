@@ -511,10 +511,8 @@ function m.NewClosure(
                         (BAND(shift_attrLo, shiftedX) > 0 and 4 or 0) +
                         (BAND(shift_attrHi, shiftedX) > 0 and 8 or 0)
                     )
-
                     
                     -- Shift shifters if rendering enabled
-                    if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 then
                         shift_attrHi = RSHIFT(shift_attrHi, 1)
                         shift_attrLo = RSHIFT(shift_attrLo, 1)
                         shift_patternHi = RSHIFT(shift_patternHi, 1)

@@ -328,58 +328,44 @@ function m.NewClosure(
         local function _myFetchToLatchesBasedOnProgress(backgroundFetchProgress: number)
 
             if backgroundFetchProgress == 0 then
-                latch_nt = _read(_getTileAddressFromVRamAddress(ireg_v))
+                latch_nt = _read(0x2000 + BAND(ireg_v, BNOT(VRAM_ADDR_MASK_y)))
             elseif backgroundFetchProgress == 2 then
-                latch_attr = _read(_getAttributeAddressFromVRamAddress(ireg_v))
+                
+                -- Lord forgive me for this inlining...
+                -- This gets the attribute address
+                latch_attr = _read(
+                    0x2000
+                        + BAND(ireg_v, VRAM_ADDR_MASK_N) -- Nametable select
+                        + 0b001111000000            -- AttributeOffset (The attribute offset within the nametable)
+                        + RSHIFT(BAND(
+                            0b000001110000000,  -- High 3 bits of the Y component
+                            ireg_v
+                        ), 4)
+                        + RSHIFT(BAND(
+                            0b00000000011100,   -- High 3 bits of the X component
+                            ireg_v
+                        ), 2)
+                    )
+
             elseif backgroundFetchProgress == 4 then
                 latch_ptLo = _read(
-                    _getLowPatternTableAddress(
-                        BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0,
-                        latch_nt,
-                        RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
-                    )
+                    RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
+                        + latch_nt*2^4
+                        + (BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0 and 2^12 or 0)
                 )
             elseif backgroundFetchProgress == 6 then
                 latch_ptHi = _read(
-                    _getHighPatternTableAddress(
-                        BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0,
-                        latch_nt,
+                    BOR(
                         RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
+                            + latch_nt*2^4
+                            + (BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0 and 2^12 or 0),
+                        PATTERN_TABLE_ADDR_MASK_BitPlane
                     )
                 )
             end
         end
 
 
-        local function _myReloadShifters(vramAddr: u16)
-            local offsetInAttributeByte = (
-                (BAND(vramAddr, VRAM_ADDR_MASK_X)%4 >= 2 and 1 or 0) +
-                (RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_Y), 5)%4 >= 2 and 2 or 0)
-            ) * 2
-
-
-            shift_attrLo = BAND(shift_attrLo, 0x00FF) +
-                LSHIFT(
-                    (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte)) > 0)
-                        and 0xFF
-                        or 0x00,
-                    8
-                )
-
-            shift_attrHi = BAND(shift_attrHi, 0x00FF) +
-                LSHIFT(
-                    (BAND(latch_attr, LSHIFT(1, offsetInAttributeByte + 1)) > 0)
-                        and 0xFF
-                        or 0x00,
-                    8
-                )
-
-            shift_patternLo = BAND(shift_patternLo, 0x00FF) +
-                LSHIFT(_hReverseBitOrderU8(latch_ptLo), 8)
-
-            shift_patternHi = BAND(shift_patternHi, 0x00FF) +
-                LSHIFT(_hReverseBitOrderU8(latch_ptHi), 8)
-        end
 
 
         local coroutine_cyclesRemaining = 0
@@ -395,7 +381,8 @@ function m.NewClosure(
         local color, oldCycles
         
         -- Rendering state
-        local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX
+        local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX,
+            offsetInShiftAttributeByte
         
         -- Sprite rendering state
         local isBgTransparent
@@ -456,10 +443,73 @@ function m.NewClosure(
                 if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
                     fetchProgress = (dot - 1)%8
-                    if fetchProgress%2 == 0 then
-                        _myFetchToLatchesBasedOnProgress(fetchProgress)
+
+                    if fetchProgress == 0 then      -- Nametable fetch
+                        latch_nt = _read(0x2000 + BAND(ireg_v, BNOT(VRAM_ADDR_MASK_y)))
+                    elseif fetchProgress == 2 then  -- Attribute fetch
+                        
+                        -- Lord forgive me for this inlining...
+                        -- This gets the attribute address
+                        latch_attr = _read(
+                            0x2000
+                                + BAND(ireg_v, VRAM_ADDR_MASK_N) -- Nametable select
+                                + 0b001111000000            -- AttributeOffset (The attribute offset within the nametable)
+                                + RSHIFT(BAND(
+                                    0b000001110000000,  -- High 3 bits of the Y component
+                                    ireg_v
+                                ), 4)
+                                + RSHIFT(BAND(
+                                    0b00000000011100,   -- High 3 bits of the X component
+                                    ireg_v
+                                ), 2)
+                            )
+
+                    elseif fetchProgress == 4 then  -- Pattern low fetch
+                        latch_ptLo = _read(
+                            RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
+                                + latch_nt*2^4
+                                + (BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0 and 2^12 or 0)
+                        )
+                    elseif fetchProgress == 6 then  -- Pattern high fetch
+                        latch_ptHi = _read(
+                            BOR(
+                                RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
+                                    + latch_nt*2^4
+                                    + (BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0 and 2^12 or 0),
+                                PATTERN_TABLE_ADDR_MASK_BitPlane
+                            )
+                        )
                     elseif fetchProgress == 7 then
-                        _myReloadShifters(ireg_v)
+
+                        -- Reload shifters
+                        offsetInShiftAttributeByte = (
+                            (BAND(ireg_v, VRAM_ADDR_MASK_X)%4 >= 2 and 1 or 0) +
+                            (RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_Y), 5)%4 >= 2 and 2 or 0)
+                        ) * 2
+
+
+                        shift_attrLo = BAND(shift_attrLo, 0x00FF) +
+                            LSHIFT(
+                                (BAND(latch_attr, LSHIFT(1, offsetInShiftAttributeByte)) > 0)
+                                    and 0xFF
+                                    or 0x00,
+                                8
+                            )
+
+                        shift_attrHi = BAND(shift_attrHi, 0x00FF) +
+                            LSHIFT(
+                                (BAND(latch_attr, LSHIFT(1, offsetInShiftAttributeByte + 1)) > 0)
+                                    and 0xFF
+                                    or 0x00,
+                                8
+                            )
+
+                        shift_patternLo = BAND(shift_patternLo, 0x00FF) +
+                            LSHIFT(_hReverseBitOrderU8(latch_ptLo), 8)
+
+                        shift_patternHi = BAND(shift_patternHi, 0x00FF) +
+                            LSHIFT(_hReverseBitOrderU8(latch_ptHi), 8)
+                        
 
                         if isRenderingEnabled then
                             ireg_v = _getAddressAfterIncrementHorizontal(ireg_v)
@@ -531,9 +581,8 @@ function m.NewClosure(
                     end
                     
                 elseif dot == 337 or dot == 339 then
-                    _myFetchToLatchesBasedOnProgress(
-                        0 -- 0 progress implies nametable fetch
-                    )
+                    -- Nametable fetch
+                    latch_nt = _read(0x2000 + BAND(ireg_v, BNOT(VRAM_ADDR_MASK_y)))
                 end
 
                 -- Get pixel to return

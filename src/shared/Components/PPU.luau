@@ -386,10 +386,7 @@ function m.NewClosure(
         
         -- Sprite rendering state
         local isBgTransparent
-        local isSpriteTransparent
         local isSprite0Hit 
-
-        local shouldSpriteBeRendered
 
         while true do
             coroutine_cyclesRemaining = coroutine_cyclesRemaining > 0
@@ -585,26 +582,21 @@ function m.NewClosure(
                     latch_nt = _read(0x2000 + BAND(ireg_v, BNOT(VRAM_ADDR_MASK_y)))
                 end
 
-                -- Get pixel to return
+                -- Get pixel to return. Sprite is assumed to be opaque, since it can only appear
+                -- in the cache if it isn't transparent.
                 if spriteIndex then
                     isBgTransparent = BAND(bgPixel, 0b11) == 0
-                    isSpriteTransparent = BAND(spritePixel, 0b11) == 0
-
-                    shouldSpriteBeRendered = _shouldSpriteBeRendered(
-                        isBgTransparent, isSpriteTransparent, eval_priorityCache[dot + 1]
-                    )
 
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
                     if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
                         isSprite0Hit = eval_isSprite0BeingDrawn
                             and spriteIndex == 0
-                            and not (isBgTransparent or isSpriteTransparent)
-
+                            and not isBgTransparent
                         reg_ppuStatus = BOR(reg_ppuStatus, isSprite0Hit and PPUSTATUS_MASK_S or 0)
                     end
                     
-                    returnedPixel = shouldSpriteBeRendered
+                    returnedPixel = ((not eval_priorityCache[dot + 1]) or isBgTransparent)
                         and spritePixel
                         or bgPixel
                 else

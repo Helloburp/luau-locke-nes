@@ -30,19 +30,25 @@ local ADDR_RANGE = 0x8000
 function m.MapperInterface(rom: Rom): IMapper<nil>
     local _prgRead, _chrRead = rom.Interface.PrgMem.Read, rom.Interface.ChrMem.Read
     local prgRom16kBankCount = rom.Header.PrgRom16kBankCount
+    local romTableBuffer = rom.Interface.TableBuffer
+    local prgBank0, chrBank0 = rom.Interface.PrgBank0, rom.Interface.ChrBank0
+    local bankSize = (ADDR_RANGE/(3 - prgRom16kBankCount))
 
     return {
         FromState = function(_: EmulationState<nil,any>)
             return {
 
                 CpuPeripheral = {
-                    Read = _newCpuReadFromBuffer(prgRom16kBankCount, _prgRead)
+                    Read = function(addr: u16)
+                        if addr < 0x8000 then return nil end
+                        return romTableBuffer[prgBank0 + (addr - 0x8000)%bankSize]
+                    end
                 },
 
                 PpuPeripheral = {
                     Read = function(addr: u16)
                         if addr >= 0x2000 then return nil end
-                        return _chrRead(addr)
+                        return romTableBuffer[chrBank0 + addr]
                     end
                 },
 

@@ -5,6 +5,7 @@ local T = require(inst_core["Helpers.types"])
 type u8 = T.u8
 type u16 = T.u16
 type Mem = T.Bus
+type TableBuffer = T.TableBuffer
 
 
 export type Header = {
@@ -24,7 +25,10 @@ export type Header = {
 
 export type RomInterface = {
     PrgMem: Mem,
-    ChrMem: Mem
+    ChrMem: Mem,
+    TableBuffer: TableBuffer,
+    PrgBank0: number,
+    ChrBank0: number
 }
 
 export type Rom = {

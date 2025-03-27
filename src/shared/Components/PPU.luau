@@ -383,6 +383,8 @@ function m.NewClosure(
         -- Rendering state
         local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX,
             offsetInShiftAttributeByte
+
+        bgPixel = 0b00000
         
         -- Sprite rendering state
         local isBgTransparent
@@ -426,7 +428,6 @@ function m.NewClosure(
 
             -- If we need to calculate the pixel, do so
             if isVisibleScanline or isPreRenderLine then
-                bgPixel = 0b00000
 
                 -- Fetch cycles
                 if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then

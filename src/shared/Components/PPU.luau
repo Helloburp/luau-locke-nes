@@ -377,7 +377,7 @@ function m.NewClosure(
 
         -- Main clock function
         local dot, scanline
-        local returnedPixel
+        local returnedPixel = 0b00000
         local color, oldCycles
         
         -- Rendering state
@@ -408,9 +408,6 @@ function m.NewClosure(
                 execution_cycles%DOTS_PER_SCANLINE,
                 (execution_cycles - execution_cycles%DOTS_PER_SCANLINE)/DOTS_PER_SCANLINE
 
-
-            -- Cycle and return pixel
-            returnedPixel = 0b00000
 
 
             -- At beginning of frame; clear status

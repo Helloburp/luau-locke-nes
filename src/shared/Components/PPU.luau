@@ -395,7 +395,7 @@ function m.NewClosure(
         local color, oldCycles
         
         -- Rendering state
-        local bgPixel, spriteIndex, spritePixel, fetchProgress
+        local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX
         
         -- Sprite rendering state
         local isBgTransparent
@@ -471,7 +471,7 @@ function m.NewClosure(
                     end
 
 
-                    local shiftedX = LSHIFT(1, ireg_x)
+                    shiftedX = LSHIFT(1, ireg_x)
                     bgPixel = (
                         (BAND(shift_patternLo, shiftedX) > 0 and 1 or 0) +
                         (BAND(shift_patternHi, shiftedX) > 0 and 2 or 0) +

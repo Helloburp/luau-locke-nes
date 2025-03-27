@@ -59,7 +59,8 @@ export type SpriteEvalResult = {
     IsSprite0BeingDrawn: boolean,
     IsOverflow: boolean,
     PixelCache: {u8},       -- Default: 0x00; otherwise a pixel value
-    SpriteIndexCache: {u8}  -- Default: -1 (no sprite); otherwise, an index into SecondaryOAM
+    SpriteIndexCache: {u8}, -- Default: -1 (no sprite); otherwise, an index into SecondaryOAM
+    SpritePriorityCache: {boolean}
 }
 
 export type State = {

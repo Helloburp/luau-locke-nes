@@ -38,8 +38,8 @@ local CYCLES_PER_FRAME_NOSKIP = C.CYCLES_PER_FRAME_NOSKIP
 
 local m = {}
 
-local LSHIFT, RSHIFT, BOR, BAND =
-    bit32.lshift, bit32.rshift, bit32.bor, bit32.band
+local LSHIFT, RSHIFT, BOR, BAND, BXOR =
+    bit32.lshift, bit32.rshift, bit32.bor, bit32.band, bit32.bxor
 local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
@@ -130,7 +130,7 @@ function m.NewClosure(
         local shift_attrHi, shift_attrLo, shift_patternHi, shift_patternLo
         local execution_clock, execution_cycles
         local eval_isSprite0BeingDrawn, eval_spriteFoundCount,
-            eval_pixelCache, eval_spriteIndexCache, eval_isOverflow
+            eval_pixelCache, eval_spriteIndexCache, eval_isOverflow, eval_priorityCache
         local oam, secondaryOam, paletteControl
         local frameCounter
 
@@ -161,9 +161,10 @@ function m.NewClosure(
             eval_isSprite0BeingDrawn, eval_spriteFoundCount, eval_isOverflow =
                 oldEval.IsSprite0BeingDrawn, oldEval.SpriteFoundCount, oldEval.IsOverflow
 
-            eval_pixelCache, eval_spriteIndexCache =
+            eval_pixelCache, eval_spriteIndexCache, eval_priorityCache=
                 table.clone(oldEval.PixelCache),
-                table.clone(oldEval.SpriteIndexCache)
+                table.clone(oldEval.SpriteIndexCache),
+                table.clone(oldEval.SpritePriorityCache)
 
             frameCounter = oldState.FrameCounter
 
@@ -278,6 +279,7 @@ function m.NewClosure(
                         elseif k == "IsOverflow" then eval_isOverflow
                         elseif k == "PixelCache" then eval_pixelCache
                         elseif k == "SpriteIndexCache" then eval_spriteIndexCache
+                        elseif k == "SpritePriorityCache" then eval_priorityCache
                         else _invalidIndex(k)
                 end,
                 __newindex = function(_, k, v)
@@ -286,6 +288,7 @@ function m.NewClosure(
                     elseif k == "IsOverflow" then eval_isOverflow = v
                     elseif k == "PixelCache" then eval_pixelCache = v
                     elseif k == "SpriteIndexCache" then eval_spriteIndexCache = v
+                    elseif k == "SpritePriorityCache" then eval_priorityCache = v
                     else _invalidIndex(k)
                     end
                 end
@@ -404,9 +407,8 @@ function m.NewClosure(
         -- Sprite rendering state
         local isBgTransparent
         local isSpriteTransparent
+        local isSprite0Hit 
 
-        local spriteAttributes
-        local spritePriority
         local shouldSpriteBeRendered
 
         while true do
@@ -483,7 +485,9 @@ function m.NewClosure(
                         (if BAND(shift_attrHi, LSHIFT(1, ireg_x)) > 0 then 8 else 0)
                     )
 
-                    if _ppuMaskGetBit("b", reg_ppuMask) then
+                    
+                    -- if _ppuMaskGetBit("b", reg_ppuMask) then
+                    if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 then
                         _myShift()
                     end
 
@@ -540,16 +544,14 @@ function m.NewClosure(
                     isBgTransparent = BAND(bgPixel, 0b11) == 0
                     isSpriteTransparent = BAND(spritePixel, 0b11) == 0
 
-                    spriteAttributes = RU8(secondaryOam, spriteIndex*4 + 2)
-                    spritePriority = BAND(spriteAttributes, OBJECT_ATTRIBUTE_MASK_Priority) > 0
                     shouldSpriteBeRendered = _shouldSpriteBeRendered(
-                        isBgTransparent, isSpriteTransparent, spritePriority
+                        isBgTransparent, isSpriteTransparent, eval_priorityCache[dot + 1]
                     )
 
                     -- Technically this flag should only be set once per frame.
                     -- If bugs are apparent, make sure to change this.
                     if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
-                        local isSprite0Hit = eval_isSprite0BeingDrawn
+                        isSprite0Hit = eval_isSprite0BeingDrawn
                             and spriteIndex == 0
                             and not (isBgTransparent or isSpriteTransparent)
 
@@ -649,7 +651,8 @@ function m.NewState(): State
             SpriteFoundCount = 0,
             IsOverflow = false,
             PixelCache = table.create(DOTS_PER_SCANLINE, 0x00),
-            SpriteIndexCache = table.create(DOTS_PER_SCANLINE, -1)
+            SpriteIndexCache = table.create(DOTS_PER_SCANLINE, -1),
+            SpritePriorityCache = table.create(DOTS_PER_SCANLINE, false)
         },
         OAM = buffer.create(0x100),
         SecondaryOAM = buffer.create(0x40),
@@ -692,8 +695,9 @@ function m.CopyState(state: State): State
             IsSprite0BeingDrawn = state.SpriteEvalResult.IsSprite0BeingDrawn,
             SpriteFoundCount = state.SpriteEvalResult.SpriteFoundCount,
             IsOverflow = state.SpriteEvalResult.IsOverflow,
-            PixelCache = state.SpriteEvalResult.PixelCache,
-            SpriteIndexCache = state.SpriteEvalResult.SpriteIndexCache
+            PixelCache = table.clone(state.SpriteEvalResult.PixelCache),
+            SpriteIndexCache = table.clone(state.SpriteEvalResult.SpriteIndexCache),
+            SpritePriorityCache = table.clone(state.SpriteEvalResult.SpritePriorityCache)
         },
 
         OAM = h.CopyBuffer(state.OAM),
@@ -924,9 +928,10 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
     local spriteFoundCount = 0
     local spriteSize = if spriteSizeFlag then 16 else 8
     local isSprite0BeingDrawn = false
-    local pixelCache, spriteIndexCache =
+    local pixelCache, spriteIndexCache, priorityCache =
         spriteEvalResult.PixelCache,
-        spriteEvalResult.SpriteIndexCache
+        spriteEvalResult.SpriteIndexCache,
+        spriteEvalResult.SpritePriorityCache
     
     for i = 1, DOTS_PER_SCANLINE do
         pixelCache[i] = 0x00
@@ -934,12 +939,20 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
     end
     
 
+    -- Outer loop variables
+    local y, tileNumber, attr, x, row, isRightBank, tileIndex, lowPatternTableAddress,
+        lowPatternTableValue, highPatternTableValue, spritePriority
+    
+    
+    -- Inner loop variables
+    local pixel, isSpriteTransparent
+
     for i = 0, 63 do
-        local y = RU8(oam, i * 4 + 0) + 1 -- Plus one due to internal offset
+        y = RU8(oam, i * 4 + 0) + 1 -- Plus one due to internal offset
 
         if not (y <= scanline and y + spriteSize > scanline and y < 0xEF) then continue end
 
-        local tileNumber, attr, x =
+        tileNumber, attr, x =
             RU8(oam, i * 4 + 1),
             RU8(oam, i * 4 + 2),
             RU8(oam, i * 4 + 3)
@@ -953,8 +966,7 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
         )
 
         -- Compute pixel information
-        local row = scanline - y
-        local isRightBank, tileIndex
+        row = scanline - y
 
         if spriteSizeFlag then
             isRightBank = BAND(0x01, tileNumber) ~= 0
@@ -967,27 +979,30 @@ function _putDrawnObjectsInSecondaryOam_Out_EvalResult(
             then 7 - row
             else row
         
-        local lowPatternTableAddress = row
+        lowPatternTableAddress = row
             + tileIndex*2^4
             + (if isRightBank then 0x1000 else 0)
         
-        local lowPatternTableValue, highPatternTableValue =
+        lowPatternTableValue, highPatternTableValue =
             _read(lowPatternTableAddress),
             _read(BOR(lowPatternTableAddress, PATTERN_TABLE_ADDR_MASK_BitPlane))
+        
+        spritePriority = BAND(attr, OBJECT_ATTRIBUTE_MASK_Priority) > 0
         
         for dot = x, x + 8 do
             if spriteIndexCache[dot + 1] >= 0 then continue end
             -- Fill cache with pixels and index
-            local pixel = _spritePixelFromProperties(
+            pixel = _spritePixelFromProperties(
                 dot, attr, x,
                 lowPatternTableValue,
                 highPatternTableValue
             )
 
-            local isSpriteTransparent = BAND(pixel, 0b11) == 0
+            isSpriteTransparent = BAND(pixel, 0b11) == 0
             if isSpriteTransparent then continue end
             spriteIndexCache[dot + 1] = spriteFoundCount
             pixelCache[dot + 1] = pixel
+            priorityCache[dot + 1] = spritePriority
         end
 
         spriteFoundCount += 1

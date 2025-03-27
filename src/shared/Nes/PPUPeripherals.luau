@@ -58,33 +58,13 @@ function m.NewPaletteControl(regs: Regs, t: {u8}): Bus
 end
 
 
-function m.NewVRam(
-    _mirrorVRam: (u16) -> u16, b: buffer
-): Bus
-    assert(buffer.len(b) == 0x800)
-
-    local function _read(addr: u16)
-        return RU8(b, _mirrorVRam(addr))
-    end
-
-    local function _write(addr: u16, val: u8)
-        WU8(b, _mirrorVRam(addr), val)
-        return true
-    end
-
-    return {
-        Read = _read,
-        Write = _write
-    }
-end
-
-
 function m.NewBus(
-    vram: Bus,
+    vram: buffer,
     paletteControl: Bus,
-    cartridgePpuPeripheral: Peripheral
+    cartridgePpuPeripheral: Peripheral,
+    _mirrorVRam: (u16) -> u16
 ): Bus
-    local _readVram, _writeVram = vram.Read, vram.Write
+    assert(buffer.len(vram) == 0x800)
     local _readPalette, _writePalette = paletteControl.Read, paletteControl.Write
     local _readCart, _writeCart =
         cartridgePpuPeripheral.Read or function() return nil end,
@@ -95,13 +75,13 @@ function m.NewBus(
     return {
         Read = function(addr: u16)
             return _readCart(addr) or
-                if addr >= 0x2000 and addr < 0x3000 then _readVram(addr)
+                if addr >= 0x2000 and addr < 0x3000 then RU8(vram, _mirrorVRam(addr))
                 elseif addr >= 0x3F00 and addr < 0x4000 then _readPalette(addr)
                 else nil
         end,
         Write = function(addr: u16, data: u8)
             return _writeCart(addr, data) or
-                if addr >= 0x2000 and addr < 0x3000 then _writeVram(addr, data)
+                if addr >= 0x2000 and addr < 0x3000 then WU8(vram, _mirrorVRam(addr), data) or true
                 elseif addr >= 0x3F00 and addr < 0x4000 then _writePalette(addr, data)
                 else false
         end
@@ -117,9 +97,10 @@ function m.NewBusFromState(
     state: State
 )
     return m.NewBus(
-        m.NewVRam(_mirrorVRam, state.VRam),
+        state.VRam,
         m.NewPaletteControl(ppuRegisters, paletteControl),
-        cartridgePpuPeripheral
+        cartridgePpuPeripheral,
+        _mirrorVRam
     )
 end
 

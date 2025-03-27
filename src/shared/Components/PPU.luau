@@ -509,7 +509,7 @@ function m.NewClosure(
                             BAND(shift_attrHi, shiftedX)*8
                         )/shiftedX
                     
-                    -- Shift shifters if rendering enabled
+                        -- Shift shifters if rendering enabled
                         shift_attrHi = RSHIFT(shift_attrHi, 1)
                         shift_attrLo = RSHIFT(shift_attrLo, 1)
                         shift_patternHi = RSHIFT(shift_patternHi, 1)

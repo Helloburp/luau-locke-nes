@@ -40,6 +40,8 @@ local m = {}
 
 local LSHIFT, RSHIFT, BOR, BAND, BXOR =
     bit32.lshift, bit32.rshift, bit32.bor, bit32.band, bit32.bxor
+local BNOT = bit32.bnot
+
 local RU8, WU8, RU32, WU32 = buffer.readu8, buffer.writeu8, buffer.readu32, buffer.writeu32
 local _u8, _u16 = h.WrapU8, h.WrapU16
 
@@ -323,47 +325,38 @@ function m.NewClosure(
 
 
         -- Utility functions
-        local function _myFetchToLatchesBasedOnProgress(
-            ppuCtrl: u8, vramAddr: u16, backgroundFetchProgress: number
-        )
-            if backgroundFetchProgress%2 == 1 then return end
+        local function _myFetchToLatchesBasedOnProgress(backgroundFetchProgress: number)
 
             if backgroundFetchProgress == 0 then
-                latch_nt = _read(_getTileAddressFromVRamAddress(vramAddr))
+                latch_nt = _read(_getTileAddressFromVRamAddress(ireg_v))
             elseif backgroundFetchProgress == 2 then
-                latch_attr = _read(_getAttributeAddressFromVRamAddress(vramAddr))
+                latch_attr = _read(_getAttributeAddressFromVRamAddress(ireg_v))
             elseif backgroundFetchProgress == 4 then
                 latch_ptLo = _read(
                     _getLowPatternTableAddress(
-                        BAND(ppuCtrl, PPUCTRL_MASK_B) > 0,
+                        BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0,
                         latch_nt,
-                        RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_y), 12)
-                        -- _vramAddressGet("y", vramAddr)
+                        RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
                     )
                 )
             elseif backgroundFetchProgress == 6 then
                 latch_ptHi = _read(
                     _getHighPatternTableAddress(
-                        BAND(ppuCtrl, PPUCTRL_MASK_B) > 0,
+                        BAND(reg_ppuCtrl, PPUCTRL_MASK_B) > 0,
                         latch_nt,
-                        RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_y), 12)
+                        RSHIFT(BAND(ireg_v, VRAM_ADDR_MASK_y), 12)
                     )
                 )
             end
         end
 
 
-        local function _myShift()
-            shift_attrHi = RSHIFT(shift_attrHi, 1)
-            shift_attrLo = RSHIFT(shift_attrLo, 1)
-            shift_patternHi = RSHIFT(shift_patternHi, 1)
-            shift_patternLo = RSHIFT(shift_patternLo, 1)
-        end
-
-
         local function _myReloadShifters(vramAddr: u16)
-            local offsetInAttributeByte =
-                _getOffsetInAttributeByteFromVRamAddress(vramAddr)    
+            local offsetInAttributeByte = (
+                (BAND(vramAddr, VRAM_ADDR_MASK_X)%4 >= 2 and 1 or 0) +
+                (RSHIFT(BAND(vramAddr, VRAM_ADDR_MASK_Y), 5)%4 >= 2 and 2 or 0)
+            ) * 2
+
 
             shift_attrLo = BAND(shift_attrLo, 0x00FF) +
                 LSHIFT(
@@ -463,9 +456,9 @@ function m.NewClosure(
                 if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
 
                     fetchProgress = (dot - 1)%8
-                    _myFetchToLatchesBasedOnProgress(reg_ppuCtrl, ireg_v, fetchProgress)
-
-                    if fetchProgress == 7 then
+                    if fetchProgress%2 == 0 then
+                        _myFetchToLatchesBasedOnProgress(fetchProgress)
+                    elseif fetchProgress == 7 then
                         _myReloadShifters(ireg_v)
 
                         if isRenderingEnabled then
@@ -478,17 +471,21 @@ function m.NewClosure(
                     end
 
 
+                    local shiftedX = LSHIFT(1, ireg_x)
                     bgPixel = (
-                        (if BAND(shift_patternLo, LSHIFT(1, ireg_x)) > 0 then 1 else 0) +
-                        (if BAND(shift_patternHi, LSHIFT(1, ireg_x)) > 0 then 2 else 0) +
-                        (if BAND(shift_attrLo, LSHIFT(1, ireg_x)) > 0 then 4 else 0) +
-                        (if BAND(shift_attrHi, LSHIFT(1, ireg_x)) > 0 then 8 else 0)
+                        (BAND(shift_patternLo, shiftedX) > 0 and 1 or 0) +
+                        (BAND(shift_patternHi, shiftedX) > 0 and 2 or 0) +
+                        (BAND(shift_attrLo, shiftedX) > 0 and 4 or 0) +
+                        (BAND(shift_attrHi, shiftedX) > 0 and 8 or 0)
                     )
 
                     
-                    -- if _ppuMaskGetBit("b", reg_ppuMask) then
+                    -- Shift shifters if rendering enabled
                     if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 then
-                        _myShift()
+                        shift_attrHi = RSHIFT(shift_attrHi, 1)
+                        shift_attrLo = RSHIFT(shift_attrLo, 1)
+                        shift_patternHi = RSHIFT(shift_patternHi, 1)
+                        shift_patternLo = RSHIFT(shift_patternLo, 1)
                     end
 
                 elseif dot >= 257 and dot <= 320 then
@@ -535,7 +532,7 @@ function m.NewClosure(
                     
                 elseif dot == 337 or dot == 339 then
                     _myFetchToLatchesBasedOnProgress(
-                        reg_ppuCtrl, ireg_v, 0 -- 0 progress implies nametable fetch
+                        0 -- 0 progress implies nametable fetch
                     )
                 end
 
@@ -829,8 +826,6 @@ function m.New(
     }
 end
 
-local VRAM_ADDR_MASK_y = C.VRAM_ADDR_MASKS["y" :: T.EVRamAddressComponent]
-local BNOT = bit32.bnot
 
 -- Source: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
 function _getTileAddressFromVRamAddress(v: u16)

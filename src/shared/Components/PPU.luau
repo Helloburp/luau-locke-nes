@@ -381,10 +381,8 @@ function m.NewClosure(
         local oldCycles
         
         -- Rendering state
-        local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX,
+        local spriteIndex, spritePixel, fetchProgress, shiftedX,
             offsetInShiftAttributeByte
-
-        bgPixel = 0b00000
 
         while true do
             coroutine_cyclesRemaining = coroutine_cyclesRemaining > 0
@@ -502,7 +500,7 @@ function m.NewClosure(
 
                     if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 then
                         shiftedX = LSHIFT(1, ireg_x)
-                        bgPixel = shiftedX == 0 and 0 or (
+                        returnedPixel = shiftedX == 0 and 0 or (
                             BAND(shift_patternLo, shiftedX) +
                             BAND(shift_patternHi, shiftedX)*2 +
                             BAND(shift_attrLo, shiftedX)*4 +
@@ -514,6 +512,8 @@ function m.NewClosure(
                         shift_attrLo = RSHIFT(shift_attrLo, 1)
                         shift_patternHi = RSHIFT(shift_patternHi, 1)
                         shift_patternLo = RSHIFT(shift_patternLo, 1)
+                    else
+                        returnedPixel = 0b00000
                     end
 
                 elseif dot >= 257 and dot <= 320 then
@@ -584,19 +584,15 @@ function m.NewClosure(
                                 reg_ppuStatus,
                                 (eval_isSprite0BeingDrawn   -- Sprite 0 hit
                                     and spriteIndex == 0
-                                    and (BAND(bgPixel, 0b11) > 0)
+                                    and (BAND(returnedPixel, 0b11) > 0)
                                 ) and PPUSTATUS_MASK_S or 0
                             )
                         end
                         
-                        returnedPixel = ((not eval_priorityCache[dot + 1]) or BAND(bgPixel, 0b11) == 0)
+                        returnedPixel = ((not eval_priorityCache[dot + 1]) or BAND(returnedPixel, 0b11) == 0)
                             and spritePixel
-                            or bgPixel
-                    else
-                        returnedPixel = bgPixel
+                            or returnedPixel
                     end
-                else
-                    returnedPixel = bgPixel
                 end
 
             elseif scanline >= 241 and scanline <= 261 then

@@ -427,14 +427,6 @@ function m.NewClosure(
             -- If we need to calculate the pixel, do so
             if isVisibleScanline or isPreRenderLine then
                 bgPixel = 0b00000
-                if eval_spriteFoundCount > 0 then
-                    spriteIndex, spritePixel =
-                        eval_spriteIndexCache[dot + 1] or -1,
-                        eval_pixelCache[dot + 1] or 0x00
-                    spriteIndex = spriteIndex >= 0 and spriteIndex or nil
-                else
-                    spriteIndex, spritePixel = nil, 0b00000
-                end
 
                 -- Fetch cycles
                 if (dot >= 1 and dot <= 256) or (dot >= 321 and dot <= 336) then
@@ -584,21 +576,29 @@ function m.NewClosure(
 
                 -- Get pixel to return. Sprite is assumed to be opaque, since it can only appear
                 -- in the cache if it isn't transparent.
-                if spriteIndex then
-                    isBgTransparent = BAND(bgPixel, 0b11) == 0
+                if eval_spriteFoundCount > 0 then
+                    spriteIndex = eval_spriteIndexCache[dot + 1]
+                    spriteIndex = spriteIndex >= 0 and spriteIndex or nil
 
-                    -- Technically this flag should only be set once per frame.
-                    -- If bugs are apparent, make sure to change this.
-                    if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
-                        isSprite0Hit = eval_isSprite0BeingDrawn
-                            and spriteIndex == 0
-                            and not isBgTransparent
-                        reg_ppuStatus = BOR(reg_ppuStatus, isSprite0Hit and PPUSTATUS_MASK_S or 0)
+                    if spriteIndex then
+                        spritePixel = eval_pixelCache[dot + 1] or 0x00
+                        isBgTransparent = BAND(bgPixel, 0b11) == 0
+
+                        -- Technically this flag should only be set once per frame.
+                        -- If bugs are apparent, make sure to change this.
+                        if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
+                            isSprite0Hit = eval_isSprite0BeingDrawn
+                                and spriteIndex == 0
+                                and not isBgTransparent
+                            reg_ppuStatus = BOR(reg_ppuStatus, isSprite0Hit and PPUSTATUS_MASK_S or 0)
+                        end
+                        
+                        returnedPixel = ((not eval_priorityCache[dot + 1]) or isBgTransparent)
+                            and spritePixel
+                            or bgPixel
+                    else
+                        returnedPixel = bgPixel
                     end
-                    
-                    returnedPixel = ((not eval_priorityCache[dot + 1]) or isBgTransparent)
-                        and spritePixel
-                        or bgPixel
                 else
                     returnedPixel = bgPixel
                 end

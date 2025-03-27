@@ -385,10 +385,6 @@ function m.NewClosure(
             offsetInShiftAttributeByte
 
         bgPixel = 0b00000
-        
-        -- Sprite rendering state
-        local isBgTransparent
-        local isSprite0Hit 
 
         while true do
             coroutine_cyclesRemaining = coroutine_cyclesRemaining > 0
@@ -580,18 +576,20 @@ function m.NewClosure(
                     if spriteIndex and spriteIndex >= 0 then
                         spriteIndex = spriteIndex >= 0 and spriteIndex or nil
                         spritePixel = eval_pixelCache[dot + 1] or 0x00
-                        isBgTransparent = BAND(bgPixel, 0b11) == 0
 
                         -- Technically this flag should only be set once per frame.
                         -- If bugs are apparent, make sure to change this.
                         if BAND(reg_ppuStatus, PPUSTATUS_MASK_S) == 0 then
-                            isSprite0Hit = eval_isSprite0BeingDrawn
-                                and spriteIndex == 0
-                                and not isBgTransparent
-                            reg_ppuStatus = BOR(reg_ppuStatus, isSprite0Hit and PPUSTATUS_MASK_S or 0)
+                            reg_ppuStatus = BOR(
+                                reg_ppuStatus,
+                                (eval_isSprite0BeingDrawn   -- Sprite 0 hit
+                                    and spriteIndex == 0
+                                    and (BAND(bgPixel, 0b11) > 0)
+                                ) and PPUSTATUS_MASK_S or 0
+                            )
                         end
                         
-                        returnedPixel = ((not eval_priorityCache[dot + 1]) or isBgTransparent)
+                        returnedPixel = ((not eval_priorityCache[dot + 1]) or BAND(bgPixel, 0b11) == 0)
                             and spritePixel
                             or bgPixel
                     else

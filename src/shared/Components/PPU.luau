@@ -575,7 +575,6 @@ function m.NewClosure(
                 -- in the cache if it isn't transparent.
                 if eval_spriteFoundCount > 0 then
                     spriteIndex = eval_spriteIndexCache[dot + 1]
-                    spriteIndex = spriteIndex >= 0 and spriteIndex or nil
 
                     if spriteIndex then
                         spritePixel = eval_pixelCache[dot + 1] or 0x00

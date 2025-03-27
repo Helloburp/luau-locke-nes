@@ -51,9 +51,20 @@ function _pull(regs: Regs, bus: Bus): u8
     return bus.Read(0x100 + regs.SP)
 end
 
+local FLAG_MASK_Z = C.StatusFlagMasks["Z" :: T.EStatusFlag]
+local FLAG_MASK_N = C.StatusFlagMasks["N" :: T.EStatusFlag]
+
 function _setZeroAndNegative(regs: Regs, result: u8)
-    _setFlag("Z", regs, result == 0)
-    _setFlag("N", regs, _getBit(7, result))
+    -- _setFlag("Z", regs, result == 0)
+
+    regs.STATUS = result == 0
+        and BOR(regs.STATUS, FLAG_MASK_Z)
+        or BAND(regs.STATUS, BNOT(FLAG_MASK_Z))
+
+    -- _setFlag("N", regs, _getBit(7, result))
+    regs.STATUS = BAND(result, 0b10000000) > 0
+        and BOR(regs.STATUS, FLAG_MASK_N)
+        or BAND(regs.STATUS, BNOT(FLAG_MASK_N))
 end
 
 
@@ -236,16 +247,21 @@ m.BVC = _newBranch(
     Transfer
 ]]
 
-function _transferToRegister(regs: Regs, reg: string, addr: u16, bus: Bus)
-    regs[reg] = bus.Read(addr)
-    _setZeroAndNegative(regs, regs[reg])
-end
-
 function _newTransferToRegister(reg: string)
     return function(regs: Regs, addr: u16, bus: Bus)
-        _transferToRegister(regs, reg, addr, bus)
+        regs[reg] = bus.Read(addr)
+        -- _setZeroAndNegative(regs, regs[reg])
+        regs.STATUS = regs[reg] == 0
+            and BOR(regs.STATUS, FLAG_MASK_Z)
+            or BAND(regs.STATUS, BNOT(FLAG_MASK_Z))
+
+        -- _setFlag("N", regs, _getBit(7, result))
+        regs.STATUS = BAND(regs[reg], 0b10000000) > 0
+            and BOR(regs.STATUS, FLAG_MASK_N)
+            or BAND(regs.STATUS, BNOT(FLAG_MASK_N))
     end
 end
+
 
 m.LDA = _newTransferToRegister("A")
 m.LDX = _newTransferToRegister("X")

@@ -378,7 +378,7 @@ function m.NewClosure(
         -- Main clock function
         local dot, scanline
         local returnedPixel = 0b00000
-        local color, oldCycles
+        local oldCycles
         
         -- Rendering state
         local bgPixel, spriteIndex, spritePixel, fetchProgress, shiftedX,
@@ -608,11 +608,12 @@ function m.NewClosure(
 
             -- Write to screen
             if dot < 256 and scanline < 240 then
-                color = paletteControl[1 + (returnedPixel%4 == 0 and 0 or returnedPixel)]
                 WU32(
                     screenBuffer,
                     (dot + scanline*256)*4,
-                    COLORS_U32[color] or COLORS_U32[0x28]
+                    COLORS_U32[
+                        paletteControl[1 + (returnedPixel%4 == 0 and 0 or returnedPixel)]
+                    ] or COLORS_U32[0x28]
                 )
             end
 

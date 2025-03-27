@@ -504,6 +504,7 @@ function m.NewClosure(
                     end
 
 
+                    if BAND(reg_ppuMask, PPUMASK_MASK_b) > 0 then
                     shiftedX = LSHIFT(1, ireg_x)
                     bgPixel = (
                         (BAND(shift_patternLo, shiftedX) > 0 and 1 or 0) +

@@ -229,11 +229,15 @@ function _clockFrame<T>(
     if not runningState.Running then return end
     local cycles = runningState.ClockSpeedState:get()
 
+    -- Whether or nor parallelization seems to help is kind of a wash, but I'm gonna keep it
+    -- enabled because it's a cool feature B)
+    task.desynchronize()
     local tic = os.clock()
 
     _clockCycles(math.floor(cycles))
 
     local toc = os.clock()
+    task.synchronize()
 
     local emulationSpeed = Benchmarking.Speed(cycles, dt, C_NES.MASTER_CLOCK_HZ_NTSC/4)
     local executionSpeed = Benchmarking.Speed(cycles, toc - tic, C_NES.MASTER_CLOCK_HZ_NTSC/4)

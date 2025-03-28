@@ -36,9 +36,6 @@ type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 type RunningEmulationContainer<T> = T_EMUCONTEXT.RunningEmulationContainer<T>
 type EmulationConfig = T_EMUCONTEXT.EmulationConfig
 
-local C_DISPLAY = require(inst_api["Display.constants"])
-
-
 
 local Nes = require(inst_nes.NES)
 

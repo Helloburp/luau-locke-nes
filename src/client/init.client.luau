@@ -22,12 +22,15 @@ local API = {
 }
 
 local Auxiliary = {
-    StringBufferConversion = require(inst_root.Auxiliary.StringBufferConversion)
+    StringBufferConversion = require(inst_root.Auxiliary.StringBufferConversion),
+    StreamPacket = require(inst_root.Auxiliary.StreamPacket)
 }
 
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local STREAM_GAMEPLAY = game.ReplicatedStorage
+    :FindFirstChild("STREAM_GAMEPLAY") :: UnreliableRemoteEvent
 
 local rom do
     local romModule = game.ReplicatedStorage.Roms:FindFirstChild(ROM_NAME, true)
@@ -47,6 +50,43 @@ local savestate do
 end
 
 local myContext = UI.EmulationContext.FromRom(rom)
+local PACKET_FRAME_COUNT, PACKET_TIMEOUT = 5, 1
+local packetClearTimestamp = tick()
+local myPacket = Auxiliary.StreamPacket.NewPacket(
+    buffer.len(myContext.ScreenBuffer), PACKET_FRAME_COUNT
+)
+
+local pendingPacketFlag = false
+
+function _sendPacket()
+    STREAM_GAMEPLAY:FireServer(myPacket)
+    _clearPacket()
+    pendingPacketFlag = false
+end
+
+function _clearPacket()
+    Auxiliary.StreamPacket.ClearPacket(myPacket)
+    packetClearTimestamp = tick()
+end
+
+myContext.IO.Display.OnFrameComplete = function()
+    if pendingPacketFlag then return end
+
+    local timeOffset = tick() - packetClearTimestamp
+    if timeOffset > PACKET_TIMEOUT then
+        _clearPacket()
+    end
+
+    local isFull = Auxiliary.StreamPacket.FrameToPacket_Return_IsPacketFull(
+        myPacket, myContext.ScreenBuffer, timeOffset
+    )
+
+    if isFull then
+        pendingPacketFlag = true
+    end
+end
+
+
 local myUiState = UI.IrisLoop.State()
 UI.EmulationContext.NewEmulation(
     myContext, savestate, UI.IrisLoop.EmulationConfig(myUiState, DEBUG_CONFIG)
@@ -71,11 +111,16 @@ end)
 RunService.Heartbeat:Connect(function(dt)
     UI.IrisLoop.ClockFrame(myContext, myUiState, dt)
     UI.IrisLoop.RenderFrame(myContext, myUiState)
+
+    if pendingPacketFlag then
+        _sendPacket()
+    end
 end)
 
 Players.LocalPlayer.CharacterAdded:Connect(function(char)
     local root = char:WaitForChild("HumanoidRootPart", 5)
     if not (root and root:IsA("BasePart")) then return end
+    root.CFrame = CFrame.new(0, 15, 0)
     root.Anchored = true
 end)
 

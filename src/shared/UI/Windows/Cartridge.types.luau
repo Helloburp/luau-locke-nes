@@ -1,6 +1,6 @@
-local inst_ui = script.Parent.Parent
+local inst_api = script.Parent.Parent.Parent.API
 
-local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+local T_EMUCONTEXT = require(inst_api["EmulationContext.types"])
 type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
 

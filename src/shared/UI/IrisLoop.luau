@@ -33,7 +33,7 @@ type IO = T_EMU.IO
 type IEmulation<MapperState,PortState> = T_EMU.IEmulation<MapperState,PortState>
 
 
-local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+local T_EMUCONTEXT = require(inst_api["EmulationContext.types"])
 type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 type RunningEmulationContainer<T> = T_EMUCONTEXT.RunningEmulationContainer<T>
 type EmulationConfig = T_EMUCONTEXT.EmulationConfig
@@ -117,23 +117,22 @@ end
 
 
 function m.ClockFrame<T>(
-    context: EmulationContext<T>,
+    emulationContainer: RunningEmulationContainer<T>,
     uiState: State,
     dt: number
 )
-    if not context.RunningEmulation then return end
 
     _clockFrame(
         uiState,
-        context.RunningEmulation.Emulation.Nes,
-        context.RunningEmulation.ClockCycles,
+        emulationContainer.Emulation.Nes,
+        emulationContainer.ClockCycles,
         dt
     )
 end
 
 
-function m.RenderFrame<T>(context: EmulationContext<T>, uiState: State)
-    API.Display.WriteBufferToImage(context.ScreenBuffer, uiState.ScreenImage)
+function m.RenderFrame<T>(screenBuffer: buffer, uiState: State)
+    API.Display.WriteBufferToImage(screenBuffer, uiState.ScreenImage)
 end
 
 
@@ -144,7 +143,7 @@ function m.EmulationConfig(uiState: State, debugConfig: DebugConfig?): Emulation
 end
 
 
-function m.Render<T>(emulationContext: EmulationContext<T>, uiState: State)
+function m.Render<T>(emulationContext: EmulationContext<T>, uiState: State, io: IO)
     Ui.Elements.WindowControl(uiState.WindowStates)
     Ui.Elements.StateWindow(
         {"PPU Viewer"}, Vector2.new(500, 700), uiState.WindowStates.PpuViewer,
@@ -177,13 +176,13 @@ function m.Render<T>(emulationContext: EmulationContext<T>, uiState: State)
     Ui.Elements.StateWindow(
         {"Execution"}, nil, uiState.WindowStates.Execution,
         function()
-            Windows.Execution.Render(emulationContext, uiState)
+            Windows.Execution.Render(emulationContext, uiState, io)
         end
     )
     Ui.Elements.StateWindow(
         {"Cartridge"}, nil, uiState.WindowStates.Cartridge,
         function()
-            Windows.Cartridge.Render(emulationContext)
+            Windows.Cartridge.Render(emulationContext, io)
         end
     )
 end

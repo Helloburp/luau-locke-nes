@@ -11,14 +11,15 @@ local inst_root = game.ReplicatedStorage.Shared
 local Iris = require(game.ReplicatedStorage.Packages.Iris).Init()
 
 local UI = {
-    EmulationContext = require(inst_root.UI.EmulationContext),
-    IrisLoop = require(inst_root.UI.IrisLoop)
+    IrisLoop = require(inst_root.UI.IrisLoop),
+    InputWrapper = require(inst_root.UI.InputWrapper)
 }
 
 local API = {
     Parse = require(inst_root.API.Parse),
     Emulation = require(inst_root.API.Emulation),
-    AudioPlayer = require(inst_root.API.AudioPlayer)
+    EmulationContext = require(inst_root.API.EmulationContext),
+    AudioPlayer = require(inst_root.API.AudioPlayer),
 }
 
 local Auxiliary = {
@@ -56,8 +57,10 @@ local savestate do
     end
 end
 
+local _getPort1 = UI.InputWrapper.New()
 local myUiState = UI.IrisLoop.State()
 
+local myIO = nil
 local myContext = nil
 local pendingPacketFlag = false
 local PACKET_FRAME_COUNT, PACKET_TIMEOUT = 5, 1
@@ -79,12 +82,16 @@ end
 
 
 function _newContext(rom: buffer)
-    myContext = UI.EmulationContext.FromRom(rom)
+    myIO = API.EmulationContext.NewIO(
+        rom, API.EmulationContext.NewScreenBuffer(),
+        _getPort1, function() return false end
+    )
+    myContext = API.EmulationContext.FromIO(myIO)
     myPacket = Auxiliary.StreamPacket.NewPacket(
-        buffer.len(myContext.ScreenBuffer), PACKET_FRAME_COUNT
+        buffer.len(myIO.Display.ScreenBuffer), PACKET_FRAME_COUNT
     )
 
-    myContext.IO.Display.OnFrameComplete = function()
+    myIO.Display.OnFrameComplete = function()
         if pendingPacketFlag then return end
 
         local timeOffset = tick() - packetClearTimestamp
@@ -93,7 +100,7 @@ function _newContext(rom: buffer)
         end
 
         local isFull = Auxiliary.StreamPacket.FrameToPacket_Return_IsPacketFull(
-            myPacket, myContext.ScreenBuffer, timeOffset
+            myPacket, myIO.Display.ScreenBuffer, timeOffset
         )
 
         if isFull then
@@ -101,7 +108,7 @@ function _newContext(rom: buffer)
         end
     end
 
-    UI.EmulationContext.NewEmulation(
+    API.EmulationContext.NewEmulation(
         myContext, savestate, UI.IrisLoop.EmulationConfig(myUiState, DEBUG_CONFIG)
     )
 end
@@ -137,15 +144,17 @@ Iris:Connect(function()
 		end)
     end
 
-    if not myContext then return end
-    UI.IrisLoop.Render(myContext, myUiState)
+    if not (myContext and myIO) then return end
+    UI.IrisLoop.Render(myContext, myUiState, myIO)
 end)
 
 RunService.Heartbeat:Connect(function(dt)
-    if not myContext then return end
+    if not (myContext and myIO) then return end
 
-    UI.IrisLoop.ClockFrame(myContext, myUiState, dt)
-    UI.IrisLoop.RenderFrame(myContext, myUiState)
+    if myContext.RunningEmulation then
+        UI.IrisLoop.ClockFrame(myContext.RunningEmulation, myUiState, dt)
+    end
+    UI.IrisLoop.RenderFrame(myIO.Display.ScreenBuffer, myUiState)
 
     if pendingPacketFlag then
         _sendPacket()
@@ -158,7 +167,6 @@ Players.LocalPlayer.CharacterAdded:Connect(function(char)
     root.CFrame = CFrame.new(0, 15, 0)
     root.Anchored = true
 end)
-
 
 
 function _audioTest()

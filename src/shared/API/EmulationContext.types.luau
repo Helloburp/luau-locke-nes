@@ -1,10 +1,8 @@
-
 local inst_root = script.Parent.Parent
-local inst_core, inst_nes, inst_api, inst_ui =
+local inst_core, inst_nes, inst_api =
     inst_root.Core,
     inst_root.Nes,
-    inst_root.API,
-    inst_root.UI
+    inst_root.API
 
 local T_NES = require(inst_nes["NES.types"])
 type NES = T_NES.NES
@@ -25,7 +23,6 @@ type Peripheral = T_H.Peripheral
 
 local T_EMU = require(inst_api["Emulation.types"])
 type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
-type EmulationState<MapperState,PortState> = T_EMU.State<MapperState,PortState>
 type IEmulation<MapperState,PortState> = T_EMU.IEmulation<MapperState,PortState>
 type IO = T_EMU.IO
 
@@ -44,9 +41,7 @@ export type RunningEmulationContainer<T> = {
 
 
 export type EmulationContext<MapperState> = {
-    ScreenBuffer: buffer,
     IEmulation: IEmulation<MapperState,ControllerState>,
-    IO: IO,
     RunningEmulation: RunningEmulationContainer<MapperState>?,
 }
 

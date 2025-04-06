@@ -1,14 +1,16 @@
 local inst_root = script.Parent.Parent.Parent
-local inst_api, inst_ui = inst_root.API, inst_root.UI
+local inst_api = inst_root.API
 
 local T_PARSE = require(inst_api["Parse.types"])
 type Header = T_PARSE.Header
 
 local Iris = require(game.ReplicatedStorage.Packages.Iris)
 
-local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+local T_EMUCONTEXT = require(inst_api["EmulationContext.types"])
 type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
+local T_EMU = require(inst_api["Emulation.types"])
+type IO = T_EMU.IO
 
 local C = require(script.Parent["Cartridge.constants"])
 
@@ -31,8 +33,8 @@ function _headerInfo(header: Header)
 end
 
 
-function m.Render<T>(context: EmulationContext<T>)
-    local header = context.IO.Rom.Header
+function m.Render<T>(context: EmulationContext<T>, io: IO)
+    local header = io.Rom.Header
     _headerInfo(header)
     local _renderMapper = C.RENDER_FUNCTIONS_BY_MAPPER_ID[header.MapperId]
     if _renderMapper then

@@ -1,12 +1,16 @@
 local inst_root = script.Parent.Parent.Parent
 
-local inst_api, inst_ui = inst_root.API, inst_root.UI
+local inst_api = inst_root.API
 local Mapper = require(inst_api.Mappers.SxROM_001)
 local C = require(inst_api.Mappers["SxROM_001.constants"])
 local ControlRegister = C.ControlRegister
 
-local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+local T_EMUCONTEXT = require(inst_api["EmulationContext.types"])
 type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
+
+local T_EMU = require(inst_api["Emulation.types"])
+type IO = T_EMU.IO
+
 
 local T = require(inst_api.Mappers["SxROM_001.types"])
 type State = T.State
@@ -19,7 +23,7 @@ local RSHIFT = bit32.rshift
 local m = {}
 
 
-function m.Render(context: EmulationContext<State>)
+function m.Render(context: EmulationContext<State>, io: IO)
     local state = context.RunningEmulation and context.RunningEmulation.Emulation.State.Mapper
     if not state then return end
 
@@ -32,7 +36,7 @@ function m.Render(context: EmulationContext<State>)
         elseif prgBankMode == 2 then `Low 16k bank locked at 0; \z
             High 16k bank {Mapper.GetBank16KB(state.PrgBank)}`
         else `Low 16k bank {Mapper.GetBank16KB(state.PrgBank)}; \z
-            High 16k bank locked at {context.IO.Rom.Header.PrgRom16kBankCount - 1}`
+            High 16k bank locked at {io.Rom.Header.PrgRom16kBankCount - 1}`
     
     local chrBankDescription = if chrBankMode == 0
         then `Low 4k bank {state.ChrBank0}; High 4k bank {state.ChrBank1}`

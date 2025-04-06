@@ -15,8 +15,9 @@ type DebugLog = T_DEBUG.DebugLog
 
 local T_EMU = require(inst_api["Emulation.types"])
 type Emulation<MapperState,PortState> = T_EMU.Emulation<MapperState,PortState>
+type IO = T_EMU.IO
 
-local T_EMUCONTEXT = require(inst_ui["EmulationContext.types"])
+local T_EMUCONTEXT = require(inst_api["EmulationContext.types"])
 type EmulationContext<MapperState> = T_EMUCONTEXT.EmulationContext<MapperState>
 
 local T_IRIS = require(inst_ui["IrisLoop.types"])
@@ -49,7 +50,8 @@ local m = {}
 
 function m.Render<T>(
     context: EmulationContext<T>,
-    uiState: UiState
+    uiState: UiState,
+    io: IO
 )
     local myNes = context.RunningEmulation and context.RunningEmulation.Emulation.Nes or nil
     local myLog = uiState.DebugLog
@@ -120,7 +122,7 @@ function m.Render<T>(
         )
     end
     Iris.Text{
-        API.Log.GetInputLog(context.IO.GetPort1ButtonDown),
+        API.Log.GetInputLog(io.GetPort1ButtonDown),
         [Iris.Args.Text.RichText] = true
     }
     if runningState.BreakComment ~= "" then

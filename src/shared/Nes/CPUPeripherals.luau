@@ -162,34 +162,34 @@ function _newBus(
         cartridgeCpuPeripheral.Write or function() return false end
 
     return {
-        Read = function(addr: u16): u8?
+        Read = function(addr: u16): u8
             if addr > 0x4017 then
-                return _cartRead(addr)
+                return _cartRead(addr) or 0x00
             elseif addr < 0x2000 then
-                return _iramRead(addr)
+                return _iramRead(addr) or 0x00
             elseif addr < 0x4000 then
-                return _ppuRead(addr)
+                return _ppuRead(addr) or 0x00
             elseif addr == 0x4016 or addr == 0x4017 then
-                return _controllerInputRead(addr)
+                return _controllerInputRead(addr) or 0x00
             else
-                return nil
+                return 0x00
             end
         end,
-        Write = function(addr: u16, data: u8): boolean
+        Write = function(addr: u16, data: u8): true
             if addr > 0x4017 then
-                return _cartWrite(addr, data)
+                return _cartWrite(addr, data) or true
             elseif addr < 0x2000 then
-                return _iramWrite(addr, data)
+                return _iramWrite(addr, data) or true
             elseif addr < 0x4000 then
-                return _ppuWrite(addr, data)
+                return _ppuWrite(addr, data) or true
             else
                 if _apuWrite(addr, data) then return true end
                 if addr == 0x4014 then
-                    return _oamDmaWrite(addr, data)
+                    return _oamDmaWrite(addr, data) or true
                 elseif addr == 0x4016 then
-                    return _controllerLatchWrite(addr, data)
+                    return _controllerLatchWrite(addr, data) or true
                 end
-                return false
+                return true
             end
         end
     }
